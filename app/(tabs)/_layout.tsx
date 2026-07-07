@@ -125,6 +125,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="piano" size={24} color={color} />
           ),
+          tabBarStyle: { display: 'none' },
         }}
       />
 
