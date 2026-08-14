@@ -1,7 +1,10 @@
 # 인계문 — 사운드 재생 개선 작업 (누적 기록)
 
-브랜치 **`audio-playback-improvements`** / 최신 커밋 `62d5c76` (기준 커밋이었던 `d9c6fec syusei` 위)
+브랜치 **`audio-playback-improvements`** / 최신 커밋 `775a627` (기준 커밋이었던 `d9c6fec syusei` 위)
 `main`은 **`d9c6fec`에 그대로 있습니다** — 아직 병합하지 않았습니다.
+
+> ✅ **리뷰 5단계는 전부 종료됐습니다** (2번은 오진이라 의도적으로 작업하지 않음).
+> 남은 것은 **실기기 확인 2개**(🐾 matchGameAI / matchGamePG)와 **`main` 병합**뿐입니다.
 
 새 세션에서 이어받을 때 이 문서부터 읽으면 됩니다.
 **이 문서는 누적형입니다.** 이전 내용을 지우지 않고 아래로 쌓습니다.
@@ -18,7 +21,26 @@
 | 3 | 단어 오디오모드·캐시 | **완료** | **확인 완료 — 정상** |
 | 4-A | 탭 이탈 시 그 탭 소리 정지 | **완료** | **대부분 확인 — 정상.** 🎧 learn의 `듣는 중...` 갇힘만 수정 후 **재확인 대기** |
 | 4-B | 오디오 세션 일원화 (`doNotMix`) | **완료** | **바깥 앱 차단 확인 — 정상.** 나머지 항목은 사용자가 **확인 안 하기로 결정** |
-| **5** | **`audioCompat` 걷어내기** | **다음 차례** — 잔재 정리 | — |
+| 5 | `audioCompat` 걷어내기 | **완료** | 🐾 동물게임 · ❄️ 냉장고 확인 — 정상. **matchGameAI / matchGamePG 미확인** |
+
+**리뷰 항목은 여기서 끝입니다.** 아래는 실기기 확인 중에 나와 추가로 처리한 것들입니다.
+
+| | 항목 | 상태 | 실기기 검증 |
+|---|---|---|---|
+| 추가 1 | matchGame 카드 선택 1.5초 입력 잠금 제거 | **완료** | 미확인 |
+| 추가 2 | refri-test 문제음 누락 (31문항 중 2~3개 무음) | **완료** | **확인 완료 — 정상** |
+
+### 남은 일 (2026-08-15 기준)
+
+작업할 코드는 없습니다. 확인과 병합만 남았습니다.
+
+1. **🐾 matchGameAI / matchGamePG 실기기 확인** — 소리가 나는지.
+   `GameAudioManager`를 통해 재생하며 5번에서 `playFromPositionAsync(0)` → `seekTo(0)+play()`로
+   바뀌었습니다. **이 세션 내내 한 번도 들어보지 못한 유일한 경로**입니다.
+2. **🐾 matchGame 입력 잠금 확인** — 카드 연속 터치 / 같은 카드 연타 / 두 장 동시 애니메이션
+3. **`main` 병합** (fast-forward)
+
+미뤄둔 확인(급하지 않음): 4-B의 전화 인터럽션·iOS 무음 스위치, 4-A의 🎧 learn '쉬움'
 
 원래 리뷰의 4번을 **4-A / 4-B로 쪼갰고**, 5번을 새로 추가했습니다.
 **4-B와 5번은 "잔재 정리"로 묶습니다** — 동작을 바꾸는 작업이 아니라 마이그레이션 흔적을 없애는 작업입니다.
@@ -461,6 +483,119 @@ useStopAudioOnBlur(() => {
 
 ---
 
+### 2026-08-15 (세션 5, 이어서) — 5번 완료 (`audioCompat` 삭제)
+
+#### 훈련 의도 확인이 필요 없었던 이유
+
+인계문은 "착수 전에 `refri-test`·`GameAudioManager`의 훈련 의도를 먼저 확인하라"고 경고했습니다.
+조사해 보니 **물어야 할 지점이 없었습니다.** 실제로 쓰이던 API가 8개뿐이고
+전부 **동작이 같은 expo-audio 호출로 1:1 대응**돼, 재생 타이밍에 닿는 결정이 하나도 없었습니다.
+
+| `audioCompat` | → expo-audio | 쓰던 곳 |
+|---|---|---|
+| `Audio.Sound.createAsync(src)` | `createAudioPlayer(src, { updateInterval: 500 })` | matchGame, orderGame, GameAudioManager |
+| `createAsync(src, {shouldPlay, volume})` | `createAudioPlayer` + `volume` + `play()` | refri-test |
+| `playAsync()` | `play()` | matchGame, orderGame |
+| `playFromPositionAsync(0)` | `await seekTo(0)` + `play()` | GameAudioManager |
+| `pauseAsync()` | `pause()` | 3곳 (4-A에서 추가했던 것) |
+| `unloadAsync()` | `remove()` | 6곳 |
+| `getStatusAsync().isLoaded` | `currentStatus.isLoaded` | matchGame, orderGame |
+| `Audio.Sound` 타입 | `AudioPlayer` | 여러 곳 |
+
+**`playAsync`는 `playToEnd`로 바꾸지 않고 `play()` 그대로 옮겼습니다.** 2번에서 되돌렸던 바로 그 지점입니다.
+
+**한 번도 쓰이지 않아 그냥 사라진 것**: `replayAsync`, `setOnPlaybackStatusUpdate`,
+`setProgressUpdateIntervalAsync`(no-op이던 것), `setCompatAudioModeAsync`(4-B에서 마지막 호출부가 없어짐).
+인계문이 "남겨두면 생기는 문제 3가지"로 적었던 항목이 전부 이렇게 정리됐습니다.
+
+`services/audioCompat.ts`는 **삭제**했고, `useStopAudioOnBlur.ts` 주석의 `audioCompat` 언급도 지웠습니다.
+
+---
+
+### 2026-08-15 (세션 5, 이어서) — matchGame 카드 선택 지연 제거 (리뷰 항목 아님)
+
+실기기 확인 중 "사용자가 선택함에 있어 지연시간이 있다"는 보고에서 출발했습니다.
+
+#### 원인
+
+`handleButtonPress`의 가드가 **어느 카드든 애니메이션 중이면 전부 차단**하고 있었습니다.
+
+```js
+if (disabledButtons.has(soundName) || animatingAnimal) return;
+```
+
+`animatingAnimal`은 1.5초 타이머(`:296`)가 풀어주므로, 한 장을 누르면 **1.5초 동안 다른 카드가 전부 먹통**입니다.
+정답 처리(카드 잠금)도 그 타이머 안에서 일어나 "맞혔는데 반응이 없다"로 보입니다.
+
+`git log -S "1500"` 결과 이 값은 **첫 커밋(`b17e8c0`)부터 그대로**이고 조정 이력이 없습니다.
+
+#### 고친 것 — 가드를 카드 단위로
+
+```js
+if (disabledButtons.has(soundName) || animatingRef.current.has(soundName)) return;
+```
+
+같은 카드 연타만 막고 다른 카드는 바로 눌립니다. `TouchableOpacity`의 `disabled`도 그 카드 기준으로 좁혔습니다.
+
+**애니메이션 1.5초와 정답 처리 시점은 그대로 뒀습니다** (아래 "주의사항" 참조).
+
+따라온 변경 3가지:
+- **Rive ref를 카드별로**(`riveRefs`). 하나(`activeRiveRef`)로는 두 장이 동시에 애니메이션할 때 서로 참조를 뺏습니다.
+- **`animatingAnimal`/`errorAnimal`을 Set으로**. 동시에 여러 장이 애니메이션할 수 있어 단일 값으로 표현되지 않습니다.
+- **`animatingRef` 추가**(동기 사본). 가드를 state로 읽으면 갱신이 비동기라 같은 카드 연타를 못 막습니다.
+
+#### 의료 데이터 누락 방지 (이 변경이 만든 위험)
+
+카드를 겹쳐 누를 수 있게 되면서 `handleButtonPress`의 클로저가 **옛 렌더의 `wrongAttempts`**를 잡을 수 있게 됐습니다.
+정답 뒤 1.5초 안에 오답을 누르면 먼저 눌린 정답의 타이머가 옛 배열을 전송합니다.
+`madeMistakeRef`와 같은 방식으로 **`wrongAttemptsRef`**를 두고 `wrong_selections` / `error_count`는 ref에서 읽습니다.
+
+---
+
+### 2026-08-15 (세션 5, 이어서) — refri-test 문제음 누락 수정
+
+> "20개 문항 중 2~3개 정도가 아예 재생이 안들렸다."
+
+#### 진단 과정 (처음에 틀렸습니다)
+
+첫 보고("어느 시점에서 재생이 아예 안 들림")를 **"한 번 실패하면 영구 침묵"**으로 읽고
+예외 처리 구조를 고쳤습니다. 그런데 실제 증상은 **31문항 중 2~3개가 무작위로 빠지는 간헐적 누락**이었고,
+진단이 틀렸습니다. 증상을 정확히 듣기 전에 원인을 단정한 것입니다.
+
+#### 원인 — 재생마다 플레이어를 만들고 버리는 구조
+
+```js
+soundRef.current.remove();                     // 앞 플레이어 파괴
+const player = createAudioPlayer(item.sound);  // 동시에 새 플레이어 생성
+player.play();                                 // 로드도 안 끝났는데 재생 지시
+```
+
+앞 플레이어를 네이티브에서 정리하는 도중에 새 플레이어가 재생을 시작합니다.
+대부분은 이기지만 **가끔 진다** — 무작위 누락의 양상과 맞습니다.
+
+**이 앱은 같은 문제를 이미 두 번 이 방식으로 고쳤습니다** — 1번(드럼 풀)·3번(단어 캐시).
+냉장고만 재생마다 만들고 버리는 구조로 남아 있었습니다. 5번 이전부터 있던 구조입니다.
+
+#### 고친 것 — 상주 플레이어 하나를 재사용
+
+```js
+const player = ensurePlayer();     // 화면당 1개. 처음 쓸 때만 만든다
+player.replace(item.sound);        // 음원만 갈아끼운다
+player.play();
+```
+
+31문항을 돌아도 네이티브 플레이어는 **1개**입니다. 파괴와 생성이 겹치는 상황 자체가 없어집니다.
+재생 순서·다시 듣기·정답 후 다음 문제·탭 이탈 시 정지는 손대지 않았습니다.
+
+곁들여 고친 것:
+- 언마운트 클린업에서 `remove()` 후 `soundRef`를 `null`로. 해제한 플레이어를 계속 붙들면 다음 재생 때 죽은 플레이어를 건드립니다.
+- **포커스 가드에 걸려 재생을 건너뛸 때 로그를 남깁니다.** 조용히 return하면 원인을 찾을 수 없습니다.
+  탭을 떠난 동안에만 찍히므로 평소에는 나오지 않습니다.
+
+**실기기 확인 완료 — 누락이 사라졌습니다.**
+
+---
+
 ## ~~다음 작업~~ 완료 (4-A) — 탭 이탈 시 그 탭 소리 정지
 
 > ✅ **2026-08-15 (세션 4) 완료.** 아래는 **착수 전에 적어 둔 기록**이라 그대로 둡니다.
@@ -492,13 +627,13 @@ app/(tabs)/drum/index.tsx:145   ← 유일한 호출부
 
 ---
 
-## 다음 작업 (~~4-B~~, 5) — 잔재 정리
+## ~~다음 작업 (4-B, 5)~~ 완료 — 잔재 정리
 
 동작을 바꾸는 작업이 아니라 마이그레이션 흔적을 없애는 작업입니다.
 
-> ✅ **4-B는 2026-08-15 (세션 5)에 완료됐습니다.** 아래 4-B 절은 **착수 전에 적어 둔 기록**이라 그대로 둡니다.
-> 실제로 무엇을 했는지는 작업 로그의 "2026-08-15 (세션 5) — 4-B 완료"를 보세요.
-> **남은 것은 5번뿐입니다.**
+> ✅ **4-B·5번 모두 2026-08-15 (세션 5)에 완료됐습니다.** 아래 두 절은 **착수 전에 적어 둔 기록**이라 그대로 둡니다.
+> 실제로 무엇을 했는지는 작업 로그의 "세션 5 — 4-B 완료" / "세션 5, 이어서 — 5번 완료"를 보세요.
+> **리뷰 항목은 남은 것이 없습니다.**
 
 > **먼저 4-A 실기기 확인을 권합니다.** 4-A는 7개 탭 전부의 재생 경로를 건드렸고 아직 미확인입니다.
 > 4-B는 그 위에 오디오 세션까지 바꾸므로, 겹쳐 놓으면 문제가 생겼을 때 원인이 4-A인지 4-B인지 가리기 어렵습니다.
@@ -552,7 +687,7 @@ app/(tabs)/drum/index.tsx:145   ← 유일한 호출부
 5. 동물게임에서 **소리 3개가 여전히 겹쳐 나는지** (훈련 설계가 유지됐는지 확인)
 6. iOS 무음 스위치 ON 상태에서도 소리가 나는지 (`playsInSilentMode` 유지 확인)
 
-### 5. `audioCompat` 걷어내기
+### ~~5. `audioCompat` 걷어내기~~ (완료 — 세션 5)
 
 `services/audioCompat.ts`는 `expo-av` → `expo-audio` 이사용 임시 다리입니다.
 이사는 끝났고(`expo-av`는 설치조차 되어 있지 않음) 다리만 남았습니다.
@@ -636,6 +771,57 @@ app/(tabs)/drum/index.tsx:145   ← 유일한 호출부
 - **4-A의 마지막 확인(🎧 learn '쉬움')은 끝내 하지 않았습니다.** 4-B를 그 위에 얹었으므로,
   이 경로에서 문제가 나오면 원인이 4-A인지 4-B인지 가려야 합니다. 4-B는 세션 설정만 건드렸고
   `WordGame`의 `setAnswered()` 수정과는 무관하다는 점이 구분의 출발점입니다.
+
+### 세션 5(5번·추가 작업)에서 추가된 주의사항
+
+- **`services/audioCompat.ts`는 더 이상 없습니다.** 모든 화면이 `expo-audio`를 직접 씁니다.
+  새 코드에서 `Audio.Sound.createAsync` 같은 expo-av 스타일 API를 찾지 마세요.
+- **재생마다 플레이어를 만들고 버리지 마세요.** 앱 전체가 상주 플레이어로 통일됐습니다
+  (드럼 풀 / 단어 LRU 8 / 냉장고 1개 재사용 / 피아노·기타 자체 캐시).
+  냉장고에서 실제로 소리가 무작위로 누락됐던 원인이 이 패턴입니다.
+- **`matchGame`의 Rive ref는 카드별(`riveRefs`)입니다.** 카드 여러 장이 동시에 애니메이션할 수 있어
+  단일 ref로 되돌리면 서로 참조를 뺏습니다. `animatingAnimals`/`errorAnimals`가 Set인 이유도 같습니다.
+- **`matchGame`의 오답 기록은 전송 시 `wrongAttemptsRef`에서 읽습니다.** state(`wrongAttempts`)로
+  되돌리면 카드를 겹쳐 눌렀을 때 의료 데이터에서 오답이 누락됩니다.
+- **❄️ 냉장고 콘솔에 `❄️ 포커스를 잃은 상태라 재생을 건너뜀`이 찍히면** 탭을 떠난 뒤 예약된 재생이
+  가드에 막힌 것입니다. 의도된 동작입니다.
+- **증상을 정확히 듣기 전에 원인을 단정하지 마세요.** 냉장고 건에서 "어느 시점부터 안 들림"으로 읽고
+  엉뚱한 구조(예외 처리)를 먼저 고쳤습니다. 실제로는 "31개 중 2~3개 무작위 누락"이었고 원인이 달랐습니다.
+  **"언제부터/몇 개나/복구되는지"를 먼저 물어야 합니다.**
+
+### ⚠️ 이유를 모르는 채 그대로 둔 것 — **손대지 마세요** (사용자 결정, 2026-08-15)
+
+둘 다 "왜 이렇게 됐는지" **사용자도 모른다고 확인한** 코드입니다. 근거 없이 고치면 2번의 재현입니다.
+
+**1. `matchGame.tsx`의 1500ms** (`handleButtonPress`의 `resetTimer`)
+
+- `git log -S "1500"` → **첫 커밋 `b17e8c0`부터 그대로**. 조정 이력이 없습니다.
+- **애니메이션 길이와 연결돼 있지 않습니다.** `RiveAnimalGame`은 상태머신 트리거(`fireState`)만 쏘고
+  끝나는 신호를 받지 않습니다. 실제 모션 길이는 `animals_motion.riv` 안에 있고 코드는 모릅니다.
+  1500은 "이 정도면 끝났겠지"라는 **어림값**입니다.
+- 이 어림값 하나에 **시각 효과 · 정답 처리 · `completion_time_seconds` 측정 종료 시각**이 전부 매달려 있습니다.
+- 제대로 고친다면: `RiveAnimalGame`에 `onStateChanged`/`onStop`을 붙여 모션 종료를 실제로 받고
+  (`rive-react-native`가 제공합니다 — `Rive.d.ts:70-74`), 1500은 신호가 안 올 때의 안전망으로 남기고,
+  **정답 처리와 측정 종료는 터치 순간으로 분리**하는 것입니다.
+- **지금은 그대로 둡니다.** 급하지 않은 이유는 아래 2번 때문입니다.
+
+**2. `hooks/useSyncGameData.ts:10`의 `return;`**
+
+```ts
+const syncData = useCallback(async (gameId, data) => {
+    return;              // ← 여기서 함수 종료
+    ...                  // ↓ fetch까지 40줄이 전부 실행되지 않는 코드
+    const API_URL = 'http://192.168.0.54:1357/sync';
+```
+
+- **의료 데이터가 어디로도 전송되지 않습니다.** 게임 6곳(`matchGame`, `orderGame`, `matchGameAI`,
+  `matchGamePG`, `guitar`, `music`)이 이 함수를 부르지만 나가는 데이터는 하나도 없습니다.
+- `matchGame:307`의 `console.log("🚀 [의료 데이터 전송]")`는 `syncData` **호출 직전**에 찍히므로
+  로그만 보면 전송된 것처럼 보입니다. **속지 마세요.**
+- 주소도 `192.168.0.54`로 **같은 공유기 안의 개발용 PC**입니다.
+- **일부러 막은 것인지 실수인지 사용자도 모릅니다.** 지우거나 되살리기 전에 반드시 확인하세요.
+- 부수 효과: **쌓인 데이터가 없으므로** 위 1500ms를 고쳐도 깨질 과거 기록이 없습니다.
+  전송을 켜기 **전에** 측정 방식을 정리하는 것이 순서상 맞습니다.
 
 ---
 
@@ -754,6 +940,26 @@ git checkout main && git merge audio-playback-improvements
 > **"이 변경이 왜 들어갔나"를 찾을 때는 `git log`가 아니라 이 문서를 보세요.**
 > 커밋이 하나라 `git blame`으로도 작업 단위가 구분되지 않습니다.
 
+### 갱신 — 2026-08-15 (세션 5, 5번·추가 작업 완료)
+
+```
+775a627  refri-test: 문제음 누락 수정 (상주 플레이어 하나로 재사용)
+32be790  matchGame: 카드 선택 시 1.5초 입력 잠금 제거
+4b28b74  5번: audioCompat 걷어내고 expo-audio 직접 사용
+26baf82  doc: 인계문 커밋 상태 갱신
+62d5c76  사운드 재생 개선 (1번·3번·4-A·4-B)
+d9c6fec  syusei          ← main은 여기 그대로
+```
+
+**여기서부터는 한 커밋에 한 작업입니다.** `62d5c76`이 4건 뭉치였던 것과 달리
+`4b28b74` / `32be790` / `775a627`은 각각 `git revert`로 하나만 되돌릴 수 있습니다.
+
+**`main` 병합은 아직입니다.** fast-forward입니다.
+
+```
+git checkout main && git merge audio-playback-improvements
+```
+
 `matchGame.tsx` / `orderGame.tsx` / `audioCompat.ts`가 이번에 처음 수정됐습니다.
 **세션 2에서 철회한 순차 재생 변경과는 무관**하며, 재생 타이밍(200ms / 1300ms)은 그대로입니다.
 `npx tsc --noEmit`은 여전히 기존 `useSyncGameData.ts:44` 에러 하나만 나옵니다.
@@ -769,7 +975,7 @@ git checkout main && git merge audio-playback-improvements
 | `doc/conversation_2.md` | 세션 2 대화 기록 |
 | `doc/conversation_3.md` | 세션 3 대화 기록 |
 | `doc/conversation_4.md` | 세션 4 대화 기록 (4-A 작업) |
-| `doc/conversation_5.md` | 세션 5 대화 기록 (4-B 작업, 다음 세션은 `conversation_6.md`를 새로 만듭니다) |
+| `doc/conversation_5.md` | 세션 5 대화 기록 (4-B · 5번 · 추가 작업, 다음 세션은 `conversation_6.md`를 새로 만듭니다) |
 | `CLAUDE.md` | 작업 규칙 (규칙 1: "이해?" = 실행 금지 / 규칙 2: 대화 기록·인계문) |
 
 **세션이 바뀌면 대화 기록 파일도 새로 만듭니다** (`CLAUDE.md` 규칙 2-1).
