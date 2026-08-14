@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useWordAudioPlayer } from '../../hooks/useWordAudioPlayer';
+import { useStopAudioOnBlur } from '../../hooks/useStopAudioOnBlur';
 import { WordPair } from '../../constants/wordSounds';
 import { LAYOUT } from '../../constants/layout';
 import { COLORS, WAVEFORM_GRADIENT } from '../../constants/colors';
@@ -30,12 +31,28 @@ export function WordFlashcard({
   // ✅ SSOT: 파형 데이터도 playingWord에서 파생
   const waveformData = getImmutableWaveformData(playingWord || ''); //waveformData는 playingWord에서 파생
 
+  /** '전체 듣기'에서 단어1 → 단어2로 넘어가는 대기 타이머 (탭을 떠날 때 취소해야 한다) */
+  const playAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // wordPair 변경 시 상태 초기화
   useEffect(() => {
     setPlayingWord(null);
     setIsPlayingAll(false);
     // showWaveform은 자동으로 false가 됨 (파생 상태)
   }, [wordPair]);
+
+  // 📖 탭을 떠날 때 단어 소리를 끊는다.
+  // 탭은 언마운트되지 않으므로 화면의 `setCurrentIndex(0)`만으로는 소리가 멈추지 않는다.
+  // 대기 중인 '전체 듣기' 타이머도 같이 취소해야 떠난 뒤에 단어2가 울리지 않는다.
+  useStopAudioOnBlur(() => {
+    if (playAllTimerRef.current) {
+      clearTimeout(playAllTimerRef.current);
+      playAllTimerRef.current = null;
+    }
+    audioPlayer.stopSound();
+    setPlayingWord(null);
+    setIsPlayingAll(false);
+  });
 
   // 단어 1 재생 핸들러
   const handlePlayWord1 = () => {
@@ -67,7 +84,8 @@ export function WordFlashcard({
 
   // word1 재생 완료 후 word2 준비
   const handleWord1Complete = () => {
-    setTimeout(() => {
+    playAllTimerRef.current = setTimeout(() => {
+      playAllTimerRef.current = null;
       setPlayingWord(wordPair.word2);
       audioPlayer.playWordSound(wordPair.sound2, wordPair.word2, handleWord2Complete);
     }, 300);

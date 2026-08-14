@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { createAudioPlayer } from 'expo-audio';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -35,6 +35,7 @@ import { MiniKeyboardMap } from '../components/MiniKeyboardMap';
 import { FallingNoteTrack } from '../components/FallingNoteTrack';
 import { FallingReplayPrompt, FallingResultOverlay } from '../components/FallingResultOverlays';
 import { songs, type Song, type SongScale } from '../data/songs';
+import { useStopAudioOnBlur } from '../hooks/useStopAudioOnBlur';
 import type { Difficulty, Note } from '../types/music';
 import {
   MUSIC_PROGRESS_KEY,
@@ -504,6 +505,8 @@ export function MusicTrainingScreen() {
   // 오디오 플레이어 캐시
   const soundCache = useRef<{ [key in Note]?: any }>({});
   const recentlyUsedNotes = useRef<Note[]>([]);
+  /** 폴리포니용 임시 플레이어. 캐시에 없으므로 따로 들고 있어야 탭을 떠날 때 같이 멈춘다 */
+  const tempPlayers = useRef<Set<any>>(new Set());
   const starContext = useContext(StarContext) as any;
   const clearContext = useContext(ClearContext) as any;
   const isFocused = useIsFocused();
@@ -528,12 +531,7 @@ export function MusicTrainingScreen() {
       try {
         // 화면 방향 고정 (가로)
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-        // 글로벌 오디오 모드 설정
-        await setAudioModeAsync({
-          playsInSilentMode: true,
-          shouldPlayInBackground: false,
-          interruptionMode: 'mixWithOthers',
-        });
+        // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
       } catch (e) {
         console.error('App initialization failed:', e);
       } finally {
@@ -572,9 +570,17 @@ export function MusicTrainingScreen() {
           console.warn('Failed to release audio player on unmount', e);
         }
       }
+      for (const tempPlayer of tempPlayers.current) {
+        try {
+          tempPlayer.remove();
+        } catch (e) {
+          console.warn('Failed to release temp audio player on unmount', e);
+        }
+      }
       // 캐시 및 사용 내역 강제 소거로 핫 리로드 시 발생하는 release 충돌 해결
       soundCache.current = {};
       recentlyUsedNotes.current = [];
+      tempPlayers.current.clear();
     };
   }, [clearFallingNoteTimers]);
 
@@ -686,9 +692,11 @@ export function MusicTrainingScreen() {
       // 연타 등으로 이미 재생 중일 때 이전 음을 끊지 않고 포개어 재생 (폴리포니)
       if (player.playing) {
         const tempPlayer = createAudioPlayer(soundFiles[note]);
+        tempPlayers.current.add(tempPlayer);
         tempPlayer.play();
         // 3초 뒤 재생 완료 후 자동 메모리 해제
         setTimeout(() => {
+          tempPlayers.current.delete(tempPlayer);
           try {
             tempPlayer.remove();
           } catch (e) { }
@@ -701,6 +709,26 @@ export function MusicTrainingScreen() {
       console.log(`'${note}' 음원 재생 실패:`, error);
     }
   };
+
+  /**
+   * 🎹 탭을 떠날 때 울리던 건반 소리를 끊는다.
+   * 탭은 언마운트되지 않으므로 위 언마운트 클린업(플레이어 해제)은 탭 전환 때 실행되지 않는다.
+   * **캐시는 비우지 않는다** — 비우면 다시 들어올 때 첫 음 지연이 되살아난다.
+   */
+  useStopAudioOnBlur(() => {
+    for (const player of Object.values(soundCache.current)) {
+      try {
+        player?.pause();
+      } catch (e) { }
+    }
+    // 임시 플레이어는 캐시에 없고 되돌릴 상태도 없으므로 바로 해제한다
+    for (const tempPlayer of tempPlayers.current) {
+      try {
+        tempPlayer.remove();
+      } catch (e) { }
+    }
+    tempPlayers.current.clear();
+  });
 
   const playNextQuestion = useCallback(() => {
     let notesToUse: Note[];

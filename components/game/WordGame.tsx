@@ -5,6 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useWordGameLogic } from '../../hooks/useWordGameLogic';
 import { useWordAudioPlayer } from '../../hooks/useWordAudioPlayer';
+import { useStopAudioOnBlur } from '../../hooks/useStopAudioOnBlur';
 import { WordDifficultyType } from '../../constants/wordSounds';
 import { getWordGameMetrics } from '../../constants/layout';
 
@@ -101,6 +102,21 @@ export function WordGame({ difficulty = 'easy', onGameComplete, onAnswerShown }:
       audioPlayer.stopSound();
     };
   }, []);
+
+  // 🎧 탭을 떠날 때 단어 소리를 끊는다.
+  // 탭은 언마운트되지 않으므로 위 언마운트 클린업은 탭 전환 때 실행되지 않는다.
+  // (`learn/index.tsx`가 블러에서 난이도를 'easy'로 되돌리면 아래 이펙트가 stopSound를 부르지만,
+  //  이미 'easy'였으면 값이 그대로라 이펙트가 다시 돌지 않아 소리가 남았다)
+  useStopAudioOnBlur(() => {
+    audioPlayer.stopSound();
+
+    // 재생을 끊으면 '재생 완료' 콜백(:138)도 오지 않아 gameState가 'playing'에 갇힌다.
+    // '듣는 중...' 화면에는 버튼이 없어(:218) 스스로 빠져나올 수 없으므로 선택지 화면으로 넘겨 둔다.
+    // 문제·점수·라운드는 그대로이고, 돌아와서 '다시 듣기'로 같은 문제를 다시 들을 수 있다.
+    if (gameState === 'playing') {
+      setAnswered();
+    }
+  });
 
   // 난이도 변경 시 게임 리셋
   useEffect(() => {

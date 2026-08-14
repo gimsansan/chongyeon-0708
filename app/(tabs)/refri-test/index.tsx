@@ -22,6 +22,7 @@ import Rive from "rive-react-native";
 import StarIcon from "../../../assets/icons/star.svg";
 import RefriStartBtn from "../../../assets/icons/refri_start_btnco1.svg";
 import { MONO_ITEMS, type MonoItem } from "../../../constants/refriItems";
+import { useStopAudioOnBlur } from "../../../hooks/useStopAudioOnBlur";
 import * as Haptics from "expo-haptics";
 
 const REFRI_RIVE_AVAILABLE = true;
@@ -279,6 +280,13 @@ export default function RefriTestScreen() {
     remainingIdsRef.current = remainingIds;
   }, [remainingIds]);
 
+  // ❄️ 탭을 떠날 때 울리던 소리를 끊는다.
+  // 탭은 언마운트되지 않으므로 아래 언마운트 클린업(unloadAsync)은 탭 전환 때 실행되지 않는다.
+  // 언로드하지 않고 멈추기만 해서 '다시 듣기'가 그대로 동작하도록 둔다.
+  const isScreenFocused = useStopAudioOnBlur(() => {
+    soundRef.current?.pauseAsync().catch(() => {});
+  });
+
   // Rive 문 직접 제어 (stale closure 우회)
   const setRiveDoor = (isOpen: boolean) => {
     if (riveRef.current) {
@@ -295,21 +303,7 @@ export default function RefriTestScreen() {
   }, [absorbAmount]);
 
   useEffect(() => {
-    const setupAudioMode = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: false,
-          playThroughEarpieceAndroid: false,
-        });
-      } catch (error) {
-        console.warn("오디오 모드 설정 실패", error);
-      }
-    };
-
-    void setupAudioMode();
-
+    // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
     return () => {
       if (soundRef.current) {
         soundRef.current.unloadAsync();
@@ -512,6 +506,9 @@ export default function RefriTestScreen() {
 
   const playSound = async (item: QuizItem) => {
     if (!item.sound) return;
+    // 정답 뒤 다음 문제는 타이머로 예약된다(:617 → 600ms 대기 후 재생).
+    // 그 사이에 탭을 떠났다면 다른 탭에서 소리가 울리므로 재생하지 않는다.
+    if (!isScreenFocused.current) return;
     try {
       if (soundRef.current) {
         await soundRef.current.unloadAsync();

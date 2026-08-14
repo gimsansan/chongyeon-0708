@@ -17,6 +17,7 @@ import { LAYOUT } from '../../../../constants/layout';
 import { COLORS } from '../../../../constants/colors';
 import { SOUNDS_WITH_IMAGE } from '../../../../constants/animalSounds';
 import { useSyncGameData } from '../../../../hooks/useSyncGameData';
+import { useStopAudioOnBlur } from '../../../../hooks/useStopAudioOnBlur';
 
 const sounds = SOUNDS_WITH_IMAGE;
 
@@ -100,17 +101,50 @@ export default function OrderGame() {
     }
   }, [isGameStarted, showWaveAnimation, measureDropZones]);
 
+  /** 문제음으로 로드된 사운드들. 탭을 떠날 때 멈추려면 state가 아니라 ref로도 들고 있어야 한다 */
+  const questionSoundsRef = useRef<{ sound: Audio.Sound; name: string }[]>([]);
+  /** 탭을 떠났다는 신호. 문제음 재생 루프가 이걸 보고 빠져나온다 */
+  const leftScreenRef = useRef(false);
+
+  /** 로드된 문제음을 전부 멈춘다 (언로드하지 않음 — endGame에서 정리한다) */
+  const pauseQuestionSounds = () => {
+    for (const soundObj of questionSoundsRef.current) {
+      soundObj.sound.pauseAsync().catch(() => { });
+    }
+  };
+
+  // 🐾 탭(또는 이 게임 화면)을 떠날 때 문제음을 끊는다.
+  // 소리가 겹쳐 들리는 것은 훈련 설계이므로 **탭 안 재생 순서·간격(1300ms)은 그대로 둔다.**
+  // 떠났을 때만 루프가 중간에 빠져나오도록 신호를 준다.
+  useStopAudioOnBlur(() => {
+    leftScreenRef.current = true;
+    pauseQuestionSounds();
+  });
+
+  /** 떠난 뒤 남은 재생을 중단하고 시작 전 상태로 되돌린다 */
+  const abandonQuestionPlayback = async () => {
+    pauseQuestionSounds();
+    for (const soundObj of questionSoundsRef.current) {
+      try {
+        await soundObj.sound.unloadAsync();
+      } catch (error) { }
+    }
+    questionSoundsRef.current = [];
+    setPlayList([]);
+    setCorrectSoundNames([]);
+    setShowWaveAnimation(false);
+    setIsGameStarted(false);
+  };
+
   const startGame = async () => {
     setAttemptCount(0);
     setWrongSequences([]); // 오답 기록 초기화
     setShowWaveAnimation(true);
+    leftScreenRef.current = false;
 
     try {
-      // 오디오 모드 설정 (안정적인 재생을 위해)
-      await Audio.setAudioModeAsync({
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true, 
-      });
+      // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
+      // 여기 있던 `duckOthers` 설정은 앱 전체에 잔류하던 것이라 제거했다.
 
       // 선택된 3개의 사운드만 로드 (메모리 최적화 + 최대 안정성)
       const randomSounds = getRandomElements(sounds, 3);
@@ -156,6 +190,13 @@ export default function OrderGame() {
       console.log(`📊 최종 로드 성공: ${soundList.length}/${randomSounds.length}개`);
 
       setPlayList(soundList);
+      questionSoundsRef.current = soundList;
+
+      // 로드하는 동안 탭을 떠났으면 소리를 내지 않고 접는다
+      if (leftScreenRef.current) {
+        await abandonQuestionPlayback();
+        return;
+      }
 
       // 🔍 디버깅 로그
       console.log('=== 게임 시작: 선택된 사운드들 ===');
@@ -197,6 +238,12 @@ export default function OrderGame() {
         if (i < soundList.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1300));
         }
+
+        // 재생 도중 탭을 떠났으면 남은 소리는 내지 않는다
+        if (leftScreenRef.current) {
+          await abandonQuestionPlayback();
+          return;
+        }
       }
 
       if (correctNames.length === 0) {
@@ -213,6 +260,11 @@ export default function OrderGame() {
       // 소리 재생이 완전히 끝난 후 약간의 추가 대기 (사용자 경험 개선)
       console.log('=== 소리 재생 완료 - UI 전환 준비 ===');
       await new Promise(resolve => setTimeout(resolve, 500)); // 0.5초 추가 대기
+
+      if (leftScreenRef.current) {
+        await abandonQuestionPlayback();
+        return;
+      }
 
       console.log('=== UI 전환 시작 ===');
       setShowWaveAnimation(false);
@@ -348,6 +400,7 @@ export default function OrderGame() {
       }
     }
 
+    questionSoundsRef.current = [];
     setIsGameStarted(false);
     setPlayList([]);
     setDroppedImages([null, null, null]);

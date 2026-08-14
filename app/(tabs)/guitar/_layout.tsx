@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { createAudioPlayer } from 'expo-audio';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import MissionProgressIcon from '../../../components/MissionProgressIcon';
+import { useStopAudioOnBlur } from '../../../hooks/useStopAudioOnBlur';
 import { ClearContext } from '../../../context/ClearContext';
 import { StarContext } from '../../../context/StarContext';
 import { useSyncGameData } from '../../../hooks/useSyncGameData';
@@ -55,6 +56,8 @@ export default function Guitar() {
 
   const soundCache = useRef<{ [key in GuitarNote]?: any }>({});
   const recentlyUsedNotes = useRef<GuitarNote[]>([]);
+  /** 폴리포니용 임시 플레이어. 캐시에 없으므로 따로 들고 있어야 탭을 떠날 때 같이 멈춘다 */
+  const tempPlayers = useRef<Set<any>>(new Set());
   
   const { syncData } = useSyncGameData();
   const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
@@ -71,10 +74,7 @@ export default function Guitar() {
     async function init() {
       try {
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-        await setAudioModeAsync({
-          playsInSilentMode: true,
-          interruptionMode: 'mixWithOthers',
-        });
+        // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
         const saved = await AsyncStorage.getItem(GUITAR_PROGRESS_KEY);
         if (saved && isMounted) setProgress(JSON.parse(saved));
       } finally {
@@ -89,6 +89,12 @@ export default function Guitar() {
       for (const player of Object.values(soundCache.current)) {
         player?.remove();
       }
+      for (const temp of tempPlayers.current) {
+        try {
+          temp.remove();
+        } catch (e) { }
+      }
+      tempPlayers.current.clear();
     };
   }, []);
 
@@ -112,8 +118,32 @@ export default function Guitar() {
     }
   }, [progress]);
 
+  /**
+   * 🎸 탭을 떠날 때 울리던 기타 소리를 끊는다.
+   * 탭은 언마운트되지 않으므로 언마운트 클린업(플레이어 해제)은 탭 전환 때 실행되지 않는다.
+   * **캐시는 비우지 않는다** — 비우면 다시 들어올 때 첫 음 지연이 되살아난다.
+   */
+  const isScreenFocused = useStopAudioOnBlur(() => {
+    for (const player of Object.values(soundCache.current)) {
+      try {
+        player?.pause();
+      } catch (e) { }
+    }
+    for (const temp of tempPlayers.current) {
+      try {
+        temp.remove();
+      } catch (e) { }
+    }
+    tempPlayers.current.clear();
+  });
+
   // 2. 사운드 재생 (expo-audio 방식: 폴리포니 지원)
   const playSound = async (note: GuitarNote) => {
+    // 정답을 맞히면 1.2초 뒤에 다음 문제음이 예약된다(:224). 그 사이에 탭을 떠났다면
+    // 다른 탭에서 기타 소리가 울리므로 재생하지 않는다. (문제 출제 흐름 자체는 그대로 두고
+    // 소리만 내지 않는다 — 돌아와서 '다시 듣기'를 누르면 들린다)
+    if (!isScreenFocused.current) return;
+
     try {
       let player = soundCache.current[note];
       if (!player) {
@@ -133,8 +163,14 @@ export default function Guitar() {
 
       if (player.playing) {
         const temp = createAudioPlayer(guitarSounds[note]);
+        tempPlayers.current.add(temp);
         temp.play();
-        setTimeout(() => temp.remove(), 3000);
+        setTimeout(() => {
+          tempPlayers.current.delete(temp);
+          try {
+            temp.remove();
+          } catch (e) { }
+        }, 3000);
       } else {
         player.seekTo(0);
         player.play();

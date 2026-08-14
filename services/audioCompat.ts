@@ -99,6 +99,15 @@ class CompatSound {
     return this.getStatusAsync();
   }
 
+  /**
+   * 재생만 멈춘다 (언로드하지 않으므로 로드된 사운드를 그대로 다시 쓸 수 있다).
+   * 탭을 떠날 때 울리던 소리를 끊는 용도. `expo-av`에는 없던 메서드다.
+   */
+  async pauseAsync(): Promise<PlaybackStatus> {
+    this.player.pause();
+    return this.getCurrentStatus();
+  }
+
   async unloadAsync(): Promise<PlaybackStatus> {
     const status = this.getCurrentStatus();
     this.subscription?.remove();

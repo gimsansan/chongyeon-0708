@@ -11,6 +11,7 @@ import { useAudioManager } from '../../../context/AudioManager';
 import { useGameLogic } from '../../../hooks/useDrumLogic';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../../../constants/colors';
+import Svg, { Circle, G, Path } from 'react-native-svg';
 
 // 하단 고정 버튼(다시 듣기/순환) 반응형 치수 (기준 너비 390)
 const REFERENCE_WIDTH = 390;
@@ -45,6 +46,41 @@ const AnimatedTouchable = RNAnimated.createAnimatedComponent(TouchableOpacity);
 
 /** 설정 드롭다운 패널 높이 = 트랙 + 상하 패딩. 바깥 터치 감지용 백드롭 시작점 계산에도 사용 */
 const SETTINGS_PANEL_HEIGHT = SEGMENTED_TRACK_HEIGHT + 20;
+
+/** 드럼 스틱 아이콘 크기. 삼각형(◀▶) 글리프보다 가로로 길어 보이므로 글자 크기보다 키움 */
+const DRUM_STICK_ICON_SIZE = Math.round(FIXED_ICON_FONT_SIZE * 1.5);
+
+interface DrumStickIconProps {
+  /** bead(스틱 끝 알)가 향하는 쪽 = 이동 방향 */
+  readonly direction: 'left' | 'right';
+  readonly color?: string;
+  readonly opacity?: number;
+}
+
+/**
+ * 하단 이동 버튼용 드럼 스틱 아이콘 (버트 - 몸통 - bead).
+ * path는 가로로 눕힌 한 벌만 두고, 45° 기울임 + 좌우 반전을 회전각으로 처리한다.
+ * (오른쪽 = 우상향 -45°, 왼쪽 = 좌상향 225° → 두 각이 세로축 기준 대칭)
+ * 회전 중심(16,16)에서 가장 먼 점이 15 이내라 32 뷰박스 안에서 잘리지 않음.
+ */
+function DrumStickIcon({ direction, color = '#ffffff', opacity = 1 }: DrumStickIconProps) {
+  return (
+    <Svg width={DRUM_STICK_ICON_SIZE} height={DRUM_STICK_ICON_SIZE} viewBox="0 0 32 32">
+      <G
+        transform={`rotate(${direction === 'left' ? 225 : -45}, 16, 16)`}
+        fill={color}
+        opacity={opacity}
+      >
+        {/* 손에 쥐는 버트 쪽 둥근 끝 */}
+        <Circle cx="3.6" cy="16" r="2.6" />
+        {/* 몸통: 버트(굵음) → 넥(가늘어짐) */}
+        <Path d="M3.6 13.4 L23.4 14.7 L23.4 17.3 L3.6 18.6 Z" />
+        {/* 타격면 bead */}
+        <Circle cx="25.8" cy="16" r="4" />
+      </G>
+    </Svg>
+  );
+}
 
 export default function Index() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -107,6 +143,13 @@ export default function Index() {
     React.useCallback(() => {
       // 탭에 들어올 때 (포커스 얻음)
       audioManagerRef.current?.setCurrentTab('drum');
+      // 첫 타격 지연 제거: 드럼 샘플 5개(≈540KB)를 미리 로드해 둔다
+      audioManagerRef.current?.preloadSounds(
+        Object.entries(DRUM_INSTRUMENTS).map(([key, instrument]) => ({
+          key,
+          source: instrument.sound,
+        }))
+      );
 
       return () => {
         // 탭을 떠날 때 (포커스 잃음) - 게임 상태 정리 (모드 상태는 유지)
@@ -115,7 +158,8 @@ export default function Index() {
         setFinalScore(0);
         setFinalMaxScore(0);
         setIsGameAudioPlaying(false);
-        // AudioManager에서 자동으로 모든 오디오 정리됨
+        // 울리던 드럼 소리를 끊는다. 플레이어 5개는 그대로 남아 재진입 시 즉시 반응한다
+        audioManagerRef.current?.stopAllSounds();
       };
     }, [])
   );
@@ -221,11 +265,7 @@ export default function Index() {
   // 문제 출제 시 소리만 재생 (힌트 없이)
   useEffect(() => {
     if (isQuizActive && gameState === 'playing' && currentInstrument) {
-      audioManager.playSoundWithCallback(
-        currentInstrument,
-        DRUM_INSTRUMENTS[currentInstrument].sound,
-        () => { }
-      );
+      audioManager.playSound(currentInstrument, DRUM_INSTRUMENTS[currentInstrument].sound);
     }
   }, [isQuizActive, gameState, currentInstrument]);
 
@@ -302,8 +342,12 @@ export default function Index() {
       ]}>
             {!isQuizActive ? (
               <>
-                <TouchableOpacity onPress={toggleSettingsPanel} style={styles.headerSide}>
-                  <Text style={styles.headerText}>⚙️ {questionCount}문제</Text>
+                <TouchableOpacity
+                  onPress={toggleSettingsPanel}
+                  style={styles.headerCountButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.headerCountButtonText}>⚙️ {questionCount}문제 </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleStartQuiz}
@@ -440,12 +484,16 @@ export default function Index() {
                         activeOpacity={0.7}
                         disabled={isQuizActive && !isReplayEnabled}
                       >
-                        <Text
-                          style={[styles.fixedReplayButtonText, isQuizActive && !isReplayEnabled && styles.fixedReplayButtonTextDisabled]}
-                          numberOfLines={1}
-                        >
-                          {isQuizActive ? '↻' : '◀'}
-                        </Text>
+                        {isQuizActive ? (
+                          <Text
+                            style={[styles.fixedReplayButtonText, !isReplayEnabled && styles.fixedReplayButtonTextDisabled]}
+                            numberOfLines={1}
+                          >
+                            ↻
+                          </Text>
+                        ) : (
+                          <DrumStickIcon direction="left" />
+                        )}
                       </AnimatedTouchable>
                       {/* 오른쪽 ▶ 순차 이동: 퀴즈모드에서는 회색 처리 대신 언마운트 */}
                       {!isQuizActive && (
@@ -454,7 +502,7 @@ export default function Index() {
                           onPress={() => horizontalDrumScrollerRef.current?.moveToNextInstrumentForCurrentPage()}
                           activeOpacity={0.7}
                         >
-                          <Text style={styles.fixedCycleButtonText}>▶</Text>
+                          <DrumStickIcon direction="right" />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -546,6 +594,30 @@ const styles = StyleSheet.create({
   },
   headerText: {
     fontSize: LAYOUT.drumHeaderTextFontSize,
+    fontWeight: 'bold',
+    color: '#333333',
+  },
+  /**
+   * 헤더 좌측 '⚙️ n문제' 버튼(알약형). 흰 배경 + 옅은 회색 윤곽선 —
+   * 우측 '듣기연습'(코랄)이 주 버튼이므로 이쪽은 보조 버튼으로 대비를 둔다.
+   * marginVertical은 이전 headerSide(paddingVertical 15)와 헤더 높이를 맞추기 위한 값 —
+   * 헤더 높이는 실측(onLayout)해서 설정 패널 top에 쓰이므로 여기서 줄면 패널 위치도 따라 올라감
+   */
+  headerCountButton: {
+    marginHorizontal: 20,
+    marginVertical: 5,
+    paddingHorizontal: Math.round(14 * HEADER_ACTION_SCALE),
+    paddingVertical: Math.round(9 * HEADER_ACTION_SCALE),
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 1,
+  },
+  headerCountButtonText: {
+    fontSize: HEADER_ACTION_FONT_SIZE,
     fontWeight: 'bold',
     color: '#333333',
   },
