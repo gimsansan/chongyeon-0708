@@ -33,26 +33,42 @@ import { RippleLayer } from '../components/RippleLayer';
 import { ParticleVisualizer } from '../components/ParticleVisualizer';
 import { MiniKeyboardMap } from '../components/MiniKeyboardMap';
 import { FallingNoteTrack } from '../components/FallingNoteTrack';
+import { FallingReplayPrompt, FallingResultOverlay } from '../components/FallingResultOverlays';
 import { songs, type Song, type SongScale } from '../data/songs';
 import type { Difficulty, Note } from '../types/music';
 import {
+  MUSIC_PROGRESS_KEY,
   allNotes,
   difficultyLevels,
   isBlackKeyMap,
+  level1_absoluteBeginner,
+  level2_beginner,
+  level3_intermediate,
+  level4_advanced,
+  level5_specialTraining,
+  noteToKeyMap,
   soundFiles,
   whiteIdxRefById,
+  type MusicProgress,
 } from '../constants/music';
+import {
+  HIT_WINDOW_MS,
+  computeFocusStart,
+  fallingScaleLabels,
+  fallingTempoLabels,
+  getFallingClearTarget,
+  getFallingNoteId,
+  getJudgmentGrade,
+  type FallingResult,
+  type FallingTempoMode,
+  type FallingTrackMetrics,
+  type ScheduledFallingNote,
+} from './musicTrainingHelpers';
+import { useSyncGameData } from '../hooks/useSyncGameData';
 
 
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-const computeFocusStart = (noteWhiteIdx: number, currentStart: number, viewportSize: number, totalWhite: number) => {
-  // 14건반 페이지 스냅에 맞춘 포커싱 처리
-  if (noteWhiteIdx <= 13) return 0;
-  if (noteWhiteIdx <= 27) return 14;
-  return 16;
-};
 
 const useAutoFocusViewport = ({
   currentNote,
@@ -87,96 +103,7 @@ const useAutoFocusViewport = ({
   }, [currentNote, totalWhite, viewportSize, setViewportStartIdx]);
 };
 
-// 키보드-음계 매핑 (물리 건반 단축키용)
-const keyToNoteMap: { [key: string]: Note } = {
-  'q': 'C3', 'w': 'D3', 'e': 'E3', 'r': 'F3', 't': 'G3', 'y': 'A3', 'u': 'B3',
-  'i': 'C4', 'o': 'D4', 'p': 'E4', '[': 'F4', ']': 'G4', '\\': 'A4', 'a': 'B4',
-  's': 'C5', 'd': 'D5',
-  'Q': 'C#3', 'W': 'D#3', 'R': 'F#3', 'T': 'G#3', 'Y': 'A#3',
-  'I': 'C#4', 'O': 'D#4', '{': 'F#4', '}': 'G#4', '|': 'A#4',
-  'S': 'C#5', 'D': 'D#5',
-  'f': 'C1', 'g': 'D1', 'h': 'E1', 'j': 'F1', 'k': 'G1', 'l': 'A1', ';': 'B1',
-  "'": 'C2', 'z': 'D2', 'x': 'E2', 'c': 'F2', 'v': 'G2', 'b': 'A2', 'n': 'B2',
-  'F': 'C#1', 'G': 'D#1', 'J': 'F#1', 'K': 'G#1', 'L': 'A#1',
-  '"': 'C#2', 'Z': 'D#2', 'C': 'F#2', 'V': 'G#2', 'B': 'A#2',
-};
-
-const noteToKeyMap = Object.entries(keyToNoteMap).reduce((acc, [key, note]) => {
-  acc[note] = key;
-  return acc;
-}, {} as { [note in Note]?: string });
-
 const CACHE_LIMIT = 15;
-const HIT_WINDOW_MS = 300;
-
-type JudgmentGrade = 'Perfect' | 'Great' | 'Good' | 'Miss';
-
-interface ScheduledFallingNote {
-  id: string;
-  note: Note;
-  expectedTimestamp: number;
-  hitX?: number;
-  hitY?: number;
-  judgment?: JudgmentGrade;
-  hit: boolean;
-  reached: boolean;
-  missed: boolean;
-  beat: number;
-  timeoutId?: ReturnType<typeof setTimeout>;
-}
-
-interface FallingTrackMetrics {
-  x: number;
-  y: number;
-  judgmentLineY: number;
-  laneWidth: number;
-  laneStartX: number;
-}
-
-interface FallingResult {
-  title: string;
-  totalNotes: number;
-  perfect: number;
-  great: number;
-  good: number;
-  cleared: boolean;
-}
-
-const getFallingNoteId = (note: Note, beat: number) => `${note}-${beat}`;
-const fallingScaleLabels: Record<SongScale, string> = {
-  penta5: '5음',
-  white8: '8음',
-};
-type FallingTempoMode = 'normal' | 'slow';
-const fallingTempoLabels: Record<FallingTempoMode, string> = {
-  normal: '보통',
-  slow: '느림',
-};
-
-const getJudgmentGrade = (driftMs: number): JudgmentGrade => {
-  const absDrift = Math.abs(driftMs);
-  if (absDrift <= 80) return 'Perfect';
-  if (absDrift <= 170) return 'Great';
-  if (absDrift <= HIT_WINDOW_MS) return 'Good';
-  return 'Miss';
-};
-
-const getFallingClearTarget = (song: Song | null) => (song?.scale === 'penta5' ? 70 : 80);
-
-const level1_absoluteBeginner: Note[] = ['C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3', 'C4'];
-const level2_beginner: Note[] = allNotes.slice(allNotes.indexOf('C3'), allNotes.indexOf('C5') + 1).filter(note => !isBlackKeyMap[note]);
-const level3_intermediate: Note[] = allNotes.slice(allNotes.indexOf('C3'), allNotes.indexOf('B4') + 1);
-const level4_advanced: Note[] = allNotes;
-const level5_specialTraining: Note[] = allNotes.filter(note => isBlackKeyMap[note]);
-
-const MUSIC_PROGRESS_KEY = '@MiniGameApp:musicProgress';
-
-interface MusicProgress {
-  [difficulty: string]: {
-    cumulativeSuccesses: number;
-    highestScore: number;
-  };
-}
 
 type TrainingMode = 'random' | 'falling' | null;
 
@@ -380,6 +307,14 @@ const renderPianoViewportRow = (
 
 export function MusicTrainingScreen() {
 
+  // 전송용 데이터
+  const { syncData } = useSyncGameData();
+  
+  // 데이터 수집 상태
+  const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
+  const [repeatCount, setRepeatCount] = useState(0);
+  const [sessionLog, setSessionLog] = useState<any[]>([]);
+
   const KEYBOARD_ENABLED = false;
   const VISUALIZER_MODE: 'ripple' | 'particle' = 'particle'; // 스위치 제공 ('ripple'로 변경 시 이전 물결로 복구)
   const SHOW_ANSWER_HINT = true; // 테스트용 정답 힌트 노출 스위치 (true 활성화 / false 비활성화)
@@ -441,15 +376,6 @@ export function MusicTrainingScreen() {
       return;
     }
 
-    const delay = expectedTimestamp - Date.now();
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    if (delay > 0) {
-      timeoutId = setTimeout(() => playSound(note), delay);
-    } else {
-      playSound(note);
-    }
-
     scheduledNotesRef.current.push({
       id,
       note,
@@ -458,7 +384,6 @@ export function MusicTrainingScreen() {
       reached: false,
       missed: false,
       beat,
-      timeoutId,
     });
   }, []);
 
@@ -655,9 +580,9 @@ export function MusicTrainingScreen() {
 
   useEffect(() => {
     if (!isFocused) {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => { });
     } else if (isReady) {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => { });
     }
   }, [isFocused, isReady]);
 
@@ -790,18 +715,41 @@ export function MusicTrainingScreen() {
     const randomIndex = Math.floor(Math.random() * notesToUse.length);
     const randomNote = notesToUse[randomIndex];
     setCurrentNote(randomNote);
+    setRepeatCount(0); // 새 문제 출제 시 데이터 초기화 및 시간 기록
     playSound(randomNote);
   }, [difficulty]);
+
+  const handleDifficultyChange = (name: Difficulty) => {
+    setDifficulty(name);
+    if (mode === 'random') {
+      setCurrentNote(null);
+      setScore(0);
+      setFeedback(`난이도가 ${name}로 변경되었습니다. [문제 재생]을 누르세요.`);
+    }
+  };
 
   const startTraining = () => {
     clearFallingNoteTimers();
     setMode('random');
     setScore(0);
-    setFeedback('훈련 시작!');
+    setSessionLog([]); // 세션 로그 초기화
+    setFeedback('난이도를 선택하고 [문제 재생]을 눌러 시작하세요!');
     setShowMissionSuccess(false);
     setHasShownMissionSuccess(false);
     setCurrentSong(null);
-    playNextQuestion();
+    setCurrentNote(null);
+  };
+
+  const handleResetProgress = async () => {
+    try {
+      await AsyncStorage.removeItem(MUSIC_PROGRESS_KEY);
+      setProgress({});
+      setScore(0);
+      setCurrentNote(null);
+      setFeedback('기록이 초기화되었습니다.');
+    } catch (e) {
+      console.error('Failed to reset music progress.', e);
+    }
   };
 
   const startFallingNoteMode = (songToPlay: Song | null = selectedFallingSong) => {
@@ -817,6 +765,22 @@ export function MusicTrainingScreen() {
   };
 
   const stopTraining = () => {
+    // 훈련 종료시 데이터 전송
+    if (mode === 'random' && sessionLog.length > 0) {
+      const correctCount = sessionLog.filter(log => log.is_correct).length;
+      
+      const medicalDataPayload = {
+        difficulty_level: difficulty,
+        total_attempts: sessionLog.length,
+        correct_count: correctCount,
+        accuracy_rate: parseFloat(((correctCount / sessionLog.length) * 100).toFixed(1)),
+        detailed_logs: sessionLog // 모든 건반 터치 기록 포함
+      };
+
+      console.log("🚀 [의료 데이터 전송] music:", medicalDataPayload);
+      syncData('music', medicalDataPayload);
+    }
+    
     clearFallingNoteTimers();
     if (previewTimerRef.current) {
       clearTimeout(previewTimerRef.current);
@@ -877,6 +841,7 @@ export function MusicTrainingScreen() {
 
   const repeatSound = () => {
     if (currentNote) {
+      setRepeatCount(prev => prev + 1); // 횟수 증가
       playSound(currentNote);
     }
   };
@@ -905,37 +870,50 @@ export function MusicTrainingScreen() {
 
     // 3. 청능 훈련 채점 판단
     if (mode === 'falling' && currentSong) {
-        const now = Date.now();
-        const targetCandidate = scheduledNotesRef.current
-          .map((scheduledNote, index) => ({
-            index,
-            drift: Math.abs(scheduledNote.expectedTimestamp - now),
-            scheduledNote,
-          }))
-          .filter(({ drift, scheduledNote }) =>
-            !scheduledNote.hit && !scheduledNote.missed && scheduledNote.note === note && drift <= HIT_WINDOW_MS
-          )
-          .sort((a, b) => a.drift - b.drift)[0];
-        const targetIndex = targetCandidate?.index ?? -1;
-        
-        if (targetIndex !== -1) {
-          const hitNote = scheduledNotesRef.current[targetIndex];
-          const driftMs = now - hitNote.expectedTimestamp;
-          const judgment = getJudgmentGrade(driftMs);
-          scheduledNotesRef.current[targetIndex].hit = true;
-          scheduledNotesRef.current[targetIndex].judgment = judgment;
-          setHitNoteIds(prev => [...prev, hitNote.id]);
+      const now = Date.now();
+      const targetCandidate = scheduledNotesRef.current
+        .map((scheduledNote, index) => ({
+          index,
+          drift: Math.abs(scheduledNote.expectedTimestamp - now),
+          scheduledNote,
+        }))
+        .filter(({ drift, scheduledNote }) =>
+          !scheduledNote.hit && !scheduledNote.missed && scheduledNote.note === note && drift <= HIT_WINDOW_MS
+        )
+        .sort((a, b) => a.drift - b.drift)[0];
+      const targetIndex = targetCandidate?.index ?? -1;
 
-          triggerFallingHitEffect(note, hitNote.hitX ?? nativeEvent?.pageX, hitNote.hitY ?? nativeEvent?.pageY);
-          
-          if (judgment === 'Perfect') {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-          }
-        } else {
-          setMissPulseKey(prev => prev + 1);
+      if (targetIndex !== -1) {
+        const hitNote = scheduledNotesRef.current[targetIndex];
+        const driftMs = now - hitNote.expectedTimestamp;
+        const judgment = getJudgmentGrade(driftMs);
+        scheduledNotesRef.current[targetIndex].hit = true;
+        scheduledNotesRef.current[targetIndex].judgment = judgment;
+        setHitNoteIds(prev => [...prev, hitNote.id]);
+
+        triggerFallingHitEffect(note, hitNote.hitX ?? nativeEvent?.pageX, hitNote.hitY ?? nativeEvent?.pageY);
+
+        if (judgment === 'Perfect') {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
         }
+      } else {
+        setMissPulseKey(prev => prev + 1);
+      }
     } else if (mode === 'random' && currentNote) {
-        if (note === currentNote) {
+      const isCorrect = note === currentNote;
+      const responseTime = questionStartTime ? (Date.now() - questionStartTime) / 1000 : 0;
+
+      // 이번 터치에 대한 상세 정보 로그 저장
+      const attemptRecord = {
+        target_note: currentNote,
+        selected_note: note,
+        is_correct: isCorrect,
+        response_time_seconds: parseFloat(responseTime.toFixed(2)), // 💡 반응 시간은 소수점 2자리
+        repeat_listens: repeatCount
+      };
+      setSessionLog(prev => [...prev, attemptRecord]);
+
+      if (isCorrect) {
         const newScore = score + 1;
         setScore(newScore);
 
@@ -979,9 +957,11 @@ export function MusicTrainingScreen() {
       } else {
         setScore(prev => (prev > 0 ? prev - 1 : 0));
         setFeedback('오답! 다시 들어보세요.');
+        // 오답 시 재시도 시간을 새로 재기 위해 타이머 리셋
+        setQuestionStartTime(Date.now());
       }
     }
-  }, [mode, currentNote, currentSong, isFallingNoteActive, playNextQuestion, score, progress, difficulty, hasShownMissionSuccess, starContext, clearContext, triggerFallingHitEffect]);
+  }, [mode, currentNote, currentSong, isFallingNoteActive, playNextQuestion, score, progress, difficulty, hasShownMissionSuccess, starContext, clearContext, triggerFallingHitEffect, questionStartTime, repeatCount]);
 
   const handleNotePressOut = useCallback((note: Note) => {
     setActiveNotes(prev => {
@@ -1063,302 +1043,288 @@ export function MusicTrainingScreen() {
   }
 
   return (
-        <SafeAreaView edges={[]} style={styles.fullScreen}>
-          <View style={styles.missionIconContainer} pointerEvents="box-none">
-            <MissionProgressIcon
-              gameId="music"
-              title="피아노 미션"
-              missionText="각 난이도에서 정답 누적 3회"
-              clearText="각 난이도에서 총점 5점 달성"
-              progressItems={progressItems}
-            />
-          </View>
-          {/* 2. Midground Layer (Piano & 훈련 인터페이스) */}
-          <View style={[styles.midgroundLayer, safeAreaFrameStyle]} pointerEvents="box-none">
-            {/* 상단 피아노 건반 영역 */}
-            <View style={styles.pianoArea} pointerEvents="box-none">
-              {isFallingNoteActive && currentSong ? (
-                <View style={styles.fallingModeLayout} pointerEvents="box-none">
-                  <View
-                    style={styles.fallingTrackArea}
-                    pointerEvents="none"
-                    onLayout={(event) => {
-                      const nextWidth = event.nativeEvent.layout.width;
-                      setFallingTrackWidth(prev => Math.abs(prev - nextWidth) < 0.5 ? prev : nextWidth);
-                    }}
-                  >
-                    <FallingNoteTrack
-                      song={currentSong}
-                      bpm={activeFallingBpm}
-                      onNoteSchedule={handleNoteSchedule}
-                      onNoteHit={handleTrackNoteHit}
-                      onSongEnd={handleSongEnd}
-                      hitNoteIds={hitNoteIds}
-                      missNoteIds={missNoteIds}
-                      judgmentPulseKey={judgmentPulseKey}
-                      missPulseKey={missPulseKey}
-                      onTrackMetrics={handleTrackMetrics}
-                      dynamicWhiteKeyWidth={dynamicWhiteKeyWidth}
-                      laneStartX={0}
-                      isPlaying={isFallingNoteActive && previewCount === null}
+    <SafeAreaView edges={[]} style={styles.fullScreen}>
+      <MissionProgressIcon
+        gameId="music"
+        title="피아노 미션"
+        missionText="각 난이도에서 정답 누적 3회"
+        clearText="각 난이도에서 총점 5점 달성"
+        progressItems={progressItems}
+        style={{
+          top: Math.max(12, insets.top),
+          right: insets.right + 12,
+        }}
+        onReset={handleResetProgress}
+      />
+      {/* 2. Midground Layer (Piano & 훈련 인터페이스) */}
+      <View style={[styles.midgroundLayer, safeAreaFrameStyle]} pointerEvents="box-none">
+        {/* 상단 피아노 건반 영역 */}
+        <View style={styles.pianoArea} pointerEvents="box-none">
+          {isFallingNoteActive && currentSong ? (
+            <View style={styles.fallingModeLayout} pointerEvents="box-none">
+              <View
+                style={styles.fallingTrackArea}
+                pointerEvents="none"
+                onLayout={(event) => {
+                  const nextWidth = event.nativeEvent.layout.width;
+                  setFallingTrackWidth(prev => Math.abs(prev - nextWidth) < 0.5 ? prev : nextWidth);
+                }}
+              >
+                <FallingNoteTrack
+                  song={currentSong}
+                  bpm={activeFallingBpm}
+                  onNoteSchedule={handleNoteSchedule}
+                  onNoteHit={handleTrackNoteHit}
+                  onSongEnd={handleSongEnd}
+                  hitNoteIds={hitNoteIds}
+                  missNoteIds={missNoteIds}
+                  judgmentPulseKey={judgmentPulseKey}
+                  missPulseKey={missPulseKey}
+                  onTrackMetrics={handleTrackMetrics}
+                  dynamicWhiteKeyWidth={dynamicWhiteKeyWidth}
+                  laneStartX={0}
+                  isPlaying={isFallingNoteActive && previewCount === null}
+                />
+              </View>
+
+              <View style={styles.fallingKeyboardArea} pointerEvents="box-none">
+                <View style={[styles.pianoContainer, styles.fallingPianoContainer]} pointerEvents="box-none">
+                  <View style={styles.pianoWrapper} pointerEvents="box-none">
+                    {renderPianoViewportRow(
+                      pianoNotes,
+                      pianoVisibleNoteSet,
+                      activeNotes,
+                      handlers,
+                      dynamicStyles,
+                      KEYBOARD_ENABLED,
+                      pianoViewportStartIdx,
+                      pianoViewportSize
+                    )}
+                  </View>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <>
+              {!isFixedViewport && (
+                <View style={styles.octaveController}>
+                  <Animated.View style={{
+                    opacity: leftArrowOpacity,
+                    transform: [{ translateX: leftArrowTranslateX }]
+                  }}>
+                    <TouchableOpacity
+                      style={[
+                        styles.octaveBtn,
+                        viewportStartIdx === 0 && styles.octaveBtnDisabled,
+                        (isTraining && currentNote && (whiteIdxRefById.get(currentNote) ?? 0) < viewportStartIdx && difficulty === '4단계') && styles.octaveBtnHighlight
+                      ]}
+                      onPress={handleShiftLeft}
+                      disabled={viewportStartIdx === 0}
+                    >
+                      <Ionicons name="chevron-back" size={24} color="#fff" />
+                      <Text style={styles.octaveBtnText}>옥타브 낮춤</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+
+                  {/* 중앙 미니 피아노 맵 배치 */}
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <MiniKeyboardMap
+                      viewportStartIdx={currentStartIdx}
+                      setViewportStartIdx={setViewportStartIdx}
+                      currentNote={currentNote}
+                      isTraining={isTraining}
+                      viewportSize={VIEWPORT_SIZE}
                     />
                   </View>
 
-                  <View style={styles.fallingKeyboardArea} pointerEvents="box-none">
-                    <View style={[styles.pianoContainer, styles.fallingPianoContainer]} pointerEvents="box-none">
-                      <View style={styles.pianoWrapper} pointerEvents="box-none">
-                        {renderPianoViewportRow(
-                          pianoNotes,
-                          pianoVisibleNoteSet,
-                          activeNotes,
-                          handlers,
-                          dynamicStyles,
-                          KEYBOARD_ENABLED,
-                          pianoViewportStartIdx,
-                          pianoViewportSize
-                        )}
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              ) : (
-                <>
-                  {!isFixedViewport && (
-                    <View style={styles.octaveController}>
-                      <Animated.View style={{
-                        opacity: leftArrowOpacity,
-                        transform: [{ translateX: leftArrowTranslateX }]
-                      }}>
-                        <TouchableOpacity
-                          style={[
-                            styles.octaveBtn,
-                            viewportStartIdx === 0 && styles.octaveBtnDisabled,
-                            (isTraining && currentNote && (whiteIdxRefById.get(currentNote) ?? 0) < viewportStartIdx && difficulty === '4단계') && styles.octaveBtnHighlight
-                          ]}
-                          onPress={handleShiftLeft}
-                          disabled={viewportStartIdx === 0}
-                        >
-                          <Ionicons name="chevron-back" size={24} color="#fff" />
-                          <Text style={styles.octaveBtnText}>옥타브 낮춤</Text>
-                        </TouchableOpacity>
-                      </Animated.View>
-
-                      {/* 중앙 미니 피아노 맵 배치 */}
-                      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                        <MiniKeyboardMap
-                          viewportStartIdx={currentStartIdx}
-                          setViewportStartIdx={setViewportStartIdx}
-                          currentNote={currentNote}
-                          isTraining={isTraining}
-                          viewportSize={VIEWPORT_SIZE}
-                        />
-                      </View>
-
-                      <Animated.View style={{
-                        opacity: rightArrowOpacity,
-                        transform: [{ translateX: rightArrowTranslateX }]
-                      }}>
-                        <TouchableOpacity
-                          style={[
-                            styles.octaveBtn,
-                            viewportStartIdx === 14 && styles.octaveBtnDisabled,
-                            (isTraining && currentNote && (whiteIdxRefById.get(currentNote) ?? 0) >= viewportStartIdx + VIEWPORT_SIZE && difficulty === '4단계') && styles.octaveBtnHighlight
-                          ]}
-                          onPress={handleShiftRight}
-                          disabled={viewportStartIdx === 14}
-                        >
-                          <Text style={styles.octaveBtnText}>옥타브 높임</Text>
-                          <Ionicons name="chevron-forward" size={24} color="#fff" />
-                        </TouchableOpacity>
-                      </Animated.View>
-                    </View>
-                  )}
-
-                  <View style={styles.pianoContainer} pointerEvents="box-none">
-                    <View style={styles.pianoWrapper} pointerEvents="box-none">
-                      {renderPianoViewportRow(
-                        pianoNotes,
-                        pianoVisibleNoteSet,
-                        activeNotes,
-                        handlers,
-                        dynamicStyles,
-                        KEYBOARD_ENABLED,
-                        pianoViewportStartIdx,
-                        pianoViewportSize
-                      )}
-                    </View>
-                  </View>
-                </>
-              )}
-            </View>
-
-            {/* 하단 미션 제어반 */}
-            <View style={[styles.trainingContainer, shouldUseFallingBottomPanel && styles.fallingTrainingContainer]}>
-              {/* 왼쪽 영역: 점수 및 피드백 */}
-              {!shouldUseFallingBottomPanel && (
-                <View style={styles.infoSection}>
-                  <View style={styles.scoreRow}>
-                    <Text style={styles.scoreText}>점수: {score}</Text>
-                  </View>
-                  <Text style={styles.feedbackText}>{feedback}</Text>
-                  {SHOW_ANSWER_HINT && isTraining && currentNote && (
-                    <Text style={styles.hintText}>★ 정답: {currentNote}</Text>
-                  )}
+                  <Animated.View style={{
+                    opacity: rightArrowOpacity,
+                    transform: [{ translateX: rightArrowTranslateX }]
+                  }}>
+                    <TouchableOpacity
+                      style={[
+                        styles.octaveBtn,
+                        viewportStartIdx === 14 && styles.octaveBtnDisabled,
+                        (isTraining && currentNote && (whiteIdxRefById.get(currentNote) ?? 0) >= viewportStartIdx + VIEWPORT_SIZE && difficulty === '4단계') && styles.octaveBtnHighlight
+                      ]}
+                      onPress={handleShiftRight}
+                      disabled={viewportStartIdx === 14}
+                    >
+                      <Text style={styles.octaveBtnText}>옥타브 높임</Text>
+                      <Ionicons name="chevron-forward" size={24} color="#fff" />
+                    </TouchableOpacity>
+                  </Animated.View>
                 </View>
               )}
 
-              {/* 중앙 영역: 무작위 난이도 / 낙하노트 곡 선택 */}
-              <View style={styles.fallingPickerSection}>
-                {mode === 'random' && (
-                  <View style={styles.difficultyContainer}>
-                    {difficultyLevels.map(({ name, label }) => (
-                      <TouchableOpacity
-                        key={name}
-                        style={[styles.difficultyButton, difficulty === name && styles.difficultyButtonActive]}
-                        onPress={() => setDifficulty(name)}
-                      >
-                        <Text style={styles.difficultyButtonText}>{label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-                {!isTraining && !isFallingResultVisible && !showFallingReplayPrompt && (
-                  <>
-                    <View style={styles.scaleToggleRow}>
-                      {(['penta5', 'white8'] as SongScale[]).map(scale => (
-                        <TouchableOpacity
-                          key={scale}
-                          style={[styles.scaleToggleButton, selectedSongScale === scale && styles.scaleToggleButtonActive]}
-                          onPress={() => handleSelectSongScale(scale)}
-                        >
-                          <Text style={styles.scaleToggleText}>{fallingScaleLabels[scale]}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <View style={styles.scaleToggleRow}>
-                      {(['normal', 'slow'] as FallingTempoMode[]).map(tempoMode => (
-                        <TouchableOpacity
-                          key={tempoMode}
-                          style={[styles.scaleToggleButton, selectedTempoMode === tempoMode && styles.scaleToggleButtonActive]}
-                          onPress={() => setSelectedTempoMode(tempoMode)}
-                        >
-                          <Text style={styles.scaleToggleText}>{fallingTempoLabels[tempoMode]}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <View style={styles.songPickerRow}>
-                      {availableFallingSongs.map(song => (
-                        <TouchableOpacity
-                          key={song.id}
-                          style={[styles.songPickerButton, selectedFallingSong?.id === song.id && styles.songPickerButtonActive]}
-                          onPress={() => setSelectedSongId(song.id)}
-                        >
-                          <Text style={styles.songPickerText}>{song.title}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </>
-                )}
-              </View>
-
-              {/* 오른쪽 영역: 훈련 액션 */}
-              <View style={styles.actionSection}>
-                {!isTraining && !showFallingReplayPrompt && !isFallingResultVisible && (
-                  <TouchableOpacity
-                    style={styles.trainingButton}
-                    onPress={() => startFallingNoteMode()}
-                  >
-                    <Text style={styles.buttonText}>낙하 시작</Text>
-                  </TouchableOpacity>
-                )}
-                {(isTraining || (!showFallingReplayPrompt && !isFallingResultVisible)) && (
-                  <TouchableOpacity
-                    style={[styles.trainingButton, isTraining && styles.trainingButtonActive]}
-                    onPress={isTraining ? stopTraining : startTraining}
-                  >
-                    <Text style={styles.buttonText}>{isTraining ? '훈련 종료' : '훈련 모드'}</Text>
-                  </TouchableOpacity>
-                )}
-                {isTraining && !isFallingNoteActive && (
-                  <TouchableOpacity style={styles.repeatButton} onPress={repeatSound}>
-                    <Text style={styles.buttonText}>다시 듣기</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          </View>
-
-          {/* 미션 성공 오버레이 (터치 차단 포함) */}
-          {showMissionSuccess && (
-            <View style={styles.missionOverlay}>
-              <View style={styles.missionOverlayBox}>
-                <Text style={styles.missionOverlayText}>★ 미션 성공! ★</Text>
-                <Text style={styles.missionOverlaySubText}>자유롭게 계속 도전해보세요!</Text>
-              </View>
-            </View>
-          )}
-
-          {isFallingNoteActive && previewCount !== null && (
-            <View style={styles.previewOverlay} pointerEvents="none">
-              <Text style={styles.previewText}>{previewCount === 0 ? 'Start' : previewCount}</Text>
-            </View>
-          )}
-
-          {showFallingReplayPrompt && lastFallingResult && !fallingResult && (
-            <View style={styles.replayOverlay}>
-              <View style={styles.replayBox}>
-                <Text style={styles.replayTitle}>{lastFallingResult.title}</Text>
-                <Text style={styles.replaySubText}>한 번 더 연습할까요?</Text>
-                <TouchableOpacity style={styles.replayIconButton} onPress={replayFallingSong}>
-                  <Ionicons name="refresh-circle" size={64} color="#00e5ff" />
-                  <Text style={styles.replayIconText}>리플레이</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.resultCloseButton} onPress={showLastFallingResult}>
-                  <Text style={styles.buttonText}>결과 보기</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {fallingResult && !isTraining && (
-            <View style={styles.resultOverlay}>
-              <View style={styles.resultBox}>
-                <Text style={styles.resultTitle}>
-                  {fallingResult.cleared ? '클리어!' : '연습 필요'}
-                </Text>
-                <Text style={styles.resultLine}>
-                  정확도 {fallingResultAccuracy}% · {fallingResultHits}/{fallingResult.totalNotes} 히트
-                </Text>
-                <View style={styles.resultBadgeRow}>
-                  <Text style={[styles.resultBadge, styles.resultBadgePerfect]}>완벽 {fallingResult.perfect}</Text>
-                  <Text style={[styles.resultBadge, styles.resultBadgeGreat]}>훌륭 {fallingResult.great}</Text>
-                  <Text style={[styles.resultBadge, styles.resultBadgeGood]}>양호 {fallingResult.good}</Text>
-                  <Text style={[styles.resultBadge, styles.resultBadgeMiss]}>놓침 {fallingResultMisses}</Text>
+              <View style={styles.pianoContainer} pointerEvents="box-none">
+                <View style={styles.pianoWrapper} pointerEvents="box-none">
+                  {renderPianoViewportRow(
+                    pianoNotes,
+                    pianoVisibleNoteSet,
+                    activeNotes,
+                    handlers,
+                    dynamicStyles,
+                    KEYBOARD_ENABLED,
+                    pianoViewportStartIdx,
+                    pianoViewportSize
+                  )}
                 </View>
-                <TouchableOpacity style={styles.resultCloseButton} onPress={closeFallingResult}>
-                  <Text style={styles.buttonText}>확인</Text>
-                </TouchableOpacity>
               </View>
+            </>
+          )}
+        </View>
+
+        {/* 하단 미션 제어반 */}
+        <View style={[styles.trainingContainer, shouldUseFallingBottomPanel && styles.fallingTrainingContainer]}>
+          {/* 왼쪽 영역: 점수 및 피드백 */}
+          {!shouldUseFallingBottomPanel && (
+            <View style={styles.infoSection}>
+              <View style={styles.scoreRow}>
+                <Text style={styles.scoreText}>점수: {score}</Text>
+              </View>
+              <Text style={styles.feedbackText}>{feedback}</Text>
+              {SHOW_ANSWER_HINT && isTraining && currentNote && (
+                <Text style={styles.hintText}>★ 정답: {currentNote}</Text>
+              )}
             </View>
           )}
 
-          {/* 3. Ripple Effect Layer / Particle Visualizer (가장 상위 레이어 zIndex: 99 강제 배치) */}
-          <View style={styles.rippleContainer} pointerEvents="none">
-            {VISUALIZER_MODE === 'particle' ? (
-              <ParticleVisualizer
-                touchX={touchX}
-                touchY={touchY}
-                triggerTime={triggerTime}
-                particleCount={20}
-                particleSizeScale={isFallingNoteActive ? 0.85 : 1}
-                particleSpeedScale={isFallingNoteActive ? 0.85 : 1}
-                maxParticles={isFallingNoteActive ? 80 : 120}
-              />
-            ) : (
-              <RippleLayer touchX={touchX} touchY={touchY} rippleProgress={rippleProgress} />
+          {/* 중앙 영역: 무작위 난이도 / 낙하노트 곡 선택 */}
+          <View style={styles.fallingPickerSection}>
+            {mode === 'random' && (
+              <View style={styles.difficultyContainer}>
+                {difficultyLevels.map(({ name, label }) => (
+                  <TouchableOpacity
+                    key={name}
+                    style={[styles.difficultyButton, difficulty === name && styles.difficultyButtonActive]}
+                    onPress={() => handleDifficultyChange(name)}
+                  >
+                    <Text style={styles.difficultyButtonText}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {!isTraining && !isFallingResultVisible && !showFallingReplayPrompt && (
+              <>
+                <View style={styles.scaleToggleRow}>
+                  {(['penta5', 'white8'] as SongScale[]).map(scale => (
+                    <TouchableOpacity
+                      key={scale}
+                      style={[styles.scaleToggleButton, selectedSongScale === scale && styles.scaleToggleButtonActive]}
+                      onPress={() => handleSelectSongScale(scale)}
+                    >
+                      <Text style={styles.scaleToggleText}>{fallingScaleLabels[scale]}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.scaleToggleRow}>
+                  {(['normal', 'slow'] as FallingTempoMode[]).map(tempoMode => (
+                    <TouchableOpacity
+                      key={tempoMode}
+                      style={[styles.scaleToggleButton, selectedTempoMode === tempoMode && styles.scaleToggleButtonActive]}
+                      onPress={() => setSelectedTempoMode(tempoMode)}
+                    >
+                      <Text style={styles.scaleToggleText}>{fallingTempoLabels[tempoMode]}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.songPickerRow}>
+                  {availableFallingSongs.map(song => (
+                    <TouchableOpacity
+                      key={song.id}
+                      style={[styles.songPickerButton, selectedFallingSong?.id === song.id && styles.songPickerButtonActive]}
+                      onPress={() => setSelectedSongId(song.id)}
+                    >
+                      <Text style={styles.songPickerText}>{song.title}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
             )}
           </View>
-        </SafeAreaView>
+
+          {/* 오른쪽 영역: 훈련 액션 */}
+          <View style={styles.actionSection}>
+            {!isTraining && !showFallingReplayPrompt && !isFallingResultVisible && (
+              <TouchableOpacity
+                style={styles.trainingButton}
+                onPress={() => startFallingNoteMode()}
+              >
+                <Text style={styles.buttonText}>연주 시작</Text>
+              </TouchableOpacity>
+            )}
+            {(isTraining || (!showFallingReplayPrompt && !isFallingResultVisible)) && (
+              <TouchableOpacity
+                style={[styles.trainingButton, isTraining && styles.trainingButtonActive]}
+                onPress={isTraining ? stopTraining : startTraining}
+              >
+                <Text style={styles.buttonText}>{isTraining ? '훈련 종료' : '훈련 모드'}</Text>
+              </TouchableOpacity>
+            )}
+            {isTraining && !isFallingNoteActive && (
+              <TouchableOpacity
+                style={[styles.repeatButton, !currentNote && { backgroundColor: '#007BFF' }]}
+                onPress={currentNote ? repeatSound : playNextQuestion}
+              >
+                <Text style={styles.buttonText}>{currentNote ? '다시 듣기' : '문제 재생'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* 미션 성공 오버레이 (터치 차단 포함) */}
+      {showMissionSuccess && (
+        <View style={styles.missionOverlay}>
+          <View style={styles.missionOverlayBox}>
+            <Text style={styles.missionOverlayText}>★ 미션 성공! ★</Text>
+            <Text style={styles.missionOverlaySubText}>자유롭게 계속 도전해보세요!</Text>
+          </View>
+        </View>
+      )}
+
+      {isFallingNoteActive && previewCount !== null && (
+        <View style={styles.previewOverlay} pointerEvents="none">
+          <Text style={styles.previewText}>{previewCount === 0 ? 'Start' : previewCount}</Text>
+        </View>
+      )}
+
+      {showFallingReplayPrompt && lastFallingResult && !fallingResult && (
+        <FallingReplayPrompt
+          result={lastFallingResult}
+          onReplay={replayFallingSong}
+          onShowResult={showLastFallingResult}
+        />
+      )}
+
+      {fallingResult && !isTraining && (
+        <FallingResultOverlay
+          result={fallingResult}
+          accuracy={fallingResultAccuracy}
+          hits={fallingResultHits}
+          misses={fallingResultMisses}
+          onClose={closeFallingResult}
+        />
+      )}
+
+      {/* 3. Ripple Effect Layer / Particle Visualizer (가장 상위 레이어 zIndex: 99 강제 배치) */}
+      <View style={styles.rippleContainer} pointerEvents="none">
+        {VISUALIZER_MODE === 'particle' ? (
+          <ParticleVisualizer
+            touchX={touchX}
+            touchY={touchY}
+            triggerTime={triggerTime}
+            particleCount={20}
+            particleSizeScale={isFallingNoteActive ? 0.85 : 1}
+            particleSpeedScale={isFallingNoteActive ? 0.85 : 1}
+            maxParticles={isFallingNoteActive ? 80 : 120}
+          />
+        ) : (
+          <RippleLayer touchX={touchX} touchY={touchY} rippleProgress={rippleProgress} />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -1367,21 +1333,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     flexDirection: 'column',
-  },
-  missionIconContainer: {
-    position: 'absolute',
-    top: 8,
-    left: 16,
-    zIndex: 100,
-    elevation: 100,
-  },
-  backgroundLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1,
   },
   midgroundLayer: {
     position: 'absolute',
@@ -1509,15 +1460,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginHorizontal: 4,
   },
-  octaveIndicator: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  octaveIndicatorText: {
-    color: '#00e5ff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   difficultyContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1581,10 +1523,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  buttonContainer: {
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
   pianoContainer: {
     flex: 1,
     width: '100%',
@@ -1624,18 +1562,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#4CAF50',
     fontWeight: 'bold',
-    marginTop: 2,
-  },
-  rhythmStatsText: {
-    fontSize: 12,
-    color: '#00e5ff',
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  warmupNoteText: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.72)',
-    fontWeight: '600',
     marginTop: 2,
   },
   buttonText: {
@@ -1770,126 +1696,5 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textShadowColor: '#00e5ff',
     textShadowRadius: 14,
-  },
-  replayOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 96,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  replayBox: {
-    minWidth: 300,
-    backgroundColor: 'rgba(18, 18, 22, 0.96)',
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#00e5ff',
-    paddingVertical: 18,
-    paddingHorizontal: 26,
-    alignItems: 'center',
-  },
-  replayTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  replaySubText: {
-    color: 'rgba(255, 255, 255, 0.78)',
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 6,
-    marginBottom: 10,
-  },
-  replayIconButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 20,
-  },
-  replayIconText: {
-    color: '#00e5ff',
-    fontSize: 14,
-    fontWeight: '900',
-    marginTop: -4,
-  },
-  resultOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 96,
-    backgroundColor: 'rgba(0, 0, 0, 0.58)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  resultBox: {
-    minWidth: 360,
-    backgroundColor: 'rgba(18, 18, 22, 0.96)',
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#00e5ff',
-    paddingVertical: 18,
-    paddingHorizontal: 28,
-    alignItems: 'center',
-  },
-  resultTitle: {
-    color: '#00e5ff',
-    fontSize: 30,
-    fontWeight: '900',
-    marginBottom: 14,
-  },
-  resultLine: {
-    color: 'rgba(255, 255, 255, 0.86)',
-    fontSize: 20,
-    fontWeight: '800',
-    marginTop: 8,
-  },
-  resultBadgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  resultBadge: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '900',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  resultBadgePerfect: {
-    backgroundColor: 'rgba(255, 213, 79, 0.22)',
-    borderColor: '#ffd54f',
-    borderWidth: 1,
-  },
-  resultBadgeGreat: {
-    backgroundColor: 'rgba(0, 229, 255, 0.18)',
-    borderColor: '#00e5ff',
-    borderWidth: 1,
-  },
-  resultBadgeGood: {
-    backgroundColor: 'rgba(93, 230, 196, 0.18)',
-    borderColor: '#5de6c4',
-    borderWidth: 1,
-  },
-  resultBadgeMiss: {
-    backgroundColor: 'rgba(255, 82, 82, 0.2)',
-    borderColor: '#ff5252',
-    borderWidth: 1,
-  },
-  resultCloseButton: {
-    backgroundColor: '#007BFF',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginTop: 14,
   },
 });

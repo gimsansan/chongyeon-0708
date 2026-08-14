@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, Text, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import Rive from "rive-react-native";
 
 
@@ -153,11 +152,6 @@ const styles = StyleSheet.create({
     elevation: 4,
     marginBottom: 20,
   },
-  scoreDisplay: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    marginBottom: 15,
-  },
   scoreCombined: {
     marginTop: 16,
     fontSize: 28,
@@ -189,20 +183,6 @@ const styles = StyleSheet.create({
     marginTop: 15,
     gap: 6,
   },
-  progressSegment: {
-    width: 16,
-    height: 16,
-    borderRadius: 0,
-    backgroundColor: "#E0E0E0",
-    borderWidth: 1,
-    borderColor: "#CCC",
-  },
-  progressSegmentFilled: {
-    backgroundColor: "#7cbd7e",
-    borderColor: "#7cbd7e",
-
-    elevation: 3,
-  },
   buttonContainer: {
     width: "100%",
     gap: 15,
@@ -220,11 +200,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     minHeight: 80,
   },
-  actionButtonEmoji: {
-    fontSize: 32,
-    marginBottom: 5,
-  },
-
   buttonText: {
     fontSize: 20,
     fontWeight: "bold",

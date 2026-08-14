@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Alert, Text, View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,39 +13,40 @@ const GAME_STORAGE_KEYS = [
     '@AuditoryTrainingAppPG:gameState',
     '@AuditoryTrainingApp:gameState',
 ];
+const SUBTITLE_TEXT = '원하는 게임을 선택하여 청능 훈련을 시작하세요!';
 
 // 게임 목록 직접 정의
 const games = [
     { 
         id: 'matchGame', 
         name: '소리 맞추기', 
-     
+        desc: '들린 동물 소리를 골라보세요',
         route: '/new/(games)/matchGame',
-        color: '#4A90E2',
-        emoji: '🎮'
+        color: '#6FE0B0',
+        emoji: '🐾'
     },
     { 
         id: 'orderGame', 
         name: '소리 순서', 
-      
+        desc: '들은 순서대로 배열하세요',
         route: '/new/(games)/orderGame',
-        color: '#50C878',
-        emoji: '🔄'
+        color: '#FFD54F',
+        emoji: '🔀'
     },
     { 
         id: 'matchGameAI', 
         name: '강화학습', 
-     
+        desc: 'AI가 약점을 분석해 훈련해요',
         route: '/new/(games)/matchGameAI',
-        color: '#FF6B6B',
+        color: '#FF7A8A',
         emoji: '🚀'
     },
     { 
         id: 'matchGamePG', 
         name: 'PG', 
-      
+        desc: '정책 기반 강화학습 모드',
         route: '/new/(games)/matchGamePG',
-        color: '#9B59B6',
+        color: '#A78BFA',
         emoji: '📊'
     },
 ] as const;
@@ -56,6 +57,29 @@ export default function App() {
     const clearContext = useContext(ClearContext);
     const router = useRouter();
     const [isResetting, setIsResetting] = useState(false);
+    const [displayedSubtitle, setDisplayedSubtitle] = useState('');
+    const [isSubtitleDone, setIsSubtitleDone] = useState(false);
+
+    useEffect(() => {
+        let index = 0;
+        let interval: ReturnType<typeof setInterval> | undefined;
+        const timeout = setTimeout(() => {
+            interval = setInterval(() => {
+                index += 1;
+                setDisplayedSubtitle(SUBTITLE_TEXT.slice(0, index));
+
+                if (index >= SUBTITLE_TEXT.length) {
+                    clearInterval(interval);
+                    setIsSubtitleDone(true);
+                }
+            }, 60);
+        }, 450);
+
+        return () => {
+            clearTimeout(timeout);
+            if (interval) clearInterval(interval);
+        };
+    }, []);
 
     /** [DEV] 나중에 삭제: 전체 초기화 핸들러 */
     const handleResetAll = async () => {
@@ -99,6 +123,8 @@ export default function App() {
 
     const { starData } = starContext;
     const { clearData } = clearContext;
+    const totalStars = games.filter((game) => !!starData[game.id]).length;
+    const totalClears = games.filter((game) => !!clearData[game.id]).length;
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
@@ -108,28 +134,44 @@ export default function App() {
                     { paddingTop: insets.top, paddingBottom: insets.bottom },
                 ]}
             >
+                <View style={styles.glowTop} />
+                <View style={styles.glowLeft} />
+                <View style={styles.glowBottom} />
                 <ScrollView 
                     style={styles.scrollContainer}
                     contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={true}
+                    showsVerticalScrollIndicator={false}
                 >
                     {/* 섹션: 게임 선택 */}
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>🎯 청능 훈련 게임</Text>
-                            <Text style={styles.sectionSubtitle}>
-                                원하는 게임을 선택하여 청능 훈련을 시작하세요!
-                            </Text>
-                            {/* [DEV] 나중에 삭제: 초기화 버튼 */}
-                            <TouchableOpacity
-                                style={styles.resetButton}
-                                onPress={handleResetAll}
-                                disabled={isResetting}
-                            >
-                                <Text style={styles.resetButtonText}>
-                                    {isResetting ? '초기화 중...' : '전체 초기화'}
+                            <View style={styles.titleRow}>
+                                <View style={styles.titleBlock}>
+                                    <Text style={styles.kicker}>AUDITORY TRAINING</Text>
+                                    <Text style={styles.sectionTitle}>🎯 청능 훈련 게임</Text>
+                                </View>
+                                <View style={styles.summaryRow}>
+                                    {totalStars > 0 && (
+                                        <View style={styles.starSummary}>
+                                            <Ionicons name="star" size={14} color="#FFD54F" />
+                                            <Text style={styles.starSummaryText}>{totalStars}</Text>
+                                        </View>
+                                    )}
+                                    {totalClears > 0 && (
+                                        <View style={styles.clearSummary}>
+                                            <Ionicons name="checkmark" size={14} color="#5EE7A8" />
+                                            <Text style={styles.clearSummaryText}>{totalClears}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+
+                            <View style={styles.subtitleBox}>
+                                <Text style={styles.sectionSubtitle}>
+                                    {displayedSubtitle}
+                                    {!isSubtitleDone && <Text style={styles.cursorText}>|</Text>}
                                 </Text>
-                            </TouchableOpacity>
+                            </View>
                         </View>
 
                         {/* 게임 그리드 */}
@@ -141,38 +183,54 @@ export default function App() {
                                 return (
                                     <TouchableOpacity 
                                         key={game.id} 
-                                        style={[
-                                            styles.gameCard,
-                                            isCleared && styles.clearedCard
-                                        ]} 
+                                        style={styles.gameCard} 
                                         onPress={() => router.push(game.route as any)}
-                                        activeOpacity={0.7}
+                                        activeOpacity={0.82}
                                     >
                                         {/* 별 배지 */}
                                         {hasStar && (
                                             <View style={styles.starBadge}>
-                                                <Ionicons name="star" size={16} color="#FFD700" />
+                                                <Ionicons name="star" size={16} color="#FFD54F" />
                                             </View>
                                         )}
                                         
                                         {/* 클리어 배지 */}
                                         {isCleared && (
                                             <View style={styles.clearedBadge}>
-                                                <Text style={styles.clearedText}>완료</Text>
+                                                <Ionicons name="checkmark" size={12} color="#1A1420" />
                                             </View>
                                         )}
 
                                         {/* 아이콘 컨테이너 */}
-                                        <View style={[styles.iconContainer, { backgroundColor: `${game.color}15` }]}>
+                                        <View
+                                            style={[
+                                                styles.iconContainer,
+                                                { borderColor: isCleared ? '#FFD54F' : `${game.color}66` },
+                                            ]}
+                                        >
+                                            <View style={[styles.cardAccent, { backgroundColor: game.color }]} />
                                             <Text style={styles.gameEmoji}>{game.emoji}</Text>
                                         </View>
                                         
                                         {/* 게임 이름 */}
                                         <Text style={styles.gameName}>{game.name}</Text>
+                                        <Text style={styles.gameDesc}>{game.desc}</Text>
                                     </TouchableOpacity>
                                 );
                             })}
                         </View>
+
+                        {/* [DEV] 나중에 삭제: 초기화 버튼 */}
+                        <TouchableOpacity
+                            style={[styles.resetButton, isResetting && styles.resetButtonDisabled]}
+                            onPress={handleResetAll}
+                            disabled={isResetting}
+                        >
+                            <Ionicons name="refresh" size={14} color="#FFB4C8" />
+                            <Text style={styles.resetButtonText}>
+                                {isResetting ? '초기화 중...' : '전체 초기화'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                 </ScrollView>
             </View>
@@ -183,137 +241,236 @@ export default function App() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: '#352B46',
     },
     scrollContainer: {
         flex: 1,
     },
     scrollContent: {
         flexGrow: 1,
-        paddingBottom: 30,
+        paddingBottom: 36,
     },
     loadingText: {
         fontSize: 16,
-        color: '#666',
+        color: '#FFF7E8',
         textAlign: 'center',
     },
-    
+    glowTop: {
+        position: 'absolute',
+        top: -80,
+        right: -40,
+        width: 240,
+        height: 240,
+        borderRadius: 120,
+        backgroundColor: 'rgba(255, 213, 79, 0.10)',
+    },
+    glowLeft: {
+        position: 'absolute',
+        top: 260,
+        left: -110,
+        width: 240,
+        height: 240,
+        borderRadius: 120,
+        backgroundColor: 'rgba(255, 79, 138, 0.10)',
+    },
+    glowBottom: {
+        position: 'absolute',
+        right: -70,
+        bottom: 40,
+        width: 220,
+        height: 220,
+        borderRadius: 110,
+        backgroundColor: 'rgba(167, 139, 250, 0.10)',
+    },
+
     // 섹션 스타일
     section: {
-        marginHorizontal: 15,
-        marginVertical: 10,
+        flex: 1,
+        marginHorizontal: 18,
+        paddingTop: 18,
     },
     sectionHeader: {
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        padding: 20,
-        borderRadius: 15,
-        marginBottom: 15,
-        elevation: 3,
+        marginBottom: 72,
+    },
+    titleRow: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 18,
+    },
+    titleBlock: {
+        flex: 1,
+    },
+    kicker: {
+        color: 'rgba(255, 247, 232, 0.68)',
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 3,
+        marginBottom: 6,
     },
     sectionTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        marginBottom: 8,
-        color: '#333',
+        fontSize: 25,
+        fontWeight: '900',
+        color: '#FFF7E8',
+        letterSpacing: -0.5,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    starSummary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingVertical: 7,
+        paddingHorizontal: 12,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255, 213, 79, 0.16)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 213, 79, 0.35)',
+    },
+    starSummaryText: {
+        color: '#FFD54F',
+        fontSize: 13,
+        fontWeight: '900',
+    },
+    clearSummary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingVertical: 7,
+        paddingHorizontal: 12,
+        borderRadius: 18,
+        backgroundColor: 'rgba(94, 231, 168, 0.13)',
+        borderWidth: 1,
+        borderColor: 'rgba(94, 231, 168, 0.35)',
+    },
+    clearSummaryText: {
+        color: '#5EE7A8',
+        fontSize: 13,
+        fontWeight: '900',
+    },
+    subtitleBox: {
+        minHeight: 58,
+        justifyContent: 'center',
+        paddingHorizontal: 18,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255, 247, 232, 0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.07)',
+        elevation: 1,
     },
     sectionSubtitle: {
-        fontSize: 16,
-        textAlign: 'center',
-        color: '#666',
-        lineHeight: 22,
+        fontSize: 14,
+        color: 'rgba(255, 247, 232, 0.72)',
+        lineHeight: 21,
+    },
+    cursorText: {
+        color: '#FFD54F',
+        fontWeight: '900',
     },
     resetButton: {
-        marginTop: 12,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        backgroundColor: '#ffebee',
-        borderRadius: 8,
+        alignSelf: 'center',
+        marginTop: 34,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        paddingHorizontal: 18,
+        backgroundColor: 'rgba(255, 79, 138, 0.12)',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 79, 138, 0.30)',
+    },
+    resetButtonDisabled: {
+        opacity: 0.55,
     },
     resetButtonText: {
         fontSize: 13,
-        color: '#c62828',
-        fontWeight: '600',
+        color: '#FFB4C8',
+        fontWeight: '800',
     },
-    
+
     // 게임 그리드
     gameGrid: {
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        borderRadius: 15,
-        padding: 15,
-        elevation: 2,
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        gap: 12,
+        justifyContent: 'center',
+        columnGap: 38,
+        rowGap: 34,
     },
-    
+
     // 게임 카드
     gameCard: {
-        width: '48%',
-        aspectRatio: 1,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 15,
-        padding: 15,
-        justifyContent: 'center',
+        width: 128,
         alignItems: 'center',
         position: 'relative',
-        elevation: 3,
-        borderWidth: 2,
-        borderColor: 'transparent',
     },
-    clearedCard: {
-        borderColor: '#FFD700',
-        borderWidth: 3,
+    cardAccent: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        zIndex: 2,
     },
-    
     // 아이콘 컨테이너
     iconContainer: {
-        width: 70,
-        height: 70,
-        borderRadius: 35,
+        width: 104,
+        height: 104,
+        borderRadius: 28,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 14,
+        backgroundColor: '#1F1A32',
+        borderWidth: 1.5,
+        overflow: 'hidden',
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 5 },
     },
     gameEmoji: {
-        fontSize: 36,
+        fontSize: 38,
     },
-    
+
     // 게임 이름
     gameName: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#FFF7E8',
         textAlign: 'center',
+        marginBottom: 8,
     },
-    
+    gameDesc: {
+        fontSize: 12,
+        color: 'rgba(255, 247, 232, 0.68)',
+        textAlign: 'center',
+        lineHeight: 17,
+    },
+
     // 별 배지
     starBadge: {
         position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: '#FFF9E6',
-        borderRadius: 12,
-        padding: 4,
-        borderWidth: 1,
-        borderColor: '#FFD700',
-        zIndex: 1,
+        top: 10,
+        right: 18,
+        zIndex: 3,
     },
-    
+
     // 클리어 배지
     clearedBadge: {
         position: 'absolute',
-        bottom: 8,
-        backgroundColor: '#FFD700',
-        borderRadius: 10,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        zIndex: 1,
-    },
-    clearedText: {
-        fontSize: 11,
-        fontWeight: 'bold',
-        color: '#FFFFFF',
+        top: 84,
+        right: 17,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: '#FFD54F',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 3,
     },
 });

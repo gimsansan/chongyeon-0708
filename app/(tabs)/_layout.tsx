@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useRef } from "react";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -128,6 +128,17 @@ export default function TabLayout() {
           tabBarStyle: { display: 'none' },
         }}
       />
+
+      <Tabs.Screen
+        name="guitar"
+        options={{
+          tabBarLabel: () => null,
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="guitar-acoustic" size={24} color={color} />
+          ),
+        }}
+      />
+
 
       <Tabs.Screen
         name="new"

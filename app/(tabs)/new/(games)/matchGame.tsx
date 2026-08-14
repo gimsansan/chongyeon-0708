@@ -17,6 +17,7 @@ import { StarContext } from '../../../../context/StarContext';
 import { getMatchGameGridMetrics, LAYOUT } from '../../../../constants/layout';
 import { COLORS } from '../../../../constants/colors';
 import { SOUNDS_WITH_RIVE } from '../../../../constants/animalSounds';
+import { useSyncGameData } from '../../../../hooks/useSyncGameData';
 
 const GRID = getMatchGameGridMetrics();
 
@@ -60,6 +61,11 @@ export default function MatchGame() {
   const madeMistakeRef = useRef<boolean>(false);
   const starContext = useContext(StarContext);
   const clearContext = useContext(ClearContext);
+  
+  // 전송용 데이터
+  const { syncData } = useSyncGameData();
+  const [gameStartTime, setGameStartTime] = useState<number | null>(null); // 소리 재생이 끝나고 시작한 시간
+  const [wrongAttempts, setWrongAttempts] = useState<string[]>([]); // 유저가 잘못 누른 동물들 기록
 
   useEffect(() => {
     return () => {
@@ -72,6 +78,12 @@ export default function MatchGame() {
     setIsLoading(true);
     setMadeMistake(false);
     madeMistakeRef.current = false;
+
+    setWrongAttempts([]); // 새 게임 시작 시 오답 기록 초기화
+    
+    // 소리 재생이 끝난 후 UI가 바뀔 때 현재 시간 기록
+    setIsGameStarted(true);
+    setGameStartTime(Date.now())
 
     try {
       await Audio.setAudioModeAsync({
@@ -172,6 +184,7 @@ export default function MatchGame() {
     setAnimatingAnimal(soundName);
     if (!isCorrect) {
       setErrorAnimal(soundName);
+      setWrongAttempts(prev => [...prev, soundName]);
     }
 
     // 2. 모션 트리거
@@ -201,6 +214,21 @@ export default function MatchGame() {
           const newSet = new Set(prev);
           newSet.delete(soundName);
           if (newSet.size === 0) {
+            // 데이터 전송
+            const endTime = Date.now();
+            const durationSeconds = gameStartTime ? (endTime - gameStartTime) / 1000 : 0;
+
+            const medicalDataPayload = {
+              presented_sounds: playList.map(item => item.name),
+              wrong_selections: [...wrongAttempts], // 현재까지 쌓인 오답 배열
+              error_count: wrongAttempts.length,
+              completion_time_seconds: parseFloat(durationSeconds.toFixed(2)), // 소수점 2자리
+              is_perfect: !madeMistakeRef.current
+            };
+
+            console.log("🚀 [의료 데이터 전송] matchGame:", medicalDataPayload);
+            syncData('matchGame', medicalDataPayload); // 서버 전송
+            
             const successTimer = setTimeout(() => {
               setIsSuccessModalVisible(true);
             }, 300);
@@ -300,7 +328,10 @@ export default function MatchGame() {
             <Text style={styles.modalText}>등장한 동물 세 마리를 골라 주세요! 🐾</Text>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => setIsStartModalVisible(false)}
+              onPress={() => {
+                setIsStartModalVisible(false);
+                setGameStartTime(Date.now());}
+              }
             >
               <Text style={styles.modalButtonText}>시작하기</Text>
             </TouchableOpacity>

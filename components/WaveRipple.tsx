@@ -25,7 +25,7 @@ import Animated, {
  */
 
 type WaveRippleProps = {
-  size?: number;        // 최대 원 지름(px). 원본은 1000
+  size?: number;        // 최대 원 지름(px). 
   color?: string;
   count?: number;       // 동시에 퍼지는 원 개수. 원본은 8
   duration?: number;    // 한 원이 퍼졌다 사라지는 시간(ms). 원본은 3000
@@ -83,7 +83,7 @@ const Ripple = ({
 };
 
 export default function WaveRipple({
-  size = 1000,
+  size = 3000,
   color = '#79A1FF',
   count = 8,
   duration = 3000,

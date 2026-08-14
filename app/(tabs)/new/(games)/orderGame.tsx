@@ -1,7 +1,7 @@
 import { Audio } from '../../../../services/audioCompat';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ import { StarContext } from '../../../../context/StarContext';
 import { LAYOUT } from '../../../../constants/layout';
 import { COLORS } from '../../../../constants/colors';
 import { SOUNDS_WITH_IMAGE } from '../../../../constants/animalSounds';
+import { useSyncGameData } from '../../../../hooks/useSyncGameData';
 
 const sounds = SOUNDS_WITH_IMAGE;
 
@@ -37,6 +38,11 @@ export default function OrderGame() {
   const starContext = useContext(StarContext);
   const clearContext = useContext(ClearContext);
 
+  // 전송용 데이터
+  const { syncData } = useSyncGameData();
+  const [gameStartTime, setGameStartTime] = useState<number | null>(null);
+  const [wrongSequences, setWrongSequences] = useState<string[][]>([]); // 틀렸던 순서들 누적 기록
+  
   const DROP_ZONE_MARGIN = 20;
 
   const checkDropZone = (x: number, y: number) => {
@@ -96,6 +102,7 @@ export default function OrderGame() {
 
   const startGame = async () => {
     setAttemptCount(0);
+    setWrongSequences([]); // 오답 기록 초기화
     setShowWaveAnimation(true);
 
     try {
@@ -217,6 +224,7 @@ export default function OrderGame() {
         [
           {
             text: '시작하기',
+            onPress: () => setGameStartTime(Date.now()), // 시간 측정 시작
             style: 'default',
           },
         ],
@@ -280,6 +288,21 @@ export default function OrderGame() {
     console.log('====================');
 
     if (correct) {
+      // 데이터 전송
+      const endTime = Date.now();
+      const durationSeconds = gameStartTime ? (endTime - gameStartTime) / 1000 : 0;
+
+      const medicalDataPayload = {
+        presented_sequence: correctSoundNames,       // 정답 순서 (예: ['개', '소', '말'])
+        wrong_sequences: [...wrongSequences],        // 환자가 시도했던 오답 배열들
+        total_attempts: currentAttempt,              // 총 시도 횟수
+        completion_time_seconds: parseFloat(durationSeconds.toFixed(2)), // 소요 시간 (소수점 2자리)
+        is_perfect: currentAttempt === 1             // 한 번에 맞췄는지 여부
+      };
+
+      console.log("🚀 [의료 데이터 전송] orderGame:", medicalDataPayload);
+      syncData('orderGame', medicalDataPayload); // 서버 전송
+
       Alert.alert(
         '🎉 축하합니다!',
         '정답을 맞추셨어요! 정말 대단해요! 🌟',
@@ -297,6 +320,9 @@ export default function OrderGame() {
       }
       endGame();
     } else {
+      // 틀렸을 때 환자가 배치한 순서를 기록에 추가
+      setWrongSequences(prev => [...prev, [...droppedImages] as string[]]);
+
       Alert.alert(
         '😅 아쉬워요!',
         '다시 시도해보세요!',

@@ -21,8 +21,8 @@
  * └─────────────────────────────────────────────────────────┘
  */
 
-import React, { useState, useRef, memo, useEffect, useMemo, useCallback } from 'react';
-import { Text, View, StyleSheet, ScrollView, Animated, TouchableOpacity, Image, ImageBackground } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Text, View, StyleSheet, ScrollView, Animated, TouchableOpacity, Image } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -30,7 +30,6 @@ import { useFocusEffect } from 'expo-router';
 import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
 import { EASY_WORD_PAIRS, NORMAL_WORD_PAIRS } from '../../../constants/wordSounds';
 import { LAYOUT } from '../../../constants/layout';
 import { COLORS } from '../../../constants/colors';
@@ -41,7 +40,6 @@ const ALL_PAIRS = [...EASY_WORD_PAIRS, ...NORMAL_WORD_PAIRS];
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   // ✅ AsyncStorage 연동 상태
   const [completedCards, setCompletedCards] = useState<Set<string>>(new Set());

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Animated, Image, PanResponder, StyleSheet, View } from 'react-native';
+import { Animated, Image, PanResponder, StyleSheet } from 'react-native';
 import { LAYOUT } from '../../constants/layout';
 
 export interface DraggableImageProps {

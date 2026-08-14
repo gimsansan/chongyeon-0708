@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { DIFFICULTY_LEVELS, DRUM_INSTRUMENTS, InstrumentType, DifficultyType } from '../constants/drumSounds';
+import { DRUM_INSTRUMENTS, InstrumentType } from '../constants/drumSounds';
 
 export type GameState = 'ready' | 'playing' | 'answered' | 'waitingForNextRound';
 

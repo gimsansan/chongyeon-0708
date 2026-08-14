@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { Canvas, Circle, vec, mix } from '@shopify/react-native-skia';
-import Animated, { SharedValue, useDerivedValue } from 'react-native-reanimated';
+import { Canvas, Circle } from '@shopify/react-native-skia';
+import { SharedValue, useDerivedValue } from 'react-native-reanimated';
 
 interface RippleLayerProps {
   touchX: SharedValue<number>;

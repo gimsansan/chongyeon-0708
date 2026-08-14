@@ -75,7 +75,7 @@ class CompatSound {
 
     if (options.volume != null) player.volume = options.volume;
     if (options.isLooping != null) player.loop = options.isLooping;
-    if (options.rate != null) player.playbackRate = options.rate;
+    if (options.rate != null) player.setPlaybackRate(options.rate);
     if (options.shouldCorrectPitch != null) player.shouldCorrectPitch = options.shouldCorrectPitch;
     if (options.shouldPlay) player.play();
 

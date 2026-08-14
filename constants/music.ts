@@ -67,3 +67,37 @@ export const difficultyLevels: { name: Difficulty, label: string }[] = [
   { name: '4단계', label: '상급' },
   { name: '5단계', label: '전문' },
 ];
+
+// 키보드-음계 매핑 (물리 건반 단축키용)
+export const keyToNoteMap: { [key: string]: Note } = {
+  'q': 'C3', 'w': 'D3', 'e': 'E3', 'r': 'F3', 't': 'G3', 'y': 'A3', 'u': 'B3',
+  'i': 'C4', 'o': 'D4', 'p': 'E4', '[': 'F4', ']': 'G4', '\\': 'A4', 'a': 'B4',
+  's': 'C5', 'd': 'D5',
+  'Q': 'C#3', 'W': 'D#3', 'R': 'F#3', 'T': 'G#3', 'Y': 'A#3',
+  'I': 'C#4', 'O': 'D#4', '{': 'F#4', '}': 'G#4', '|': 'A#4',
+  'S': 'C#5', 'D': 'D#5',
+  'f': 'C1', 'g': 'D1', 'h': 'E1', 'j': 'F1', 'k': 'G1', 'l': 'A1', ';': 'B1',
+  "'": 'C2', 'z': 'D2', 'x': 'E2', 'c': 'F2', 'v': 'G2', 'b': 'A2', 'n': 'B2',
+  'F': 'C#1', 'G': 'D#1', 'J': 'F#1', 'K': 'G#1', 'L': 'A#1',
+  '"': 'C#2', 'Z': 'D#2', 'C': 'F#2', 'V': 'G#2', 'B': 'A#2',
+};
+
+export const noteToKeyMap = Object.entries(keyToNoteMap).reduce((acc, [key, note]) => {
+  acc[note] = key;
+  return acc;
+}, {} as { [note in Note]?: string });
+
+export const level1_absoluteBeginner: Note[] = ['C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3', 'C4'];
+export const level2_beginner: Note[] = allNotes.slice(allNotes.indexOf('C3'), allNotes.indexOf('C5') + 1).filter(note => !isBlackKeyMap[note]);
+export const level3_intermediate: Note[] = allNotes.slice(allNotes.indexOf('C3'), allNotes.indexOf('B4') + 1);
+export const level4_advanced: Note[] = allNotes;
+export const level5_specialTraining: Note[] = allNotes.filter(note => isBlackKeyMap[note]);
+
+export const MUSIC_PROGRESS_KEY = '@MiniGameApp:musicProgress';
+
+export interface MusicProgress {
+  [difficulty: string]: {
+    cumulativeSuccesses: number;
+    highestScore: number;
+  };
+}

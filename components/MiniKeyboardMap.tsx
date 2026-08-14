@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { allNotes, isBlackKeyMap, whiteIdxRefById, whiteNotes } from '../constants/music';
 

@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { memo, useCallback, useContext, useEffect, useReducer, useRef } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
 import MissionProgressIcon from '../../../../components/MissionProgressIcon';
 import WaveRipple from '../../../../components/WaveRipple';
 import { ClearContext } from '../../../../context/ClearContext';
@@ -10,6 +9,7 @@ import { LAYOUT } from '../../../../constants/layout';
 import { COLORS } from '../../../../constants/colors';
 import { SOUNDS_CONFIG } from '../../../../constants/animalSounds';
 import { gameAudioManager } from '../../../../services/GameAudioManager';
+import { useSyncGameData } from '../../../../hooks/useSyncGameData';
 
 const LEARNING_RATE = 0.1;
 const DISCOUNT_FACTOR = 0.9;
@@ -35,6 +35,10 @@ type GameState = {
     // ====[ 미션 추가 1: 미션 달성을 위한 상태 추가 ]====
     hasLostChanceInRun: boolean;
     // ===============================================
+    // 전송용 데이터 수집 상태
+    playedDifficulty: number;      // 이번 라운드 시작 시 난이도
+    gameStartTime: number | null;  // 조작 시작 시간
+    roundWrongAttempts: string[];  // 이번 라운드 오답 목록
 };
 
 type Action =
@@ -62,6 +66,9 @@ const initialState: GameState = {
     // ====[ 미션 추가 2: 상태 초기값 설정 ]====
     hasLostChanceInRun: false,
     // =====================================
+    playedDifficulty: 1,
+    gameStartTime: null,
+    roundWrongAttempts: [],
 };
 
 function gameReducer(state: GameState, action: Action): GameState {
@@ -84,6 +91,10 @@ function gameReducer(state: GameState, action: Action): GameState {
                 // ====[ 미션 추가 3: 게임 시작 시 미션 상태 초기화 ]====
                 hasLostChanceInRun: action.payload.isNewRun ? false : state.hasLostChanceInRun,
                 // ===============================================
+                // 라운드 기록 초기화 및 현재 난이도 고정
+                playedDifficulty: state.difficulty,
+                roundWrongAttempts: [],
+                gameStartTime: Date.now(), // 여기서부터 시간 측정 시작
             };
         case 'GAME_START_SUCCESS':
             return { ...state, correctSoundNames: action.payload.correctNames };
@@ -126,6 +137,8 @@ function gameReducer(state: GameState, action: Action): GameState {
                 // ====[ 미션 추가 4: 실수 기록 ]====
                 hasLostChanceInRun: state.hasLostChanceInRun || !isCorrect,
                 // =================================
+                // 오답 시 동물 이름 기록
+                roundWrongAttempts: isCorrect ? state.roundWrongAttempts : [...state.roundWrongAttempts, selectedName],
             };
         }
         default:
@@ -135,7 +148,8 @@ function gameReducer(state: GameState, action: Action): GameState {
 
 const useAuditoryGame = () => {
     const [state, dispatch] = useReducer(gameReducer, initialState);
-    
+    const { syncData } = useSyncGameData(); // 전송용 데이터
+
     // ====[ 미션 추가 5: 컨텍스트 및 Ref 사용 ]====
     const starContext = useContext(StarContext);
     const clearContext = useContext(ClearContext);
@@ -174,6 +188,27 @@ const useAuditoryGame = () => {
         };
         loadData();
     }, []);
+
+    // RESULTS 상태가 되면 전송
+    useEffect(() => {
+        if (state.status === 'RESULTS') {
+            const endTime = Date.now();
+            const durationSeconds = state.gameStartTime ? (endTime - state.gameStartTime) / 1000 : 0;
+
+            const medicalDataPayload = {
+                difficulty: state.playedDifficulty, // 💡 다음 난이도가 아닌 '플레이한' 난이도 전송
+                score: state.score,
+                roundResult: state.roundResult,
+                userStats: state.userStats,         // 전체 통계
+                wrong_selections: state.roundWrongAttempts, // 이번 판 오답
+                error_count: state.roundWrongAttempts.length,
+                completion_time_seconds: parseFloat(durationSeconds.toFixed(2)) // 소수점 2자리
+            };
+
+            console.log("🚀 [의료 데이터 전송] matchGameAI:", medicalDataPayload);
+            syncData('matchGameAI', medicalDataPayload);
+        }
+    }, [state.status, syncData]);
 
     useEffect(() => {
         if (state.status === 'RESULTS' || state.status === 'HOME') {

@@ -9,6 +9,7 @@ import { LAYOUT } from '../../../../constants/layout';
 import { COLORS } from '../../../../constants/colors';
 import { SOUNDS_CONFIG } from '../../../../constants/animalSounds';
 import { gameAudioManager } from '../../../../services/GameAudioManager';
+import { useSyncGameData } from '../../../../hooks/useSyncGameData';
 
 const LEARNING_RATE = 0.1;
 
@@ -32,6 +33,10 @@ type GameState = {
     score: number;
     roundResult: 'WIN' | 'LOSE' | null;
     hasLostChanceInRun: boolean; // 기회 소모 여부 추적
+    // 전송용 데이터 수집 상태
+    playedDifficulty: number;      // 이번 라운드 시작 시 난이도
+    gameStartTime: number | null;  // 조작 시작 시간
+    roundWrongAttempts: string[];  // 이번 라운드 오답 목록
 };
 
 type Action =
@@ -60,6 +65,9 @@ const initialState: GameState = {
     score: 0,
     roundResult: null,
     hasLostChanceInRun: false, // 초기값 설정
+    playedDifficulty: 1,
+    gameStartTime: null,
+    roundWrongAttempts: [],
 };
 
 function gameReducer(state: GameState, action: Action): GameState {
@@ -82,6 +90,10 @@ function gameReducer(state: GameState, action: Action): GameState {
                 roundResult: null,
                 // 새로운 게임 시작 시에만 기회 소모 여부 초기화
                 hasLostChanceInRun: action.payload.isNewRun ? false : state.hasLostChanceInRun,
+                // 라운드 기록 초기화 및 현재 난이도 고정
+                playedDifficulty: state.difficulty,
+                roundWrongAttempts: [],
+                gameStartTime: Date.now(), // 반응 시간 측정 시작
             };
         case 'SELECT_ANSWER': {
             const { selectedName, isCorrect } = action.payload;
@@ -126,6 +138,8 @@ function gameReducer(state: GameState, action: Action): GameState {
                 roundResult: isFinished ? (didWin ? 'WIN' : 'LOSE') : null,
                 // 오답 시 기회 소모 기록
                 hasLostChanceInRun: state.hasLostChanceInRun || !isCorrect,
+                // 오답일 경우 어떤 동물을 눌렀는지 기록
+                roundWrongAttempts: isCorrect ? state.roundWrongAttempts : [...state.roundWrongAttempts, selectedName],
             };
         }
         default:
@@ -138,6 +152,7 @@ function gameReducer(state: GameState, action: Action): GameState {
 // ===================================================================================
 const useAuditoryGame = () => {
     const [state, dispatch] = useReducer(gameReducer, initialState);
+    const { syncData } = useSyncGameData(); // 전송용 데이터
     
     const starContext = useContext(StarContext);
     const clearContext = useContext(ClearContext);
@@ -178,6 +193,27 @@ const useAuditoryGame = () => {
         };
         loadData();
     }, []);
+
+    // RESULTS 상태가 되면 전송
+    useEffect(() => {
+        if (state.status === 'RESULTS') {
+            const endTime = Date.now();
+            const durationSeconds = state.gameStartTime ? (endTime - state.gameStartTime) / 1000 : 0;
+
+            const medicalDataPayload = {
+                difficulty: state.playedDifficulty, // 💡 실제 플레이했던 난이도
+                score: state.score,
+                roundResult: state.roundResult,
+                userStats: state.userStats,         // 전체 누적 통계
+                wrong_selections: state.roundWrongAttempts, // 이번 판 구체적 오답
+                error_count: state.roundWrongAttempts.length,
+                completion_time_seconds: parseFloat(durationSeconds.toFixed(2)) // 소수점 2자리
+            };
+
+            console.log("🚀 [의료 데이터 전송] matchGamePG:", medicalDataPayload);
+            syncData('matchGamePG', medicalDataPayload);
+        }
+    }, [state.status, syncData]);
 
     useEffect(() => {
         if (state.status !== 'LOADING') {
