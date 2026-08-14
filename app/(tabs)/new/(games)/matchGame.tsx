@@ -48,12 +48,15 @@ export default function MatchGame() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
   
-  // 애니메이션 중인 동물 이름 추적
-  const [animatingAnimal, setAnimatingAnimal] = useState<string | null>(null);
-  const [errorAnimal, setErrorAnimal] = useState<string | null>(null);
-  
-  // 단일 Rive Ref
-  const activeRiveRef = useRef<RiveAnimalGameRef>(null);
+  // 애니메이션 중인 동물 이름 추적.
+  // 한 장이 애니메이션하는 동안 다른 장을 누를 수 있으므로 **여러 장이 동시에** 들어간다.
+  const [animatingAnimals, setAnimatingAnimals] = useState<Set<string>>(new Set());
+  const [errorAnimals, setErrorAnimals] = useState<Set<string>>(new Set());
+  /** 위 상태의 동기 사본. state 갱신은 비동기라 같은 카드 연타를 막지 못한다 */
+  const animatingRef = useRef<Set<string>>(new Set());
+
+  // 카드별 Rive Ref. 여러 장이 동시에 애니메이션할 수 있어 하나로는 서로 참조를 뺏는다
+  const riveRefs = useRef<Record<string, RiveAnimalGameRef | null>>({});
   // 타이머 정리용 Ref
   const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -67,6 +70,12 @@ export default function MatchGame() {
   const { syncData } = useSyncGameData();
   const [gameStartTime, setGameStartTime] = useState<number | null>(null); // 소리 재생이 끝나고 시작한 시간
   const [wrongAttempts, setWrongAttempts] = useState<string[]>([]); // 유저가 잘못 누른 동물들 기록
+  /**
+   * 위 상태의 동기 사본. 카드를 겹쳐 누를 수 있게 되면서 `handleButtonPress`의 클로저가
+   * 옛 렌더의 `wrongAttempts`를 잡을 수 있다. 의료 데이터에 오답이 빠지면 안 되므로
+   * 전송 시점에는 이 ref를 쓴다 (`madeMistakeRef`와 같은 이유).
+   */
+  const wrongAttemptsRef = useRef<string[]>([]);
 
   useEffect(() => {
     return () => {
@@ -119,6 +128,7 @@ export default function MatchGame() {
     leftScreenRef.current = false;
 
     setWrongAttempts([]); // 새 게임 시작 시 오답 기록 초기화
+    wrongAttemptsRef.current = [];
     
     // 소리 재생이 끝난 후 UI가 바뀔 때 현재 시간 기록
     setIsGameStarted(true);
@@ -222,22 +232,26 @@ export default function MatchGame() {
     setPlayList([]);
     setDisabledButtons(new Set());
     setCorrectSoundNames(new Set());
-    setAnimatingAnimal(null);
-    setErrorAnimal(null);
+    setAnimatingAnimals(new Set());
+    setErrorAnimals(new Set());
+    animatingRef.current = new Set();
     setMadeMistake(false);
     madeMistakeRef.current = false;
   };
 
   const handleButtonPress = (soundName: string) => {
-    // 이미 애니메이션 중이거나 비활성화된 버튼은 무시 (중복 터치 방지)
-    if (disabledButtons.has(soundName) || animatingAnimal) return;
+    // 비활성화됐거나 **이 카드가** 애니메이션 중이면 무시 (같은 카드 연타 방지).
+    // 다른 카드는 막지 않는다 — 애니메이션 1.5초 동안 입력이 잠기던 원인이었다.
+    if (disabledButtons.has(soundName) || animatingRef.current.has(soundName)) return;
 
     const isCorrect = correctSoundNames.has(soundName);
     
     // 1. 해당 버튼을 Rive로 전환
-    setAnimatingAnimal(soundName);
+    animatingRef.current.add(soundName);
+    setAnimatingAnimals(prev => new Set(prev).add(soundName));
     if (!isCorrect) {
-      setErrorAnimal(soundName);
+      setErrorAnimals(prev => new Set(prev).add(soundName));
+      wrongAttemptsRef.current = [...wrongAttemptsRef.current, soundName];
       setWrongAttempts(prev => [...prev, soundName]);
     }
 
@@ -246,9 +260,9 @@ export default function MatchGame() {
     // - 마운트 타이밍 차이로 ref가 늦게 잡히는 기기 대비 1회 재시도를 둡니다.
     const trigger = () => {
       if (isCorrect) {
-        activeRiveRef.current?.triggerCorrect();
+        riveRefs.current[soundName]?.triggerCorrect();
       } else {
-        activeRiveRef.current?.triggerError();
+        riveRefs.current[soundName]?.triggerError();
         madeMistakeRef.current = true;
         setMadeMistake(true);
       }
@@ -259,8 +273,18 @@ export default function MatchGame() {
 
     // 3. 모션이 끝날 즈음 원래 이미지로 복구하고 상태 업데이트
     const resetTimer = setTimeout(() => {
-      setAnimatingAnimal(null);
-      setErrorAnimal(null);
+      // 누른 카드만 되돌린다. 그 사이 다른 카드가 애니메이션 중일 수 있다
+      animatingRef.current.delete(soundName);
+      setAnimatingAnimals(prev => {
+        const next = new Set(prev);
+        next.delete(soundName);
+        return next;
+      });
+      setErrorAnimals(prev => {
+        const next = new Set(prev);
+        next.delete(soundName);
+        return next;
+      });
 
       if (isCorrect) {
         setDisabledButtons(prev => new Set(prev).add(soundName));
@@ -274,8 +298,8 @@ export default function MatchGame() {
 
             const medicalDataPayload = {
               presented_sounds: playList.map(item => item.name),
-              wrong_selections: [...wrongAttempts], // 현재까지 쌓인 오답 배열
-              error_count: wrongAttempts.length,
+              wrong_selections: [...wrongAttemptsRef.current], // 현재까지 쌓인 오답 배열
+              error_count: wrongAttemptsRef.current.length,
               completion_time_seconds: parseFloat(durationSeconds.toFixed(2)), // 소수점 2자리
               is_perfect: !madeMistakeRef.current
             };
@@ -327,8 +351,8 @@ export default function MatchGame() {
           <View style={styles.gameButtonsContainer}>
             {sounds.map((soundItem) => {
               const isDisabled = disabledButtons.has(soundItem.name);
-              const isAnimating = animatingAnimal === soundItem.name;
-              const isError = errorAnimal === soundItem.name;
+              const isAnimating = animatingAnimals.has(soundItem.name);
+              const isError = errorAnimals.has(soundItem.name);
 
               return (
                 <TouchableOpacity
@@ -339,14 +363,16 @@ export default function MatchGame() {
                     isError && styles.errorButton,
                   ]}
                   onPress={() => handleButtonPress(soundItem.name)}
-                  disabled={isDisabled || animatingAnimal !== null}
+                  disabled={isDisabled || isAnimating}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.buttonContent, isAnimating && styles.buttonContentAnimating]}>
                     {/* 클릭한 동물만 Rive로 렌더링, 나머지는 Image로 렌더링 */}
                     {isAnimating ? (
                       <RiveAnimalGame
-                        ref={activeRiveRef}
+                        ref={(node) => {
+                          riveRefs.current[soundItem.name] = node;
+                        }}
                         style={[styles.buttonRiveAnimating]}
                         initialAnimalIndex={soundItem.riveIndex}
                       />
