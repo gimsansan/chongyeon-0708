@@ -1,4 +1,4 @@
-import { Audio } from '../../../../services/audioCompat';
+import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   Image,
@@ -38,7 +38,7 @@ function getRandomElements<T>(arr: T[], num: number): T[] {
 const sounds = SOUNDS_WITH_RIVE;
 
 export default function MatchGame() {
-  const [playList, setPlayList] = useState<{ sound: Audio.Sound; name: string }[]>([]);
+  const [playList, setPlayList] = useState<{ sound: AudioPlayer; name: string }[]>([]);
   const [isGameStarted, setIsGameStarted] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [disabledButtons, setDisabledButtons] = useState<Set<string>>(new Set());
@@ -76,14 +76,16 @@ export default function MatchGame() {
   }, []);
 
   /** 문제음으로 로드된 사운드들. 탭을 떠날 때 멈추려면 state가 아니라 ref로도 들고 있어야 한다 */
-  const questionSoundsRef = useRef<{ sound: Audio.Sound; name: string }[]>([]);
+  const questionSoundsRef = useRef<{ sound: AudioPlayer; name: string }[]>([]);
   /** 탭을 떠났다는 신호. 문제음 재생 루프가 이걸 보고 빠져나온다 */
   const leftScreenRef = useRef(false);
 
   /** 로드된 문제음을 전부 멈춘다 (언로드하지 않음 — endGame에서 정리한다) */
   const pauseQuestionSounds = () => {
     for (const soundObj of questionSoundsRef.current) {
-      soundObj.sound.pauseAsync().catch(() => { });
+      try {
+        soundObj.sound.pause();
+      } catch (error) { }
     }
   };
 
@@ -100,7 +102,7 @@ export default function MatchGame() {
     pauseQuestionSounds();
     for (const soundObj of questionSoundsRef.current) {
       try {
-        await soundObj.sound.unloadAsync();
+        soundObj.sound.remove();
       } catch (error) { }
     }
     questionSoundsRef.current = [];
@@ -126,16 +128,16 @@ export default function MatchGame() {
       // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
       // 여기 있던 `duckOthers` 설정은 앱 전체에 잔류하던 것이라 제거했다.
       const randomSounds = getRandomElements(sounds, 3);
-      const soundList: { sound: Audio.Sound; name: string }[] = [];
+      const soundList: { sound: AudioPlayer; name: string }[] = [];
 
       for (const soundPath of randomSounds) {
         let retryCount = 0;
         const maxRetries = 2;
-        let loadedSound: Audio.Sound | null = null;
+        let loadedSound: AudioPlayer | null = null;
 
         while (retryCount <= maxRetries && !loadedSound) {
           try {
-            const { sound } = await Audio.Sound.createAsync(soundPath.sound);
+            const sound = createAudioPlayer(soundPath.sound, { updateInterval: 500 });
             loadedSound = sound;
             soundList.push({ sound, name: soundPath.name });
             break;
@@ -168,9 +170,9 @@ export default function MatchGame() {
 
         while (retryCount <= maxRetries) {
           try {
-            await soundObj.sound.playAsync();
+            soundObj.sound.play();
             correctNames.push(soundObj.name);
-            break; 
+            break;
           } catch (playError) {
             retryCount++;
             if (retryCount <= maxRetries) await new Promise(resolve => setTimeout(resolve, 500)); 
@@ -211,8 +213,7 @@ export default function MatchGame() {
 
     for (const soundObj of playList) {
       try {
-        const status = await soundObj.sound.getStatusAsync();
-        if (status.isLoaded) await soundObj.sound.unloadAsync();
+        if (soundObj.sound.currentStatus.isLoaded) soundObj.sound.remove();
       } catch (error) {}
     }
     questionSoundsRef.current = [];

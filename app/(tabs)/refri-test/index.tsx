@@ -17,7 +17,7 @@ import {
 import { LAYOUT } from "../../../constants/layout";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "../../../services/audioCompat";
+import { createAudioPlayer, type AudioPlayer } from "expo-audio";
 import Rive from "rive-react-native";
 import StarIcon from "../../../assets/icons/star.svg";
 import RefriStartBtn from "../../../assets/icons/refri_start_btnco1.svg";
@@ -273,7 +273,7 @@ export default function RefriTestScreen() {
   const answerRefs = useRef<Record<string, View | null>>({});
   const remainingIdsRef = useRef<string[]>(remainingIds);
 
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
   const riveRef = useRef<any>(null);
 
   useEffect(() => {
@@ -281,10 +281,12 @@ export default function RefriTestScreen() {
   }, [remainingIds]);
 
   // ❄️ 탭을 떠날 때 울리던 소리를 끊는다.
-  // 탭은 언마운트되지 않으므로 아래 언마운트 클린업(unloadAsync)은 탭 전환 때 실행되지 않는다.
-  // 언로드하지 않고 멈추기만 해서 '다시 듣기'가 그대로 동작하도록 둔다.
+  // 탭은 언마운트되지 않으므로 아래 언마운트 클린업(remove)은 탭 전환 때 실행되지 않는다.
+  // 해제하지 않고 멈추기만 해서 '다시 듣기'가 그대로 동작하도록 둔다.
   const isScreenFocused = useStopAudioOnBlur(() => {
-    soundRef.current?.pauseAsync().catch(() => {});
+    try {
+      soundRef.current?.pause();
+    } catch (error) {}
   });
 
   // Rive 문 직접 제어 (stale closure 우회)
@@ -306,7 +308,7 @@ export default function RefriTestScreen() {
     // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
     return () => {
       if (soundRef.current) {
-        soundRef.current.unloadAsync();
+        soundRef.current.remove();
       }
       if (blinkLoopRef.current) {
         blinkLoopRef.current.stop();
@@ -511,13 +513,14 @@ export default function RefriTestScreen() {
     if (!isScreenFocused.current) return;
     try {
       if (soundRef.current) {
-        await soundRef.current.unloadAsync();
+        soundRef.current.remove();
       }
-      const { sound } = await Audio.Sound.createAsync(item.sound, {
-        shouldPlay: true,
-        volume: 1.0,
-      });
-      soundRef.current = sound;
+      // 이전 `createAsync(..., { shouldPlay: true, volume: 1.0 })`과 같다 —
+      // 볼륨을 먼저 맞추고 재생한다.
+      const player = createAudioPlayer(item.sound, { updateInterval: 500 });
+      player.volume = 1.0;
+      player.play();
+      soundRef.current = player;
     } catch (error) {
       console.warn("사운드 재생 실패", error);
     }

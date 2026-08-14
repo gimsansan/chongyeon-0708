@@ -1,4 +1,4 @@
-import { Audio } from '../../../../services/audioCompat';
+import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -25,7 +25,7 @@ const sounds = SOUNDS_WITH_IMAGE;
 const DEBUG_DROP = false;
 
 export default function OrderGame() {
-  const [playList, setPlayList] = useState<{ sound: Audio.Sound; name: string }[]>([]);
+  const [playList, setPlayList] = useState<{ sound: AudioPlayer; name: string }[]>([]);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [correctSoundNames, setCorrectSoundNames] = useState<(string)[]>([]);
   const [dropZonesLayout, setDropZonesLayout] = useState<any[]>([]);
@@ -102,14 +102,16 @@ export default function OrderGame() {
   }, [isGameStarted, showWaveAnimation, measureDropZones]);
 
   /** 문제음으로 로드된 사운드들. 탭을 떠날 때 멈추려면 state가 아니라 ref로도 들고 있어야 한다 */
-  const questionSoundsRef = useRef<{ sound: Audio.Sound; name: string }[]>([]);
+  const questionSoundsRef = useRef<{ sound: AudioPlayer; name: string }[]>([]);
   /** 탭을 떠났다는 신호. 문제음 재생 루프가 이걸 보고 빠져나온다 */
   const leftScreenRef = useRef(false);
 
   /** 로드된 문제음을 전부 멈춘다 (언로드하지 않음 — endGame에서 정리한다) */
   const pauseQuestionSounds = () => {
     for (const soundObj of questionSoundsRef.current) {
-      soundObj.sound.pauseAsync().catch(() => { });
+      try {
+        soundObj.sound.pause();
+      } catch (error) { }
     }
   };
 
@@ -126,7 +128,7 @@ export default function OrderGame() {
     pauseQuestionSounds();
     for (const soundObj of questionSoundsRef.current) {
       try {
-        await soundObj.sound.unloadAsync();
+        soundObj.sound.remove();
       } catch (error) { }
     }
     questionSoundsRef.current = [];
@@ -151,18 +153,18 @@ export default function OrderGame() {
       console.log('=== 게임 시작: 사운드 순차적 로드 (최대 안정성) ===');
 
       // 순차적 로드 (하나씩 안정적으로)
-      const soundList: { sound: Audio.Sound; name: string }[] = [];
+      const soundList: { sound: AudioPlayer; name: string }[] = [];
 
       for (const soundPath of randomSounds) {
         let retryCount = 0;
         const maxRetries = 2;
-        let loadedSound: Audio.Sound | null = null;
+        let loadedSound: AudioPlayer | null = null;
 
         // 각 사운드마다 최대 2번 재시도
         while (retryCount <= maxRetries && !loadedSound) {
           try {
             console.log(`🔄 ${soundPath.name} 로드 시도 (${retryCount + 1}/${maxRetries + 1})`);
-            const { sound } = await Audio.Sound.createAsync(soundPath.sound);
+            const sound = createAudioPlayer(soundPath.sound, { updateInterval: 500 });
             loadedSound = sound;
             soundList.push({ sound, name: soundPath.name });
             console.log(`✅ ${soundPath.name} 로드 완료`);
@@ -216,7 +218,7 @@ export default function OrderGame() {
         while (retryCount <= maxRetries) {
           try {
             console.log(`🔊 ${soundObj.name} 재생 시도 (${retryCount + 1}/${maxRetries + 1})`);
-            await soundObj.sound.playAsync();
+            soundObj.sound.play();
             correctNames.push(soundObj.name);
             console.log(`✅ ${soundObj.name} 재생 성공`);
             break; // 성공하면 루프 탈출
@@ -391,12 +393,11 @@ export default function OrderGame() {
   const endGame = async () => {
     for (const soundObj of playList) {
       try {
-        const status = await soundObj.sound.getStatusAsync();
-        if (status.isLoaded) {
-          await soundObj.sound.unloadAsync();
+        if (soundObj.sound.currentStatus.isLoaded) {
+          soundObj.sound.remove();
         }
       } catch (error) {
-        console.error(`${soundObj.name} 언로드 오류: `, error);
+        console.error(`${soundObj.name} 해제 오류: `, error);
       }
     }
 
