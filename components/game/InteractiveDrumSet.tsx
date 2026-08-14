@@ -84,6 +84,8 @@ interface InteractiveDrumSetProps {
 
 export interface InteractiveDrumSetRef {
   moveToNextInstrument: () => void;
+  /** 순서를 거꾸로 되짚어 이전 악기로 캐릭터 이동 */
+  moveToPrevInstrument: () => void;
   /** 현재 악기의 중립 위치로 캐릭터 이동 (다음 문제 준비용) */
   moveToNeutralPosition: (instrument: InstrumentType) => void;
 }
@@ -476,6 +478,16 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     snapToInstrument(instrument);
   };
 
+  // 화살표로 이전 악기로 이동 (역순 재생). 아직 선택 전(-1)이면 마지막 악기부터 시작
+  const moveToPrevInstrument = () => {
+    const newIndex = currentInstrumentIndex < 0
+      ? layoutOrder.length - 1
+      : (currentInstrumentIndex - 1 + layoutOrder.length) % layoutOrder.length;
+    const instrument = layoutOrder[newIndex];
+    setCurrentInstrumentIndex(newIndex);
+    snapToInstrument(instrument);
+  };
+
   // 현재 악기의 중립 위치로 이동 (다음 문제 준비용)
   const moveToNeutralPosition = (instrument: InstrumentType) => {
     const position = DRUM_POSITIONS[instrument];
@@ -520,7 +532,7 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     setCurrentInstrument(null); // 악기 선택 해제 (중립 상태)
   };
 
-  useImperativeHandle(ref, () => ({ moveToNextInstrument, moveToNeutralPosition }), [currentInstrumentIndex, layoutOrder, snapToInstrument, dimensions, insets, characterSize, activeLayout]);
+  useImperativeHandle(ref, () => ({ moveToNextInstrument, moveToPrevInstrument, moveToNeutralPosition }), [currentInstrumentIndex, layoutOrder, snapToInstrument, dimensions, insets, characterSize, activeLayout]);
 
   // 제스처
   const onGestureEvent = (event: PanGestureHandlerGestureEvent) => {

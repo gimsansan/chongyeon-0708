@@ -30,6 +30,12 @@ const DRUM_BACKGROUND_ASPECT_RATIO = DRUM_BACKGROUND_ASSET.width / DRUM_BACKGROU
 // 설정 모달: 문제 수 옵션 (Rive quiz_bar 세그먼트와 1:1, Number 입력 = 인덱스 0~3)
 const QUESTION_COUNTS = [5, 10, 15, 20] as const;
 
+/** 하단 왼쪽 버튼에 scale 펄스를 주기 위한 애니메이션 래핑 (절대 위치 스타일 유지) */
+const AnimatedTouchable = RNAnimated.createAnimatedComponent(TouchableOpacity);
+
+/** 설정 드롭다운 패널 높이. 바깥 터치 감지용 백드롭 시작점 계산에도 사용 */
+const SETTINGS_PANEL_HEIGHT = 90;
+
 export default function Index() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -55,6 +61,8 @@ export default function Index() {
   const [quizStartScrollIndex, setQuizStartScrollIndex] = useState<number | null>(null);
 
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false); // 톱니 탭 시 헤더 바로 아래 패널 열림
+  /** 헤더 실측 높이(상단 인셋 포함). 설정 드롭다운을 헤더 바로 아래에 붙이는 기준 */
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   // 드럼 오버레이(캐릭터+순환 버튼)를 ScrollView 밖에서 고정 표시용
   const drumScrollXRef = useRef(new RNAnimated.Value(0));
@@ -234,6 +242,19 @@ export default function Index() {
     }
   }, [isQuizActive, gameState, currentInstrument]);
 
+  /** 퀴즈모드 ↻(다시 듣기) 활성 조건. 라운드마다 켜졌다 꺼지므로 회색 처리만 하고 버튼은 계속 렌더 */
+  const isReplayEnabled = isQuizActive && gameState === 'playing' && !showFeedback && !!currentInstrument;
+
+  /** ↻ 눌림 피드백용 스케일 펄스. 정답 악기를 하이라이트하면 답이 노출되므로 버튼 자체만 반응 */
+  const replayPulseAnim = useRef(new RNAnimated.Value(1)).current;
+  const pulseReplayButton = useCallback(() => {
+    replayPulseAnim.setValue(1);
+    RNAnimated.sequence([
+      RNAnimated.timing(replayPulseAnim, { toValue: 1.15, duration: 90, useNativeDriver: true }),
+      RNAnimated.timing(replayPulseAnim, { toValue: 1, duration: 140, useNativeDriver: true }),
+    ]).start();
+  }, [replayPulseAnim]);
+
   // 피드백 전 마지막 선택 악기 저장용
   const lastAnsweredInstrumentRef = useRef<InstrumentType | null>(null);
 
@@ -266,25 +287,29 @@ export default function Index() {
             resizeMode="contain"
           />
         </View>
-        {/* 콘텐츠: 헤더 시작 라인 동일(insets.top) + 하단 탭 공간 확보(insets.bottom) */}
+        {/* 콘텐츠: 상단 인셋은 헤더가 직접 흡수(헤더 배경이 상태바 뒤까지 이어짐) + 하단 탭 공간 확보 */}
         <View
           style={[
             styles.contentWrapper,
-            { paddingTop: insets.top, paddingBottom: insets.bottom },
+            { paddingBottom: insets.bottom },
           ]}
         >
           {/* 고정 헤더: 설정 & 퀴즈 시작 / Round & 그만하기 */}
-          <RNAnimated.View style={[
-        styles.fixedHeader, 
-        { 
-          flexDirection: 'row', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          paddingHorizontal: 15, 
-          paddingVertical: 12,
+          <RNAnimated.View
+            onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+            style={[
+        styles.fixedHeader,
+        {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 15,
+          paddingTop: insets.top + 12,
+          paddingBottom: 12,
+          // 불투명(알파 1) 유지 필수: 0.95였을 때 뒤의 배경 이미지 letterbox 경계선이 헤더에 비쳐 보였음
           backgroundColor: headerFlashAnim.interpolate({
             inputRange: [0, 1, 2],
-            outputRange: ['rgba(255, 255, 255, 0.95)', 'rgba(255, 153, 0, 0.95)', 'rgba(153, 153, 153, 0.95)']
+            outputRange: ['rgb(255, 255, 255)', 'rgb(255, 153, 0)', 'rgb(153, 153, 153)']
           })
         }
       ]}>
@@ -323,7 +348,7 @@ export default function Index() {
           {/* 설정 패널: 톱니 탭 시 헤더 바로 아래 열림, 바깥 터치로 닫기 */}
           {!isQuizActive && isSettingsExpanded && (
             <>
-              <View style={[styles.settingsDropdownPanel, { top: insets.top + 52 }]}>
+              <View style={[styles.settingsDropdownPanel, { top: headerHeight }]}>
                 <View style={styles.quizBarContainer}>
                   <Rive
                     ref={quizBarRiveRef}
@@ -360,7 +385,7 @@ export default function Index() {
                 </View>
               </View>
               <TouchableWithoutFeedback onPress={closeSettingsOnOutsideTouch}>
-                <View style={[styles.settingsDropdownBackdrop, { top: insets.top + 52 + 90 }]} />
+                <View style={[styles.settingsDropdownBackdrop, { top: headerHeight + SETTINGS_PANEL_HEIGHT }]} />
               </TouchableWithoutFeedback>
             </>
           )}
@@ -420,28 +445,41 @@ export default function Index() {
                 >
                   {[0, 1, 2, 3].map((pageIndex) => (
                     <View key={pageIndex} style={[styles.drumOverlayPageCell, { width: drumContainerWidth }]}>
-                      <TouchableOpacity
+                      {/* 왼쪽 버튼: 연습모드 = ◀ 역순 이동 / 퀴즈모드 = ↻ 다시 듣기 */}
+                      <AnimatedTouchable
                         style={[
                           styles.fixedReplayButton,
-                          !(isQuizActive && gameState === 'playing' && !showFeedback && currentInstrument) && styles.fixedReplayButtonDisabled
+                          isQuizActive && !isReplayEnabled && styles.fixedReplayButtonDisabled,
+                          { transform: [{ scale: replayPulseAnim }] }
                         ]}
-                        onPress={() => isQuizActive && gameState === 'playing' && !showFeedback && currentInstrument && audioManager.playSound(currentInstrument, DRUM_INSTRUMENTS[currentInstrument].sound)}
+                        onPress={() => {
+                          if (!isQuizActive) {
+                            horizontalDrumScrollerRef.current?.moveToPrevInstrumentForCurrentPage();
+                          } else if (isReplayEnabled && currentInstrument) {
+                            pulseReplayButton();
+                            audioManager.playSound(currentInstrument, DRUM_INSTRUMENTS[currentInstrument].sound);
+                          }
+                        }}
                         activeOpacity={0.7}
-                        disabled={!(isQuizActive && gameState === 'playing' && !showFeedback && currentInstrument)}
+                        disabled={isQuizActive && !isReplayEnabled}
                       >
-                        <Text style={[styles.fixedReplayButtonText, !(isQuizActive && gameState === 'playing' && !showFeedback && currentInstrument) && styles.fixedReplayButtonTextDisabled]} numberOfLines={1}>↻</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.fixedCycleButton,
-                          isQuizActive && styles.fixedCycleButtonDisabled
-                        ]}
-                        onPress={() => !isQuizActive && horizontalDrumScrollerRef.current?.moveToNextInstrumentForCurrentPage()}
-                        activeOpacity={0.7}
-                        disabled={isQuizActive}
-                      >
-                        <Text style={[styles.fixedCycleButtonText, isQuizActive && styles.fixedCycleButtonTextDisabled]}>▶</Text>
-                      </TouchableOpacity>
+                        <Text
+                          style={[styles.fixedReplayButtonText, isQuizActive && !isReplayEnabled && styles.fixedReplayButtonTextDisabled]}
+                          numberOfLines={1}
+                        >
+                          {isQuizActive ? '↻' : '◀'}
+                        </Text>
+                      </AnimatedTouchable>
+                      {/* 오른쪽 ▶ 순차 이동: 퀴즈모드에서는 회색 처리 대신 언마운트 */}
+                      {!isQuizActive && (
+                        <TouchableOpacity
+                          style={styles.fixedCycleButton}
+                          onPress={() => horizontalDrumScrollerRef.current?.moveToNextInstrumentForCurrentPage()}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.fixedCycleButtonText}>▶</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   ))}
                 </RNAnimated.View>
@@ -499,7 +537,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   fixedHeader: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#ffffff',
     elevation: 3,
     zIndex: 100,
   },
@@ -589,15 +627,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     elevation: 3,
   },
-  fixedCycleButtonDisabled: {
-    backgroundColor: '#b0b0b0',
-    opacity: 0.65,
-    elevation: 0,
-  },
-  fixedCycleButtonTextDisabled: {
-    opacity: 0.7,
-  },
-  /** 다시 듣기: 순환 버튼과 대칭(좌측), 가로 긴 직사각형, 반응형 */
+  /** 왼쪽 버튼(연습=◀ / 퀴즈=↻): 순환 버튼과 대칭(좌측), 가로 긴 직사각형, 반응형 */
   fixedReplayButton: {
     position: 'absolute',
     bottom: 0,
@@ -636,7 +666,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 501,
-    height: 90,
+    height: SETTINGS_PANEL_HEIGHT,
     paddingVertical: 10,
     paddingHorizontal: 15,
     alignItems: 'center',
@@ -748,6 +778,8 @@ interface HorizontalDrumScrollerProps {
 
 export interface HorizontalDrumScrollerRef {
   moveToNextInstrumentForCurrentPage: () => void;
+  /** 현재 페이지에서 악기 순서를 역방향으로 한 칸 이동 */
+  moveToPrevInstrumentForCurrentPage: () => void;
   /** 설정된 악기 수 페이지(0~3)로 스크롤 */
   scrollToPage: (index: number) => void;
   /** 현재 페이지의 캐릭터를 중립 위치로 이동 (다음 문제 준비용) */
@@ -824,6 +856,10 @@ const HorizontalDrumScroller = React.forwardRef<HorizontalDrumScrollerRef, Reado
       drumSetRefs.current[currentScrollIndex]?.moveToNextInstrument();
     }, [currentScrollIndex]);
 
+    const moveToPrevInstrumentForCurrentPage = useCallback(() => {
+      drumSetRefs.current[currentScrollIndex]?.moveToPrevInstrument();
+    }, [currentScrollIndex]);
+
     const scrollToPage = useCallback((index: number) => {
       const safeIndex = Math.max(0, Math.min(index, instrumentSections.length - 1));
       const offset = safeIndex * containerWidth;
@@ -836,9 +872,10 @@ const HorizontalDrumScroller = React.forwardRef<HorizontalDrumScrollerRef, Reado
 
     React.useImperativeHandle(ref, () => ({
       moveToNextInstrumentForCurrentPage,
+      moveToPrevInstrumentForCurrentPage,
       scrollToPage,
       moveToNeutralPosition,
-    }), [moveToNextInstrumentForCurrentPage, scrollToPage, moveToNeutralPosition]);
+    }), [moveToNextInstrumentForCurrentPage, moveToPrevInstrumentForCurrentPage, scrollToPage, moveToNeutralPosition]);
 
     return (
       <View
