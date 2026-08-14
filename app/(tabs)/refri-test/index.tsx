@@ -273,7 +273,19 @@ export default function RefriTestScreen() {
   const answerRefs = useRef<Record<string, View | null>>({});
   const remainingIdsRef = useRef<string[]>(remainingIds);
 
+  /**
+   * 문제음 재생용 **상주 플레이어 하나**. 문항마다 만들고 버리지 않고 음원만 갈아끼운다.
+   * 화면을 벗어나도 해제하지 않는다 — 다시 들어올 때의 첫 소리 지연을 만들지 않기 위해서다.
+   */
   const soundRef = useRef<AudioPlayer | null>(null);
+
+  /** 상주 플레이어를 처음 쓸 때 한 번만 만든다 */
+  const ensurePlayer = (): AudioPlayer => {
+    if (!soundRef.current) {
+      soundRef.current = createAudioPlayer(null, { updateInterval: 500 });
+    }
+    return soundRef.current;
+  };
   const riveRef = useRef<any>(null);
 
   useEffect(() => {
@@ -308,7 +320,11 @@ export default function RefriTestScreen() {
     // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
     return () => {
       if (soundRef.current) {
-        soundRef.current.remove();
+        try {
+          soundRef.current.remove();
+        } catch (error) {}
+        // 해제한 플레이어를 계속 붙들고 있으면 다음 재생 때 죽은 플레이어를 건드린다
+        soundRef.current = null;
       }
       if (blinkLoopRef.current) {
         blinkLoopRef.current.stop();
@@ -508,19 +524,24 @@ export default function RefriTestScreen() {
 
   const playSound = async (item: QuizItem) => {
     if (!item.sound) return;
-    // 정답 뒤 다음 문제는 타이머로 예약된다(:617 → 600ms 대기 후 재생).
+    // 정답 뒤 다음 문제는 애니메이션이 끝난 뒤 타이머로 예약된다(`applyCorrectAndNext`).
     // 그 사이에 탭을 떠났다면 다른 탭에서 소리가 울리므로 재생하지 않는다.
-    if (!isScreenFocused.current) return;
+    if (!isScreenFocused.current) {
+      // 조용히 return하면 "문제는 넘어갔는데 소리가 안 난다"의 원인을 찾기 어렵다.
+      // 탭을 떠난 동안에만 찍히므로 평소에는 나오지 않는다.
+      console.warn("❄️ 포커스를 잃은 상태라 재생을 건너뜀");
+      return;
+    }
+
     try {
-      if (soundRef.current) {
-        soundRef.current.remove();
-      }
-      // 이전 `createAsync(..., { shouldPlay: true, volume: 1.0 })`과 같다 —
-      // 볼륨을 먼저 맞추고 재생한다.
-      const player = createAudioPlayer(item.sound, { updateInterval: 500 });
+      // 상주 플레이어의 음원만 갈아끼운다.
+      // 재생마다 `remove()` + `createAudioPlayer()`를 하면 앞 플레이어를 네이티브에서
+      // 정리하는 도중에 새 플레이어가 재생을 시작하게 되고, 가끔 그 소리가 통째로 누락된다.
+      // (20문항 중 2~3개가 무작위로 안 들리던 원인. 드럼 풀·단어 캐시와 같은 해법이다)
+      const player = ensurePlayer();
+      player.replace(item.sound);
       player.volume = 1.0;
       player.play();
-      soundRef.current = player;
     } catch (error) {
       console.warn("사운드 재생 실패", error);
     }
