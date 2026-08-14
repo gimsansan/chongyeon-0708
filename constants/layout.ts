@@ -117,9 +117,11 @@ export const LAYOUT = {
   /** Drum 탭 — 고정 헤더 텍스트 */
   drumHeaderTextFontSize: isTablet ? 18 : 16,
 
-  /** Drum 탭 — Rive 퀴즈 바 (비율 90%, 폰 최대 420 / 태블릿 최대 520) */
-  quizBarWidth: Math.min(Math.round(SCREEN_WIDTH * 0.9), isTablet ? 520 : 420),
-  quizBarHeight: isTablet ? 80 : 68,
+  /** Drum 탭 — 문제 수 세그먼티드 컨트롤 (비율 90%, 폰 최대 420 / 태블릿 최대 520) */
+  questionSelectorWidth: Math.min(Math.round(SCREEN_WIDTH * 0.9), isTablet ? 520 : 420),
+  /** 세그먼트 한 칸 높이. 트랙 높이는 여기에 상하 패딩이 더해진 값 */
+  questionSelectorItemHeight: isTablet ? 44 : 36,
+  questionSelectorFontSize: isTablet ? 16 : 14,
 
   /** 모달 */
   modalHeaderPaddingV: 16,

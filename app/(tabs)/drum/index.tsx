@@ -9,7 +9,6 @@ import { InstrumentType, DRUM_INSTRUMENTS } from '../../../constants/drumSounds'
 import { LAYOUT } from '../../../constants/layout';
 import { useAudioManager } from '../../../context/AudioManager';
 import { useGameLogic } from '../../../hooks/useDrumLogic';
-import Rive, { Fit } from 'rive-react-native';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../../../constants/colors';
 
@@ -27,14 +26,25 @@ const DRUM_BACKGROUND_IMAGE = require('../../../assets/images/drum_m.webp');
 const DRUM_BACKGROUND_ASSET = Image.resolveAssetSource(DRUM_BACKGROUND_IMAGE);
 const DRUM_BACKGROUND_ASPECT_RATIO = DRUM_BACKGROUND_ASSET.width / DRUM_BACKGROUND_ASSET.height;
 
-// 설정 모달: 문제 수 옵션 (Rive quiz_bar 세그먼트와 1:1, Number 입력 = 인덱스 0~3)
+/** 헤더 중앙 모드 배지 글자 크기. 우측 '듣기연습' 버튼은 이 값을 기준으로 0.8배 축소 */
+const HEADER_BADGE_FONT_SIZE = LAYOUT.drumHeaderTextFontSize + 2;
+const HEADER_ACTION_SCALE = 0.8;
+const HEADER_ACTION_FONT_SIZE = Math.round(HEADER_BADGE_FONT_SIZE * HEADER_ACTION_SCALE);
+/** 👆 이모지를 감싸는 흰 원형 칩 지름 */
+const HEADER_ACTION_ICON_CHIP_SIZE = HEADER_ACTION_FONT_SIZE + 7;
+
+// 설정 드롭다운: 문제 수 옵션 (세그먼티드 컨트롤의 칸 = 이 배열의 원소)
 const QUESTION_COUNTS = [5, 10, 15, 20] as const;
+
+/** 세그먼티드 컨트롤 트랙 안쪽 여백. 인디케이터 pill이 트랙 테두리에서 이만큼 떠 있음 */
+const SEGMENTED_TRACK_PADDING = 4;
+const SEGMENTED_TRACK_HEIGHT = LAYOUT.questionSelectorItemHeight + SEGMENTED_TRACK_PADDING * 2;
 
 /** 하단 왼쪽 버튼에 scale 펄스를 주기 위한 애니메이션 래핑 (절대 위치 스타일 유지) */
 const AnimatedTouchable = RNAnimated.createAnimatedComponent(TouchableOpacity);
 
-/** 설정 드롭다운 패널 높이. 바깥 터치 감지용 백드롭 시작점 계산에도 사용 */
-const SETTINGS_PANEL_HEIGHT = 90;
+/** 설정 드롭다운 패널 높이 = 트랙 + 상하 패딩. 바깥 터치 감지용 백드롭 시작점 계산에도 사용 */
+const SETTINGS_PANEL_HEIGHT = SEGMENTED_TRACK_HEIGHT + 20;
 
 export default function Index() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -70,7 +80,6 @@ export default function Index() {
   const [currentDrumScrollIndex, setCurrentDrumScrollIndex] = useState(0);
   const horizontalDrumScrollerRef = useRef<HorizontalDrumScrollerRef>(null);
   const isStartingQuizRef = useRef(false);
-  const quizBarRiveRef = useRef<any>(null);
   /** 현재 보이는 페이지 = 악기 수 (설정에서 제거, 화면이 곧 선택) */
   const instrumentCount = currentDrumScrollIndex + 2;
   const viewportAspectRatio = backgroundViewport.width > 0 && backgroundViewport.height > 0
@@ -84,33 +93,11 @@ export default function Index() {
   const backgroundBottomGap = Math.max(0, (backgroundViewport.height - renderedBackgroundHeight) / 2);
   const fixedButtonBottomOffset = Math.max(-70, Math.round((backgroundBottomGap - FIXED_BUTTON_HEIGHT) / 2) - 45);
 
-  // 설정 변경 콜백 (Rive 바 세그먼트 터치 시 호출, Haptic 포함)
-  const handleQuestionCountChange = (value: typeof QUESTION_COUNTS[number]) => {
+  // 설정 변경 콜백 (세그먼트 터치 시 호출, Haptic 포함)
+  const handleQuestionCountChange = useCallback((value: typeof QUESTION_COUNTS[number]) => {
     Haptics.selectionAsync?.();
-    console.log('🎯 문제 수 변경:', value);
     setQuestionCount(value);
-    console.log('🎯 문제 수 변경 후 state:', { questionCount: value, instrumentCount });
-  };
-
-  // 게임 진행 상태
-
-  // Rive quiz_bar: questionCount 변경 시 Number 입력 반영 (1=5개, 2=10개, 3=15개, 4=20개)
-  useEffect(() => {
-    const idx = QUESTION_COUNTS.indexOf(questionCount);
-    if (idx === -1 || !quizBarRiveRef.current) return;
-    quizBarRiveRef.current.setInputState('State Machine 1', 'Number', idx + 1);
-  }, [questionCount]);
-
-  // 설정 패널이 열릴 때 Rive ref 동기화 (패널 안에서만 Rive가 마운트됨)
-  useEffect(() => {
-    if (!isSettingsExpanded) return;
-    const id = setTimeout(() => {
-      const idx = QUESTION_COUNTS.indexOf(questionCount);
-      if (idx === -1 || !quizBarRiveRef.current) return;
-      quizBarRiveRef.current.setInputState('State Machine 1', 'Number', idx + 1);
-    }, 150);
-    return () => clearTimeout(id);
-  }, [isSettingsExpanded, questionCount]);
+  }, []);
 
   // audioManager를 ref에 넣어 useFocusEffect 의존성 제거 → 클린업은 탭 포커스 잃을 때만 1회 실행
   const audioManagerRef = useRef(audioManager);
@@ -318,8 +305,16 @@ export default function Index() {
                 <TouchableOpacity onPress={toggleSettingsPanel} style={styles.headerSide}>
                   <Text style={styles.headerText}>⚙️ {questionCount}문제</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleStartQuiz} style={styles.headerSide}>
-                  <Text style={[styles.headerText, { color: '#fd7d7d', fontWeight: 'bold' }]}>듣기연습</Text>
+                <TouchableOpacity
+                  onPress={handleStartQuiz}
+                  style={styles.headerActionButton}
+                  activeOpacity={0.8}
+                >
+                  {/* 👆 = 여기를 눌러 진입하라는 신호. 코랄 배경에 노란 손 이모지가 묻혀서 흰 원형 칩 위에 올림 */}
+                  <View style={styles.headerActionIconChip}>
+                    <Text style={styles.headerActionButtonIcon}>👆</Text>
+                  </View>
+                  <Text style={styles.headerActionButtonText}>듣기연습</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -343,46 +338,28 @@ export default function Index() {
                 </TouchableOpacity>
               </>
             )}
+
+            {/* 헤더 정중앙 타이틀: 좌우 버튼 폭에 영향받지 않도록 절대 배치, 모드에 따라 문구 전환 */}
+            <View
+              pointerEvents="none"
+              style={[
+                styles.headerCenter,
+                { top: insets.top + 12, bottom: 12 },
+              ]}
+            >
+              <View style={[styles.headerCenterBadge, isQuizActive ? styles.headerCenterBadgeQuiz : styles.headerCenterBadgeListen]}>
+                <Text style={[styles.headerCenterText, isQuizActive ? styles.headerCenterTextQuiz : styles.headerCenterTextListen]}>
+                  {isQuizActive ? '퀴즈모드' : '듣기모드'}
+                </Text>
+              </View>
+            </View>
           </RNAnimated.View>
 
           {/* 설정 패널: 톱니 탭 시 헤더 바로 아래 열림, 바깥 터치로 닫기 */}
           {!isQuizActive && isSettingsExpanded && (
             <>
               <View style={[styles.settingsDropdownPanel, { top: headerHeight }]}>
-                <View style={styles.quizBarContainer}>
-                  <Rive
-                    ref={quizBarRiveRef}
-                    resourceName="quiz_bar"
-                    stateMachineName="State Machine 1"
-                    style={styles.quizBarRive}
-                    fit={Fit.Cover}
-                    autoplay
-                  />
-                  <View style={styles.quizBarOverlay} pointerEvents="box-none">
-                    {QUESTION_COUNTS.map((value) => {
-                      let leftPos = '0%';
-                      if (value === 5) leftPos = '2.5%';
-                      if (value === 10) leftPos = '25%';
-                      if (value === 15) leftPos = '49%';
-                      if (value === 20) leftPos = '74.5%';
-                      return (
-                        <TouchableOpacity
-                          key={value}
-                          style={[styles.quizBarSegment, { left: leftPos as '4%' | '28%' | '52%' | '76%' }]}
-                          activeOpacity={0.8}
-                          onPress={() => handleQuestionCountChange(value)}
-                        >
-                          <Text style={[
-                            styles.quizBarSegmentText,
-                            questionCount === value && styles.quizBarSegmentTextSelected
-                          ]}>
-                            {value}문제
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
+                <QuestionCountSelector value={questionCount} onChange={handleQuestionCountChange} />
               </View>
               <TouchableWithoutFeedback onPress={closeSettingsOnOutsideTouch}>
                 <View style={[styles.settingsDropdownBackdrop, { top: headerHeight + SETTINGS_PANEL_HEIGHT }]} />
@@ -572,6 +549,78 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333333',
   },
+  // 헤더 중앙 타이틀(좌우 버튼 사이 여백)
+  // zIndex/elevation: 좌우 버튼(headerActionButton elevation 2)보다 위에 그려야 안드로이드에서 안 묻힘
+  headerCenter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    elevation: 4,
+  },
+  /** 현재 모드 배지: 좌우 버튼과 같은 회색 글자로는 묻혀서 배경 pill + 색 구분으로 부각 */
+  headerCenterBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    maxWidth: '100%',
+  },
+  headerCenterBadgeListen: {
+    backgroundColor: COLORS.blueLight,
+    borderColor: COLORS.blue,
+  },
+  headerCenterBadgeQuiz: {
+    backgroundColor: COLORS.backgroundWarning,
+    borderColor: COLORS.primaryDark,
+  },
+  headerCenterText: {
+    fontSize: HEADER_BADGE_FONT_SIZE,
+    fontWeight: 'bold',
+    color: '#333333',
+    letterSpacing: 0.5,
+  },
+  headerCenterTextListen: {
+    color: COLORS.blue,
+  },
+  headerCenterTextQuiz: {
+    color: COLORS.primaryDark,
+  },
+  /** 헤더 우측 '듣기연습' 버튼(알약형) - 중앙 모드 배지 대비 0.8배. 헤더 높이는 좌측 headerSide가 결정하므로 그대로 유지 */
+  headerActionButton: {
+    flexDirection: 'row',
+    paddingLeft: Math.round(10 * HEADER_ACTION_SCALE),
+    paddingRight: Math.round(18 * HEADER_ACTION_SCALE),
+    paddingVertical: Math.round(9 * HEADER_ACTION_SCALE),
+    borderRadius: 999,
+    backgroundColor: '#fd7d7d',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+  },
+  headerActionButtonText: {
+    fontSize: HEADER_ACTION_FONT_SIZE,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  /** 👆를 올려 놓는 흰 원형 칩. 이모지 자체 색(노랑/살구)이 코랄 배경(#fd7d7d)과 명도가 비슷해 그냥 두면 안 보임 */
+  headerActionIconChip: {
+    width: HEADER_ACTION_ICON_CHIP_SIZE,
+    height: HEADER_ACTION_ICON_CHIP_SIZE,
+    borderRadius: HEADER_ACTION_ICON_CHIP_SIZE / 2,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  /** 칩 안에 꽉 차 보이도록 글자보다 살짝 크게. lineHeight를 주지 않으면 안드로이드에서 이모지 하단이 잘림 */
+  headerActionButtonIcon: {
+    fontSize: HEADER_ACTION_FONT_SIZE + 1,
+    lineHeight: HEADER_ACTION_FONT_SIZE + 4,
+    textAlign: 'center',
+  },
   // 횡스크롤 컨테이너
   horizontalScrollContainer: {
     flex: 1,
@@ -684,42 +733,37 @@ const styles = StyleSheet.create({
     zIndex: 500,
     backgroundColor: 'transparent',
   },
-  quizBarContainer: {
-    width: LAYOUT.quizBarWidth,
-    height: LAYOUT.quizBarHeight,
+  /** 세그먼티드 컨트롤 트랙. 칸 폭은 실측 너비에서 계산되므로 매직넘버 없이 항상 정렬됨 */
+  segmentedTrack: {
+    width: LAYOUT.questionSelectorWidth,
+    height: SEGMENTED_TRACK_HEIGHT,
     alignSelf: 'center',
-    marginBottom: 0,
-    position: 'relative',
-    overflow: 'visible',
-    backgroundColor: '#fff',
+    flexDirection: 'row',
+    padding: SEGMENTED_TRACK_PADDING,
+    borderRadius: 999,
+    backgroundColor: '#f0f0f0',
   },
-  quizBarRive: {
-    width: LAYOUT.quizBarWidth,
-    height: LAYOUT.quizBarHeight,
+  /** 선택 칸을 따라 미끄러지는 pill. 폭은 실측 후 인라인으로 주입 */
+  segmentedIndicator: {
     position: 'absolute',
-    left: 0,
-    top: -3,
-    transform: [{ scaleX: 1.7 }, { scaleY: 1.6 }],
+    top: SEGMENTED_TRACK_PADDING,
+    bottom: SEGMENTED_TRACK_PADDING,
+    left: SEGMENTED_TRACK_PADDING,
+    borderRadius: 999,
+    backgroundColor: '#fd7d7d',
   },
-  quizBarOverlay: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  quizBarSegment: {
-    position: 'absolute',
-    height: '100%',
-    width: '25%',
+  segmentedItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quizBarSegmentText: {
-    fontSize: 14,
-    fontWeight: '900',
+  segmentedItemText: {
+    fontSize: LAYOUT.questionSelectorFontSize,
+    fontWeight: '700',
     color: '#666',
   },
-  quizBarSegmentTextSelected: {
-    color: '#fff',
+  segmentedItemTextSelected: {
+    color: '#ffffff',
   },
 
   gameOverOverlay: {
@@ -756,6 +800,79 @@ const styles = StyleSheet.create({
     color: '#F44336',
   },
 });
+
+interface QuestionCountSelectorProps {
+  readonly value: typeof QUESTION_COUNTS[number];
+  readonly onChange: (value: typeof QUESTION_COUNTS[number]) => void;
+}
+
+/**
+ * 문제 수 세그먼티드 컨트롤.
+ * 칸 폭 = (실측 트랙 폭 - 패딩) / 항목 수 이므로, pill이 그려지는 위치와 터치 영역이
+ * 화면 크기·회전과 무관하게 항상 같은 좌표계를 쓴다. (이전 Rive 구현의 정렬 어긋남 원인 제거)
+ */
+function QuestionCountSelector({ value, onChange }: QuestionCountSelectorProps) {
+  const [trackWidth, setTrackWidth] = useState(0);
+  const segmentWidth = trackWidth > 0
+    ? (trackWidth - SEGMENTED_TRACK_PADDING * 2) / QUESTION_COUNTS.length
+    : 0;
+  const selectedIndex = Math.max(0, QUESTION_COUNTS.indexOf(value));
+  const indicatorX = useRef(new RNAnimated.Value(0)).current;
+  /** 첫 실측 때는 애니메이션 없이 즉시 배치. 안 그러면 패널 열 때마다 pill이 왼쪽에서 날아옴 */
+  const hasPositionedRef = useRef(false);
+
+  useEffect(() => {
+    if (segmentWidth === 0) return;
+    const toValue = selectedIndex * segmentWidth;
+    if (!hasPositionedRef.current) {
+      hasPositionedRef.current = true;
+      indicatorX.setValue(toValue);
+      return;
+    }
+    RNAnimated.spring(indicatorX, {
+      toValue,
+      useNativeDriver: true,
+      speed: 16,
+      bounciness: 6,
+    }).start();
+  }, [selectedIndex, segmentWidth, indicatorX]);
+
+  return (
+    <View
+      style={styles.segmentedTrack}
+      onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+      accessibilityRole="radiogroup"
+    >
+      {segmentWidth > 0 && (
+        <RNAnimated.View
+          pointerEvents="none"
+          style={[
+            styles.segmentedIndicator,
+            { width: segmentWidth, transform: [{ translateX: indicatorX }] },
+          ]}
+        />
+      )}
+      {QUESTION_COUNTS.map((count) => (
+        <TouchableOpacity
+          key={count}
+          style={styles.segmentedItem}
+          activeOpacity={0.7}
+          onPress={() => onChange(count)}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: count === value }}
+          accessibilityLabel={`${count}문제`}
+        >
+          <Text style={[
+            styles.segmentedItemText,
+            count === value && styles.segmentedItemTextSelected,
+          ]}>
+            {count}문제
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
 
 // 횡스크롤 드럼 섹션 컴포넌트
 interface HorizontalDrumScrollerProps {
