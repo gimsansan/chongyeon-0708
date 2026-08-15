@@ -23,7 +23,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from 'expo-router';
+import { useFocusEffect, useIsFocused } from 'expo-router';
 
 // Context 및 컴포넌트 임포트
 import MissionProgressIcon from '../components/MissionProgressIcon';
@@ -103,8 +103,6 @@ const useAutoFocusViewport = ({
     setViewportStartIdx(target);
   }, [currentNote, totalWhite, viewportSize, setViewportStartIdx]);
 };
-
-const CACHE_LIMIT = 15;
 
 type TrainingMode = 'random' | 'falling' | null;
 
@@ -504,9 +502,6 @@ export function MusicTrainingScreen() {
 
   // 오디오 플레이어 캐시
   const soundCache = useRef<{ [key in Note]?: any }>({});
-  const recentlyUsedNotes = useRef<Note[]>([]);
-  /** 폴리포니용 임시 플레이어. 캐시에 없으므로 따로 들고 있어야 탭을 떠날 때 같이 멈춘다 */
-  const tempPlayers = useRef<Set<any>>(new Set());
   const starContext = useContext(StarContext) as any;
   const clearContext = useContext(ClearContext) as any;
   const isFocused = useIsFocused();
@@ -570,17 +565,8 @@ export function MusicTrainingScreen() {
           console.warn('Failed to release audio player on unmount', e);
         }
       }
-      for (const tempPlayer of tempPlayers.current) {
-        try {
-          tempPlayer.remove();
-        } catch (e) {
-          console.warn('Failed to release temp audio player on unmount', e);
-        }
-      }
-      // 캐시 및 사용 내역 강제 소거로 핫 리로드 시 발생하는 release 충돌 해결
+      // 캐시 강제 소거로 핫 리로드 시 발생하는 release 충돌 해결
       soundCache.current = {};
-      recentlyUsedNotes.current = [];
-      tempPlayers.current.clear();
     };
   }, [clearFallingNoteTimers]);
 
@@ -591,6 +577,20 @@ export function MusicTrainingScreen() {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => { });
     }
   }, [isFocused, isReady]);
+
+  // 탭 진입 시 피아노 음 52개를 미리 만들어 둔다. 이미 있으면 건너뛴다 (캐시는 블러 때 비우지 않음).
+  useFocusEffect(
+    useCallback(() => {
+      for (const note of Object.keys(soundFiles) as Note[]) {
+        if (soundCache.current[note]) continue;
+        try {
+          soundCache.current[note] = createAudioPlayer(soundFiles[note]);
+        } catch (error) {
+          console.warn(`피아노 프리로드 실패: ${note}`, error);
+        }
+      }
+    }, [])
+  );
 
   // 저장 기록 동기화
   useEffect(() => {
@@ -674,37 +674,16 @@ export function MusicTrainingScreen() {
     try {
       let player = soundCache.current[note];
       if (!player) {
-        if (recentlyUsedNotes.current.length >= CACHE_LIMIT) {
-          const lruNote = recentlyUsedNotes.current.pop();
-          if (lruNote && soundCache.current[lruNote]) {
-            try {
-              soundCache.current[lruNote].remove();
-            } catch (e) { }
-            delete soundCache.current[lruNote];
-          }
-        }
         player = createAudioPlayer(soundFiles[note]);
         soundCache.current[note] = player;
       }
-      recentlyUsedNotes.current = recentlyUsedNotes.current.filter(n => n !== note);
-      recentlyUsedNotes.current.unshift(note);
 
-      // 연타 등으로 이미 재생 중일 때 이전 음을 끊지 않고 포개어 재생 (폴리포니)
-      if (player.playing) {
-        const tempPlayer = createAudioPlayer(soundFiles[note]);
-        tempPlayers.current.add(tempPlayer);
-        tempPlayer.play();
-        // 3초 뒤 재생 완료 후 자동 메모리 해제
-        setTimeout(() => {
-          tempPlayers.current.delete(tempPlayer);
-          try {
-            tempPlayer.remove();
-          } catch (e) { }
-        }, 3000);
-      } else {
-        player.seekTo(0);
-        player.play();
+      // 처음(0)이면 되감기 없이 바로 재생. 위치가 남아 있을 때만 되감기를 기다린다.
+      // 같은 음 연타는 임시 플레이어를 만들지 않고 이 캐시 스피커를 처음부터 다시 낸다.
+      if (player.currentTime > 0) {
+        await player.seekTo(0);
       }
+      player.play();
     } catch (error) {
       console.log(`'${note}' 음원 재생 실패:`, error);
     }
@@ -721,13 +700,6 @@ export function MusicTrainingScreen() {
         player?.pause();
       } catch (e) { }
     }
-    // 임시 플레이어는 캐시에 없고 되돌릴 상태도 없으므로 바로 해제한다
-    for (const tempPlayer of tempPlayers.current) {
-      try {
-        tempPlayer.remove();
-      } catch (e) { }
-    }
-    tempPlayers.current.clear();
   });
 
   const playNextQuestion = useCallback(() => {

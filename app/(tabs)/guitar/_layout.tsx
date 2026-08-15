@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   ActivityIndicator
 } from 'react-native';
-import { useIsFocused } from 'expo-router';
+import { useFocusEffect, useIsFocused } from 'expo-router';
 import MissionProgressIcon from '../../../components/MissionProgressIcon';
 import { useStopAudioOnBlur } from '../../../hooks/useStopAudioOnBlur';
 import { ClearContext } from '../../../context/ClearContext';
@@ -42,7 +42,6 @@ const guitarSounds: { [key in GuitarNote]: any } = {
 };
 
 const GUITAR_PROGRESS_KEY = '@MiniGameApp:guitarProgress';
-const CACHE_LIMIT = 15;
 
 export default function Guitar() {
   const [isReady, setIsReady] = useState(false);
@@ -55,9 +54,6 @@ export default function Guitar() {
   const [progress, setProgress] = useState<any>({});
 
   const soundCache = useRef<{ [key in GuitarNote]?: any }>({});
-  const recentlyUsedNotes = useRef<GuitarNote[]>([]);
-  /** 폴리포니용 임시 플레이어. 캐시에 없으므로 따로 들고 있어야 탭을 떠날 때 같이 멈춘다 */
-  const tempPlayers = useRef<Set<any>>(new Set());
   
   const { syncData } = useSyncGameData();
   const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
@@ -89,12 +85,6 @@ export default function Guitar() {
       for (const player of Object.values(soundCache.current)) {
         player?.remove();
       }
-      for (const temp of tempPlayers.current) {
-        try {
-          temp.remove();
-        } catch (e) { }
-      }
-      tempPlayers.current.clear();
     };
   }, []);
 
@@ -111,6 +101,20 @@ export default function Guitar() {
 
     changeOrientation().catch(err => console.log(err));
   }, [isFocused]);
+
+  // 탭 진입 시 기타 음 28개를 미리 만들어 둔다. 이미 있으면 건너뛴다 (캐시는 블러 때 비우지 않음).
+  useFocusEffect(
+    useCallback(() => {
+      for (const note of Object.keys(guitarSounds) as GuitarNote[]) {
+        if (soundCache.current[note]) continue;
+        try {
+          soundCache.current[note] = createAudioPlayer(guitarSounds[note]);
+       } catch (error) {
+          console.warn(`기타 프리로드 실패: ${note}`, error);
+        }
+      }
+    }, [])
+  );
 
   useEffect(() => {
     if (Object.keys(progress).length > 0) {
@@ -129,12 +133,6 @@ export default function Guitar() {
         player?.pause();
       } catch (e) { }
     }
-    for (const temp of tempPlayers.current) {
-      try {
-        temp.remove();
-      } catch (e) { }
-    }
-    tempPlayers.current.clear();
   });
 
   // 2. 사운드 재생 (expo-audio 방식: 폴리포니 지원)
@@ -147,34 +145,17 @@ export default function Guitar() {
     try {
       let player = soundCache.current[note];
       if (!player) {
-        if (recentlyUsedNotes.current.length >= CACHE_LIMIT) {
-          const lruNote = recentlyUsedNotes.current.pop();
-          if (lruNote) {
-            soundCache.current[lruNote]?.remove();
-            delete soundCache.current[lruNote];
-          }
-        }
         player = createAudioPlayer(guitarSounds[note]);
         soundCache.current[note] = player;
       }
-      
-      recentlyUsedNotes.current = recentlyUsedNotes.current.filter(n => n !== note);
-      recentlyUsedNotes.current.unshift(note);
 
-      if (player.playing) {
-        const temp = createAudioPlayer(guitarSounds[note]);
-        tempPlayers.current.add(temp);
-        temp.play();
-        setTimeout(() => {
-          tempPlayers.current.delete(temp);
-          try {
-            temp.remove();
-          } catch (e) { }
-        }, 3000);
-      } else {
-        player.seekTo(0);
-        player.play();
+      // 처음(0)이면 되감기 없이 바로 재생. 위치가 남아 있을 때만 되감기를 기다린다.
+      // 같은 음 연타는 임시 플레이어를 만들지 않고 이 캐시 스피커를 처음부터 다시 낸다.
+      if (player.currentTime > 0) {
+        await player.seekTo(0);
+        if (!isScreenFocused.current) return;
       }
+      player.play();
     } catch (error) {
       console.log(`재생 실패: ${note}`, error);
     }
