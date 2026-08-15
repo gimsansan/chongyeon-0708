@@ -1242,6 +1242,7 @@ HEAD `b48fec8`. 세션 7 미커밋으로 적혀 있던 기타·피아노 변경�
 #### 사용자 확인
 
 > "new 탭 → 🚀 강화학습, 📊 PG 소리 잘 나옴"
+> "남은 일은 소리 잘 나옴 . main병합 해도 됨"
 
 **세션 8까지 마지막으로 남아 있던 두 항목입니다.** 5번(`audioCompat` 걷어내기)에서
 `GameAudioManager`의 재생 코드를 `playFromPositionAsync(0)` → `await seekTo(0)` + `play()`로 옮긴 뒤
@@ -1249,18 +1250,7 @@ HEAD `b48fec8`. 세션 7 미커밋으로 적혀 있던 기타·피아노 변경�
 
 이로써 **5번의 실기기 검증이 전부 끝났고, 리뷰 1~5번 + 추가 1~4의 확인 목록에 남은 항목이 없습니다.**
 
-#### 남은 것은 `main` 병합뿐입니다
-
-```
-git checkout main && git merge audio-playback-improvements    # fast-forward
-```
-
-`main`은 아직 `d9c6fec`, 브랜치는 `b48fec8`입니다.
-
-#### 미커밋 문서
-
-`doc/handoff.md`(이 갱신) · `doc/conversation_8.md` · `doc/conversation_9.md`.
-**코드는 워킹트리에 변경이 없습니다.**
+사용자는 같은 확인을 다시 **"남은 일은 소리 잘 나옴"**으로 재확인했고, **`main` 병합을 승인**했습니다.
 
 ---
 
