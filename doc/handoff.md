@@ -1,13 +1,11 @@
 # 인계문 — 사운드 재생 개선 작업 (누적 기록)
 
-브랜치 **`audio-playback-improvements`** / 최신 커밋 `b48fec8` (기준 커밋이었던 `d9c6fec syusei` 위)
-`main`은 **`d9c6fec`에 그대로 있습니다** — 아직 병합하지 않았습니다.
-세션 7 코드(프리로드·연타)는 **`b48fec8`에 커밋됐습니다.**
+브랜치 **`main`** 과 **`audio-playback-improvements`** 가 같은 커밋 **`c913b65`** 입니다.
+세션 9에서 `main`으로 **fast-forward 병합했습니다** (`d9c6fec` → `c913b65`). origin에는 아직 푸시하지 않았습니다.
 
 > ✅ **리뷰 5단계는 전부 종료됐습니다** (2번은 오진이라 의도적으로 작업하지 않음).
 > 세션 7에서 **추가 3(프리로드)** 과 **연타(`seekTo` 대기 · `tempPlayers` 제거)** 를 넣었습니다. 🎸 연습 연타·🎸 첫 소리(4-B 잔재 목록)는 **확인 완료**.
-> ✅ **세션 9: 🚀 matchGameAI / 📊 matchGamePG도 확인 완료 — 실기기 확인 항목이 전부 끝났습니다.**
-> 🎹 피아노는 같은 코드라 별도 확인을 **안 하기로 한 상태**. **남은 것은 `main` 병합 하나입니다.**
+> ✅ **세션 9: 🚀 matchGameAI / 📊 matchGamePG 확인 완료, `main` 병합 완료.** 남은 코드 작업·확인·병합은 없습니다.
 
 새 세션에서 이어받을 때 이 문서부터 읽으면 됩니다.
 **이 문서는 누적형입니다.** 이전 내용을 지우지 않고 아래로 쌓습니다.
@@ -35,16 +33,14 @@
 | 추가 3 | 기타·피아노 탭 진입 시 전체 음 프리로드 | **완료** | 🎸 연습 연타·🎸 첫 소리 **확인 완료 — 정상** |
 | 추가 4 | 기타·피아노 연타 (`seekTo` 대기 · `tempPlayers` 제거) | **완료** | 🎸 연습 **확인 완료 — 정상.** 🎹 피아노는 같은 코드, 별도 확인은 **의도적으로 안 함** |
 
-### 남은 일 (2026-08-16 세션 9 갱신)
+### ~~남은 일 (2026-08-16 세션 9 갱신)~~ 완료 — `main` 병합
 
-**`main` 병합(fast-forward) 하나만 남았습니다.**
+세션 9에서 `git checkout main && git merge audio-playback-improvements` 로 **fast-forward** 했습니다.
+`main` = `audio-playback-improvements` = **`c913b65`**.
 
-```
-git checkout main && git merge audio-playback-improvements
-```
-
-코드 작업도, 실기기 확인 항목도 남아 있지 않습니다.
+**남은 코드 작업·실기기 확인·병합은 없습니다.**
 미뤄둔 확인(4-B의 전화 인터럽션·iOS 무음 스위치, 4-A의 🎧 learn '쉬움')은 **사용자가 하지 않기로 한 것**이라 목록에서 뺐습니다.
+origin/`main` 푸시는 **아직**입니다.
 
 ### ~~남은 일 (2026-08-16 세션 8 갱신)~~ 확인 완료 (세션 9)
 
@@ -52,7 +48,7 @@ git checkout main && git merge audio-playback-improvements
 
 남은 것:
 - ~~🚀 matchGameAI / 📊 matchGamePG **첫 소리** (5번에서 `GameAudioManager`를 건드린 뒤 미확인)~~ → **세션 9에서 확인 완료 — 정상**
-- **`main` 병합** (fast-forward)
+- ~~**`main` 병합** (fast-forward)~~ → **세션 9에서 완료** (`d9c6fec` → `c913b65`)
 
 🎸 4-B 이후 첫 소리는 세션 7 연습 연타 확인으로 이미 들린 것이고, 세션 8에서 사용자가 **해결됨**이라고 확인했습니다.
 🎹 피아노 별도 확인·멀티터치·같은 음 연타 시 앞 음 끊김은 사용자가 **의도적으로 그렇게 둔 것**입니다.
@@ -1110,7 +1106,7 @@ d9c6fec  syusei          ← main은 여기 그대로
 **여기서부터는 한 커밋에 한 작업입니다.** `62d5c76`이 4건 뭉치였던 것과 달리
 `4b28b74` / `32be790` / `775a627`은 각각 `git revert`로 하나만 되돌릴 수 있습니다.
 
-**`main` 병합은 아직입니다.** fast-forward입니다.
+~~**`main` 병합은 아직입니다.**~~ → **세션 9에서 완료** (`d9c6fec` → `c913b65`).
 
 ```
 git checkout main && git merge audio-playback-improvements
@@ -1131,6 +1127,11 @@ git checkout main && git merge audio-playback-improvements
  M doc/handoff.md
 ?? doc/conversation_7.md
 ```
+
+### 갱신 — 2026-08-16 (세션 9, main 병합 완료)
+
+`main` fast-forward `d9c6fec` → `c913b65`. `audio-playback-improvements`와 같은 커밋입니다.
+origin/`main` 푸시는 **아직**입니다.
 
 ---
 
@@ -1229,7 +1230,7 @@ git checkout main && git merge audio-playback-improvements
 #### 커밋 상태 (이 세션 시작 시 이미 되어 있었음)
 
 HEAD `b48fec8`. 세션 7 미커밋으로 적혀 있던 기타·피아노 변경이 이 커밋에 들어 있다.
-`main`은 `d9c6fec` 그대로. **병합은 아직.**
+~~`main`은 `d9c6fec` 그대로. **병합은 아직.**~~ → **세션 9에서 `c913b65`로 병합.**
 
 이 인계문 갱신과 `conversation_8.md` 본문은 **아직 이 커밋 밖**이다.
 
@@ -1252,6 +1253,14 @@ HEAD `b48fec8`. 세션 7 미커밋으로 적혀 있던 기타·피아노 변경�
 
 사용자는 같은 확인을 다시 **"남은 일은 소리 잘 나옴"**으로 재확인했고, **`main` 병합을 승인**했습니다.
 
+#### `main` 병합 (세션 9)
+
+```
+git checkout main && git merge audio-playback-improvements
+```
+
+fast-forward `d9c6fec` → `c913b65`. 코드 충돌 없음. **푸시는 하지 않았습니다.**
+
 ---
 
 ## 참고 문서
@@ -1267,7 +1276,7 @@ HEAD `b48fec8`. 세션 7 미커밋으로 적혀 있던 기타·피아노 변경�
 | `doc/conversation_6.md` | **없음.** 세션 6은 "이해?"·Ask 모드라 대화 파일을 안 만들었음. 내용은 위 세션 6 로그 |
 | `doc/conversation_7.md` | 세션 7 대화 기록 (추가 3 · 연타 · 멀티터치 안 함) |
 | `doc/conversation_8.md` | 세션 8 대화 기록 (기타 재생 설명 · 4-B 첫 소리 확인 완료) |
-| `doc/conversation_9.md` | 세션 9 대화 기록 (🚀/📊 확인 완료 — 실기기 확인 종료) |
+| `doc/conversation_9.md` | 세션 9 대화 기록 (🚀/📊 확인 완료 · `main` 병합) |
 | `CLAUDE.md` | 작업 규칙 (규칙 1: "이해?" = 실행 금지 / 규칙 2: 대화 기록·인계문) |
 
 **세션이 바뀌면 대화 기록 파일도 새로 만듭니다** (`CLAUDE.md` 규칙 2-1).
