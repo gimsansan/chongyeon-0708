@@ -346,8 +346,8 @@ const ResultsScreen = memo(({ state, onContinue, onGoHome }: { state: GameState,
         <TouchableOpacity style={styles.primaryButton} onPress={() => onContinue(state.mode, false)} activeOpacity={0.8}>
             <Text style={styles.primaryButtonText}>▶️ 계속하기</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.statsBackButton} onPress={onGoHome} activeOpacity={0.8}>
-            <Text style={styles.statsBackButtonText} numberOfLines={1}>🏠 홈으로</Text>
+        <TouchableOpacity style={styles.statsButton} onPress={onGoHome} activeOpacity={0.8}>
+            <Text style={styles.statsButtonText}>🏠 홈으로</Text>
         </TouchableOpacity>
     </View>
 ));
@@ -646,10 +646,7 @@ const styles = StyleSheet.create({
         marginVertical: LAYOUT.spacingXS,
         width: LAYOUT.auditoryPrimaryButtonWidthPercent,
         elevation: 3,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+     
     },
     statsButtonText: {
         color: COLORS.white,
@@ -667,10 +664,7 @@ const styles = StyleSheet.create({
         width: LAYOUT.auditoryStatsBackButtonWidthPercent,
         alignSelf: 'center',
         elevation: 3,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+      
     },
     statsBackButtonText: {
         color: COLORS.white,
@@ -694,12 +688,12 @@ const styles = StyleSheet.create({
         borderColor: COLORS.success,
     },
     incorrectButton: {
-        backgroundColor: COLORS.errorLight,
-        borderColor: COLORS.error,
+        backgroundColor: '#FFCDD2',
+        borderColor: '#F44336',
     },
     disabledButton: {
-        backgroundColor: COLORS.backgroundGray,
-        borderColor: COLORS.borderGray,
+        backgroundColor: '#F5F5F5',
+        borderColor: '#BDBDBD',
         opacity: 0.6,
     },
     gameButtonText: {

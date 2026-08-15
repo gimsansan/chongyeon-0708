@@ -643,10 +643,7 @@ const styles = StyleSheet.create({
         marginVertical: LAYOUT.spacingXS,
         width: LAYOUT.auditoryPrimaryButtonWidthPercent,
         elevation: 3,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+    
     },
     statsButtonText: {
         color: COLORS.white,
@@ -664,10 +661,7 @@ const styles = StyleSheet.create({
         width: LAYOUT.auditoryStatsBackButtonWidthPercent,
         alignSelf: 'center',
         elevation: 3,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
+     
     },
     statsBackButtonText: {
         color: COLORS.white,
