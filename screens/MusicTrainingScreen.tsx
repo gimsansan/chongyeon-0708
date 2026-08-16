@@ -121,6 +121,7 @@ const useAutoFocusViewport = ({
  * 근거·다른 방향: `doc/audio-무음-원인과-방향.md`
  */
 const CACHE_LIMIT = 12;
+const IDLE_BOTTOM_PANEL_HEIGHT = 106;
 
 type TrainingMode = 'random' | 'falling' | null;
 
@@ -1041,7 +1042,7 @@ export function MusicTrainingScreen() {
 
   const isFallingResultVisible = fallingResult !== null;
   const shouldUseFallingBottomPanel = isFallingNoteActive || isFallingResultVisible || showFallingReplayPrompt;
-  const bottomPanelHeight = shouldUseFallingBottomPanel ? 56 : 96;
+  const bottomPanelHeight = shouldUseFallingBottomPanel ? 56 : IDLE_BOTTOM_PANEL_HEIGHT;
   const usableWidth = Math.max(1, width - insets.left - insets.right);
   const usableHeight = Math.max(1, height - insets.top - insets.bottom);
   const PIANO_AREA_PADDING = 20;
@@ -1404,7 +1405,7 @@ const styles = StyleSheet.create({
   },
   trainingContainer: {
     width: '100%',
-    height: 96,
+    height: IDLE_BOTTOM_PANEL_HEIGHT,
     paddingVertical: 7,
     paddingHorizontal: 14,
     backgroundColor: 'rgba(34, 34, 34, 0.85)',
@@ -1542,14 +1543,14 @@ const styles = StyleSheet.create({
   scaleToggleRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 5,
+    marginBottom: 10,
   },
   scaleToggleButton: {
     backgroundColor: '#444',
     paddingVertical: 5,
     paddingHorizontal: 16,
     borderRadius: 14,
-    marginHorizontal: 3,
+    marginHorizontal: 10,
   },
   scaleToggleButtonActive: {
     backgroundColor: '#007BFF',
@@ -1706,7 +1707,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 96, // 하단 제어반(96px)을 제외한 피아노 영역 전체를 커버하여 터치 차단
+    bottom: IDLE_BOTTOM_PANEL_HEIGHT, // 하단 제어반을 제외한 피아노 영역 전체를 커버하여 터치 차단
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1744,7 +1745,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 96,
+    bottom: IDLE_BOTTOM_PANEL_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 95,

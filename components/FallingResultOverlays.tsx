@@ -57,13 +57,13 @@ export function FallingResultOverlay({
           정확도 {accuracy}% · {hits}/{result.totalNotes} 히트
         </Text>
         <View style={styles.resultBadgeRow}>
-          <Text style={[styles.resultBadge, styles.resultBadgePerfect]}>완벽 {result.perfect}</Text>
-          <Text style={[styles.resultBadge, styles.resultBadgeGreat]}>훌륭 {result.great}</Text>
-          <Text style={[styles.resultBadge, styles.resultBadgeGood]}>양호 {result.good}</Text>
-          <Text style={[styles.resultBadge, styles.resultBadgeMiss]}>놓침 {misses}</Text>
+          <Text style={styles.resultBadge}>완벽 {result.perfect}</Text>
+          <Text style={styles.resultBadge}>훌륭 {result.great}</Text>
+          <Text style={styles.resultBadge}>양호 {result.good}</Text>
+          <Text style={styles.resultBadge}>놓침 {misses}</Text>
         </View>
-        <TouchableOpacity style={styles.resultCloseButton} onPress={onClose}>
-          <Text style={styles.buttonText}>확인</Text>
+        <TouchableOpacity style={styles.resultConfirmButton} onPress={onClose}>
+          <Text style={styles.resultConfirmText}>확인</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -164,25 +164,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 999,
     overflow: 'hidden',
-  },
-  resultBadgePerfect: {
-    backgroundColor: 'rgba(255, 213, 79, 0.22)',
-    borderColor: '#ffd54f',
-    borderWidth: 1,
-  },
-  resultBadgeGreat: {
-    backgroundColor: 'rgba(0, 229, 255, 0.18)',
-    borderColor: '#00e5ff',
-    borderWidth: 1,
-  },
-  resultBadgeGood: {
-    backgroundColor: 'rgba(93, 230, 196, 0.18)',
-    borderColor: '#5de6c4',
-    borderWidth: 1,
-  },
-  resultBadgeMiss: {
-    backgroundColor: 'rgba(255, 82, 82, 0.2)',
-    borderColor: '#ff5252',
+    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    borderColor: 'rgba(0, 229, 255, 0.45)',
     borderWidth: 1,
   },
   resultCloseButton: {
@@ -191,6 +174,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 10,
     marginTop: 14,
+  },
+  resultConfirmButton: {
+    backgroundColor: '#00e5ff',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    marginTop: 14,
+  },
+  resultConfirmText: {
+    color: '#0a1218',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   buttonText: {
     color: 'white',
