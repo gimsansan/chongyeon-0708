@@ -176,12 +176,24 @@ export default function Guitar() {
           if (!evictLeastRecentlyUsedNote()) break;
         }
         player = createAudioPlayer(guitarSounds[note]);
-        soundCache.current[note] = player;
+        const createdPlayer = player;
+        soundCache.current[note] = createdPlayer;
 
         // 죽은 플레이어는 예외도 로그도 없이 무음이 된다. 유일한 통보 경로가 이 이벤트다.
+        //
+        // 알리기만 하면 **죽은 플레이어가 캐시에 남는다.** 다음 터치도 같은 플레이어를
+        // 재사용하므로 그 음은 계속 무음이다 — 탭을 나갔다 오거나(`useStopAudioOnBlur`)
+        // LRU에 밀려날 때까지. 캐시에서 빼두면 다음 터치 때 새로 만들어 바로 회복한다.
         try {
-          player.addListener('playbackStatusUpdate', (status: any) => {
-            if (status?.error) console.warn(`[audio] '${note}' 재생 에러:`, status.error);
+          createdPlayer.addListener('playbackStatusUpdate', (status: any) => {
+            if (!status?.error) return;
+            console.warn(`[audio] '${note}' 재생 에러:`, status.error);
+
+            // 그 사이에 교체·축출됐다면 남의 플레이어다. 건드리지 않는다
+            if (soundCache.current[note] !== createdPlayer) return;
+            delete soundCache.current[note];
+            recentlyUsedNotes.current = recentlyUsedNotes.current.filter(n => n !== note);
+            try { createdPlayer.remove(); } catch (e) { }
           });
         } catch (e) { }
       }

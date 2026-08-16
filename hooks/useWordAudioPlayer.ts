@@ -157,6 +157,36 @@ export function useWordAudioPlayer() {
       subscriptionRef.current = player.addListener('playbackStatusUpdate', (status) => {
         if (currentPlaybackId !== playbackIdRef.current) return;
 
+        /**
+         * 죽은 플레이어는 예외도 로그도 없이 무음이 된다. 유일한 통보 경로가 이 이벤트다.
+         *
+         * 캐시에 남겨두면 다음 재생도 같은 플레이어를 재사용해 또 무음이다. 그런데 이 캐시는
+         * **탭을 나가도 안 비워진다**(모듈 단위, `playerCache`). 그래서 그냥 두면 회복 조건이
+         * "다른 단어 8개가 LRU로 밀어내기" 아니면 "앱 재시작"이다. 여기서 빼두면 다음 재생 때
+         * `getPlayer`가 새로 만들어 **한 번 더 누르면 회복한다.**
+         *
+         * 완료 처리는 건드리지 않는다 — `:186`의 백업 타이머가 3초 뒤 `onComplete`를 부른다.
+         */
+        if (status.error) {
+          console.warn(`[audio] 단어 '${wordText}' 재생 에러:`, status.error);
+
+          // 해제 전에 구독·참조부터 끊는다. 남겨두면 나중에 해제된 플레이어를 pause하게 된다
+          subscriptionRef.current?.remove();
+          subscriptionRef.current = null;
+          if (currentPlayerRef.current === player) currentPlayerRef.current = null;
+
+          // 그 사이에 축출·교체됐다면 남의 플레이어다. 건드리지 않는다
+          if (playerCache.get(soundSource) === player) {
+            playerCache.delete(soundSource);
+            try {
+              player.remove();
+            } catch (removeError) {
+              console.warn('단어 플레이어 해제 실패:', removeError);
+            }
+          }
+          return;
+        }
+
         if (status.duration > 0) {
           progress.value = Math.min(status.currentTime / status.duration, 1);
 
