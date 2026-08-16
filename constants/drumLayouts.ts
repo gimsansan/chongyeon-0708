@@ -20,24 +20,40 @@ export interface DrumLayout {
   neutralOffsets: Partial<Record<InstrumentType, NeutralOffset>>;
 }
 
+/*
+ * 좌표계 기준 (2026-08-17 변경)
+ * -----------------------------------------------------------------------
+ * 이전에는 드럼 상자에 paddingBottom: 70이 있어서 상자(S)와 그림(S-70)의
+ * 좌표계가 달랐다. x,y는 상자 기준이었고 그림은 가로 35dp씩 안쪽에 그려졌다.
+ * 그 70을 없애면서 x,y를 "그림 기준 0~1"로 옮겼다.
+ *
+ * 환산식 (393dp 기기의 기존 화면을 그대로 재현하는 값):
+ *   S = 393 * 0.9 = 353.7,  그림 = S - 70 = 283.7,  가로 오프셋 = 35
+ *   x' = (x * 353.7 - 35) / 283.7 = 1.24674x - 0.12337
+ *   y' =  y * 353.7 / 283.7        = 1.24674y
+ * neutralOffsets는 차이값이라 오프셋 없이 1.24674만 곱한다.
+ *
+ * 아래 값은 모두 이 식으로 기계 환산한 결과다. 눈으로 다시 맞춘 값이 아니다.
+ */
+
 // 5-instrument layout
 export const LAYOUT_5_DRUMS: DrumLayout = {
   image: require('../assets/images/last_55.png'),
   colorImage: require('../assets/images/last_55.png'), 
   order: ['snare', 'hihat', 'tom', 'cymbal', 'kick'],
   details: {
-    hihat:  { x: 0.15, y: 0.2 },
-    snare:  { x: 0.27, y: 0.35 },
-    kick:   { x: 0.46, y: 0.44 },
-    cymbal: { x: 0.85, y: 0.2 },
-    tom:    { x: 0.55, y: 0.15 },
+    hihat:  { x: 0.064, y: 0.249 },
+    snare:  { x: 0.213, y: 0.436 },
+    kick:   { x: 0.450, y: 0.549 },
+    cymbal: { x: 0.936, y: 0.249 },
+    tom:    { x: 0.562, y: 0.187 },
   },
   neutralOffsets: {
-    hihat:  { dx: -0.08, dy: -0.06 },
-    snare:  { dx: -0.08, dy: 0.06 },
-    kick:   { dx: 0, dy: 0.08 },
-    cymbal: { dx: 0.06, dy: -0.06 },
-    tom:    { dx: 0.06, dy: -0.08 },
+    hihat:  { dx: -0.100, dy: -0.075 },
+    snare:  { dx: -0.100, dy: 0.075 },
+    kick:   { dx: 0, dy: 0.100 },
+    cymbal: { dx: 0.075, dy: -0.075 },
+    tom:    { dx: 0.075, dy: -0.100 },
   },
 };
 
@@ -47,16 +63,16 @@ export const LAYOUT_4_DRUMS: DrumLayout = {
   colorImage: require('../assets/images/last_44.png'),
   order: ['snare', 'hihat', 'cymbal', 'kick'],
   details: {
-    hihat:  { x: 0.15, y: 0.2 },
-    snare:  { x: 0.27, y: 0.35 },
-    kick:   { x: 0.46, y: 0.44 },
-    cymbal: { x: 0.85, y: 0.2 },
+    hihat:  { x: 0.064, y: 0.249 },
+    snare:  { x: 0.213, y: 0.436 },
+    kick:   { x: 0.450, y: 0.549 },
+    cymbal: { x: 0.936, y: 0.249 },
   },
   neutralOffsets: {
-    hihat:  { dx: -0.08, dy: -0.06 },
-    snare:  { dx: -0.08, dy: 0.06 },
-    kick:   { dx: 0, dy: 0.08 },
-    cymbal: { dx: 0.06, dy: -0.06 },
+    hihat:  { dx: -0.100, dy: -0.075 },
+    snare:  { dx: -0.100, dy: 0.075 },
+    kick:   { dx: 0, dy: 0.100 },
+    cymbal: { dx: 0.075, dy: -0.075 },
   },
 };
 
@@ -66,14 +82,14 @@ export const LAYOUT_3_DRUMS: DrumLayout = {
   colorImage: require('../assets/images/last_33.png'),
   order: ['snare', 'hihat', 'kick'],
   details: {
-    hihat: { x: 0.19, y: 0.15 },
-    snare: { x: 0.33, y: 0.35},
-    kick:  { x: 0.55, y: 0.45 },
+    hihat: { x: 0.114, y: 0.187 },
+    snare: { x: 0.288, y: 0.436 },
+    kick:  { x: 0.562, y: 0.561 },
   },
   neutralOffsets: {
-    hihat: { dx: -0.08, dy: -0.06 },
-    snare: { dx: -0.08, dy: 0.06 },
-    kick:  { dx: 0.06, dy: 0.08 },
+    hihat: { dx: -0.100, dy: -0.075 },
+    snare: { dx: -0.100, dy: 0.075 },
+    kick:  { dx: 0.075, dy: 0.100 },
   },
 };
 
@@ -83,12 +99,12 @@ export const LAYOUT_2_DRUMS: DrumLayout = {
   colorImage: require('../assets/images/last_22.png'),
   order: ['snare', 'kick'],
   details: {
-    snare: { x: 0.37, y: 0.25 },
-    kick:  { x: 0.57, y: 0.35 },
+    snare: { x: 0.338, y: 0.312 },
+    kick:  { x: 0.587, y: 0.436 },
   },
   neutralOffsets: {
-    snare: { dx: -0.1, dy: -0.08 },
-    kick:  { dx: 0.1, dy: 0.08 },
+    snare: { dx: -0.125, dy: -0.100 },
+    kick:  { dx: 0.125, dy: 0.100 },
   },
 };
 

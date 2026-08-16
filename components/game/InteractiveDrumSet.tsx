@@ -22,7 +22,31 @@ import { DrumLayout, LAYOUT_2_DRUMS, drumLayouts } from '../../constants/drumLay
 const { width: initialScreenWidth, height: initialScreenHeight } = Dimensions.get('window');
 
 
-const DRUM_IMAGE_ASPECT_RATIO = 1;
+/**
+ * 드럼 그림 크기 = 화면 폭 × 이 비율. 부모가 drumSize를 안 주면 쓰는 예비값이다.
+ * 0.72는 393dp 기기의 기존 그림 크기(283dp)를 그대로 재현하는 값 — 예전 식은
+ * 상자 0.9W 안에 paddingBottom 70을 두고 그리는 구조라 실제 그림은 0.9W-70이었다.
+ */
+const DRUM_WIDTH_RATIO = 0.72;
+/** 태블릿에서 그림만 거대해지지 않도록 하는 상한 */
+const DRUM_MAX_SIZE = 520;
+/**
+ * 캐릭터 크기 = 그림 크기 × 이 비율.
+ * 기존 0.15는 상자(0.9W) 기준이었다. 그림 기준으로 옮기며 0.15 × (353.7/283.7)로 환산.
+ */
+const CHARACTER_SIZE_RATIO = 0.1875;
+/**
+ * 캐릭터 시작 위치(그림 크기 대비 0~1). 기존에는 사라진 순환 버튼 옆에 두느라
+ * 그림 아래 여백(70dp)에 걸쳐 있었다. 그 여백이 없어져 그림 안으로 clamp된다.
+ */
+const CHARACTER_START_X = 0.736;
+const CHARACTER_START_Y = 0.871;
+/**
+ * 드래그를 놓았을 때 악기로 붙는 반경(그림 크기 대비).
+ * 기존 0.12는 상자 기준이라 그림 기준으로는 0.12 × (353.7/283.7) = 0.1496.
+ * 이 값이라야 393dp 기기의 판정 반경(42dp)이 그대로 유지된다.
+ */
+const SNAP_THRESHOLD = 0.1496;
 
 // (기본 전역 순서는 존재하지만 컴포넌트에서는 layout.order를 사용)
 const DEFAULT_DRUM_ORDER: InstrumentType[] = ['snare', 'hihat', 'cymbal', 'tom', 'kick'];
@@ -76,10 +100,15 @@ interface InteractiveDrumSetProps {
   readonly onAnswerSubmit?: (instrument: InstrumentType) => void;
   /** true면 현재 악기 이름 레이블 숨김 (퀴즈 시작 후) */
   readonly hideCurrentInstrumentLabel?: boolean;
-  /** true면 캐릭터·순환 버튼 미렌더(상위에서 고정 오버레이로 표시) */
+  /** true면 캐릭터 미렌더(상위에서 고정 오버레이로 표시) */
   readonly hideCharacterAndButtons?: boolean;
-  /** true면 캐릭터만 표시하고 순환 버튼은 숨김(상위 고정 버튼 사용 시) */
-  readonly hideCycleButton?: boolean;
+  /**
+   * 그려질 드럼 그림의 한 변(dp). 부모가 실제 가용 높이를 재서 넘긴다.
+   * 여기서 창 높이로 추정하면 하단 탭바 높이를 이 파일에 베껴 두게 되므로 받아서 쓴다.
+   */
+  readonly drumSize?: number;
+  /** 세로가 좁은 기기에서 여백만 줄이는 압축 모드 */
+  readonly compact?: boolean;
 }
 
 export interface InteractiveDrumSetRef {
@@ -91,7 +120,7 @@ export interface InteractiveDrumSetRef {
 }
 
 const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: React.Ref<InteractiveDrumSetRef>) => {
-  const { layout, numInstruments, onInstrumentPlay, onInstrumentChange, isGameAudioPlaying = false, isGameMode = false, isQuizWaiting = false, onAnswerSubmit, hideCurrentInstrumentLabel = false, hideCharacterAndButtons = false, hideCycleButton = false } = props;
+  const { layout, numInstruments, onInstrumentPlay, onInstrumentChange, isGameAudioPlaying = false, isGameMode = false, isQuizWaiting = false, onAnswerSubmit, hideCurrentInstrumentLabel = false, hideCharacterAndButtons = false, drumSize, compact = false } = props;
   const activeLayout = layout ?? drumLayouts[String(numInstruments ?? 2) as keyof typeof drumLayouts] ?? LAYOUT_2_DRUMS;
   const audioManager = useAudioManager();
   const insets = useSafeAreaInsets();
@@ -116,6 +145,16 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
   ) as Record<InstrumentType, { x: number; y: number }>;
   // 이 레이아웃에서 실제 사용할 악기 순서
   const layoutOrder = activeLayout.order;
+
+  /**
+   * 드럼 그림의 한 변(dp). 원본(last_22~55.png)이 540×540 정사각이라 가로세로가 같다.
+   * 마커·캐릭터·스냅 반경이 모두 이 값 하나를 기준으로 하므로 그림과 절대 어긋나지 않는다.
+   */
+  const availableWidth = dimensions.width - insets.left - insets.right;
+  const drumSetSize = drumSize ?? Math.min(availableWidth * DRUM_WIDTH_RATIO, DRUM_MAX_SIZE);
+  const characterSize = Math.max(40, drumSetSize * CHARACTER_SIZE_RATIO);
+  /** 캐릭터가 그림 밖으로 나가지 않는 한계 */
+  const characterMax = Math.max(0, drumSetSize - characterSize);
 
   // 애니메이션 값들
   const translateX = useRef(new Animated.Value(0)).current;
@@ -153,25 +192,14 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     tom: null,
   });
 
-  // 캐릭터 초기 위치: 순환 버튼 바로 우측, 세로는 버튼과 맞춤
+  // 캐릭터 초기 위치: 그림 오른쪽 아래. 좌표가 비율이라 기기 크기와 무관하게 같은 자리다
   useEffect(() => {
-    const currentAvailableHeight = dimensions.height - insets.top - insets.bottom;
-    const currentAvailableWidth = dimensions.width - insets.left - insets.right;
-    const currentDrumSetSize = Math.min(currentAvailableWidth * 0.9, currentAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
-    const currentCharacterSize = Math.max(40, currentDrumSetSize * 0.15);
+    const startX = Math.min(characterMax, CHARACTER_START_X * drumSetSize);
+    const startY = Math.min(characterMax, CHARACTER_START_Y * drumSetSize);
 
-    // 순환 버튼: right: availableWidth*0.3, width 60 → 버튼 오른쪽 끝 + 8px 간격
-    const rightOffset = currentAvailableWidth * 0.3;
-    const centerX = Math.min(
-      currentDrumSetSize - currentCharacterSize,
-      Math.max(0, currentDrumSetSize - rightOffset + 8)
-    );
-    // 버튼과 세로 중앙 맞춤 (버튼 bottom: 50, height: 60)
-    const bottomY = currentDrumSetSize - 50 - 60 + 30 - currentCharacterSize / 2;
-
-    translateX.setValue(centerX);
-    translateY.setValue(bottomY);
-    setCharacterPosition({ x: centerX, y: bottomY });
+    translateX.setValue(startX);
+    translateY.setValue(startY);
+    setCharacterPosition({ x: startX, y: startY });
   }, []);
 
   // 캐릭터 펄스 애니메이션 - 컴포넌트 마운트 후 500ms 대기 후 시작
@@ -225,56 +253,33 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
   }, []);
 
 
-  // 디바이스 크기 변경 감지 및 캐릭터 위치 조정
+  // 디바이스 크기 변경 감지 (예비 크기 계산에 쓰이는 dimensions 갱신)
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }) => {
-      const newDimensions = { width: window.width, height: window.height };
-      const newAvailableHeight = newDimensions.height - insets.top - insets.bottom;
-      const newAvailableWidth = newDimensions.width - insets.left - insets.right;
-      const newDrumSetSize = Math.min(newAvailableWidth * 0.9, newAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
-      const newCharacterSize = Math.max(40, newDrumSetSize * 0.1);
-
-      // 캐릭터 위치가 새 경계를 벗어났는지 확인하고 조정
-      const maxX = newDrumSetSize - newCharacterSize;
-      const maxY = newDrumSetSize - newCharacterSize;
-
-      let adjustedX = characterPosition.x;
-      let adjustedY = characterPosition.y;
-
-      if (characterPosition.x > maxX) adjustedX = maxX;
-      if (characterPosition.y > maxY) adjustedY = maxY;
-
-      // 위치가 변경되었다면 애니메이션과 함께 업데이트
-      if (adjustedX !== characterPosition.x || adjustedY !== characterPosition.y) {
-        Animated.parallel([
-          Animated.spring(translateX, {
-            toValue: adjustedX,
-            useNativeDriver: true,
-          }),
-          Animated.spring(translateY, {
-            toValue: adjustedY,
-            useNativeDriver: true,
-          }),
-        ]).start();
-
-        setCharacterPosition({ x: adjustedX, y: adjustedY });
-      }
-
-      setDimensions(newDimensions);
+      setDimensions({ width: window.width, height: window.height });
     });
 
     return () => subscription?.remove();
-  }, [characterPosition]);
+  }, []);
 
+  /**
+   * 그림 크기가 바뀌면(부모 실측값 도착·화면 크기 변경) 캐릭터를 같은 비율 자리로 옮긴다.
+   * 위치를 px로 들고 있어서 크기만 바뀌면 그림 위 상대 위치가 어긋나기 때문이다.
+   */
+  const prevDrumSetSizeRef = useRef(drumSetSize);
+  useEffect(() => {
+    const prev = prevDrumSetSizeRef.current;
+    prevDrumSetSizeRef.current = drumSetSize;
+    if (prev <= 0 || prev === drumSetSize) return;
 
-  const availableHeight = dimensions.height - insets.top - insets.bottom;
-  const availableWidth = dimensions.width - insets.left - insets.right;
+    const ratio = drumSetSize / prev;
+    const nextX = Math.min(characterMax, characterPosition.x * ratio);
+    const nextY = Math.min(characterMax, characterPosition.y * ratio);
 
-  // 반응형 드럼세트 크기 계산 
-  const maxContainerWidth = availableWidth * 0.9;
-  const maxContainerHeight = availableHeight * 0.6; // Safe Area 내 가용 높이의 60%
-  const drumSetSize = Math.min(maxContainerWidth, maxContainerHeight / DRUM_IMAGE_ASPECT_RATIO);
-  const characterSize = Math.max(40, drumSetSize * 0.15);
+    translateX.setValue(nextX);
+    translateY.setValue(nextY);
+    setCharacterPosition({ x: nextX, y: nextY });
+  }, [drumSetSize]);
 
   // 거리 계산 함수
   const calculateDistance = (pos1: { x: number; y: number }, pos2: { x: number; y: number }) => {
@@ -283,11 +288,8 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
 
   // 가장 가까운 악기 위치 찾기 
   const findNearestInstrument = (x: number, y: number): InstrumentType | null => {
-    const currentAvailableHeight = dimensions.height - insets.top - insets.bottom;
-    const currentAvailableWidth = dimensions.width - insets.left - insets.right;
-    const currentDrumSetSize = Math.min(currentAvailableWidth * 0.9, currentAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
-    const relativeX = x / currentDrumSetSize;
-    const relativeY = y / currentDrumSetSize;
+    const relativeX = x / drumSetSize;
+    const relativeY = y / drumSetSize;
 
     let nearestInstrument: InstrumentType | null = null;
     let minDistance = Infinity;
@@ -295,8 +297,7 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     Object.entries(DRUM_POSITIONS).forEach(([instrument, position]) => {
       const distance = calculateDistance({ x: relativeX, y: relativeY }, position);
 
-      const snapThreshold = Math.max(0.12, 0.2 - (currentDrumSetSize / 1000));
-      if (distance < minDistance && distance < snapThreshold) {
+      if (distance < minDistance && distance < SNAP_THRESHOLD) {
         minDistance = distance;
         nearestInstrument = instrument as InstrumentType;
       }
@@ -312,11 +313,8 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
       console.warn(`snapToInstrument: position for instrument '${instrument}' not found in current layout`);
       return;
     }
-    const currentAvailableHeight = dimensions.height - insets.top - insets.bottom;
-    const currentAvailableWidth = dimensions.width - insets.left - insets.right;
-    const currentDrumSetSize = Math.min(currentAvailableWidth * 0.9, currentAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
-    const targetX = position.x * currentDrumSetSize - characterSize / 2;
-    const targetY = position.y * currentDrumSetSize - characterSize / 2;
+    const targetX = position.x * drumSetSize - characterSize / 2;
+    const targetY = position.y * drumSetSize - characterSize / 2;
 
     Animated.parallel([
       Animated.spring(translateX, {
@@ -497,21 +495,15 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
       return;
     }
     
-    const currentAvailableHeight = dimensions.height - insets.top - insets.bottom;
-    const currentAvailableWidth = dimensions.width - insets.left - insets.right;
-    const currentDrumSetSize = Math.min(currentAvailableWidth * 0.9, currentAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
-    
     // 중립 오프셋 적용 (없으면 기본값 사용)
     const dx = neutralOffset?.dx ?? 0.05;
     const dy = neutralOffset?.dy ?? 0.05;
-    const neutralX = (position.x + dx) * currentDrumSetSize - characterSize / 2;
-    const neutralY = (position.y + dy) * currentDrumSetSize - characterSize / 2;
-    
+    const neutralX = (position.x + dx) * drumSetSize - characterSize / 2;
+    const neutralY = (position.y + dy) * drumSetSize - characterSize / 2;
+
     // 경계 체크
-    const maxX = currentDrumSetSize - characterSize;
-    const maxY = currentDrumSetSize - characterSize;
-    const clampedX = Math.max(0, Math.min(maxX, neutralX));
-    const clampedY = Math.max(0, Math.min(maxY, neutralY));
+    const clampedX = Math.max(0, Math.min(characterMax, neutralX));
+    const clampedY = Math.max(0, Math.min(characterMax, neutralY));
 
     Animated.parallel([
       Animated.spring(translateX, {
@@ -538,19 +530,12 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
   const onGestureEvent = (event: PanGestureHandlerGestureEvent) => {
     const { translationX, translationY } = event.nativeEvent;
 
-    // Safe Area 경계 제한
-    const currentAvailableHeight = dimensions.height - insets.top - insets.bottom;
-    const currentAvailableWidth = dimensions.width - insets.left - insets.right;
-    const currentDrumSetSize = Math.min(currentAvailableWidth * 0.9, currentAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
-    const maxX = currentDrumSetSize - characterSize;
-    const maxY = currentDrumSetSize - characterSize;
-
     let newX = characterPosition.x + translationX;
     let newY = characterPosition.y + translationY;
 
-    // 실시간 경계 체크
-    newX = Math.max(0, Math.min(maxX, newX));
-    newY = Math.max(0, Math.min(maxY, newY));
+    // 실시간 경계 체크 (그림 안으로 제한)
+    newX = Math.max(0, Math.min(characterMax, newX));
+    newY = Math.max(0, Math.min(characterMax, newY));
 
     translateX.setValue(newX);
     translateY.setValue(newY);
@@ -562,12 +547,9 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
       const newX = characterPosition.x + translationX;
       const newY = characterPosition.y + translationY;
 
-      // Safe Area를 고려한 경계 체크
-      const currentAvailableHeight = dimensions.height - insets.top - insets.bottom;
-      const currentAvailableWidth = dimensions.width - insets.left - insets.right;
-      const currentDrumSetSize = Math.min(currentAvailableWidth * 0.9, currentAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
-      const boundedX = Math.max(0, Math.min(currentDrumSetSize - characterSize, newX));
-      const boundedY = Math.max(0, Math.min(currentDrumSetSize - characterSize, newY));
+      // 그림 안으로 제한
+      const boundedX = Math.max(0, Math.min(characterMax, newX));
+      const boundedY = Math.max(0, Math.min(characterMax, newY));
 
       // 가장 가까운 악기 찾기
       const nearestInstrument = findNearestInstrument(boundedX + characterSize / 2, boundedY + characterSize / 2);
@@ -595,9 +577,9 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
 
-      <View style={[styles.drumSetContainer, { width: drumSetSize, height: drumSetSize }]}>
+      <View style={[styles.drumSetContainer, compact && styles.drumSetContainerCompact, { width: drumSetSize, height: drumSetSize }]}>
    
         <Image
           source={activeLayout.image}
@@ -679,9 +661,6 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
 
 
         {Object.entries(DRUM_POSITIONS).map(([instrument, position]) => {
-          const currentAvailableHeight = dimensions.height - insets.top - insets.bottom;
-          const currentAvailableWidth = dimensions.width - insets.left - insets.right;
-          const currentDrumSetSize = Math.min(currentAvailableWidth * 0.9, currentAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
           const markerSize = 30;
           return (
             <TouchableOpacity
@@ -689,8 +668,8 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
               style={[
                 styles.instrumentMarker,
                 {
-                  left: position.x * currentDrumSetSize - markerSize / 2,
-                  top: position.y * currentDrumSetSize - markerSize / 2,
+                  left: position.x * drumSetSize - markerSize / 2,
+                  top: position.y * drumSetSize - markerSize / 2,
                   width: markerSize,
                   height: markerSize,
                   borderRadius: markerSize / 2,
@@ -739,18 +718,6 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
                 />
               </Animated.View>
             </PanGestureHandler>
-            {/* 악기 순환 버튼 (우측) - hideCycleButton이면 상위 고정 버튼만 사용 */}
-            {!hideCycleButton && (
-              <Animated.View style={[styles.controlButtonsContainer, { right: availableWidth * 0.1 }]}>
-                <TouchableOpacity
-                  style={styles.cycleButton}
-                  onPress={() => moveToNextInstrument()}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cycleButtonText}>▶️1</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            )}
           </>
         )}
       </View>
@@ -783,13 +750,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  /** 세로가 좁은 기기에서 여백만 줄인다 (색·모양·크기 비율은 그대로) */
+  containerCompact: {
+    padding: 10,
+  },
   drumSetContainer: {
     position: 'relative',
     backgroundColor: 'transparent',
     borderRadius: 20,
 
     marginBottom: 20,
-    paddingBottom: 70, // 화살표 버튼들을 위한 공간 확보
+
+  },
+  drumSetContainerCompact: {
+    marginBottom: 10,
   },
   drumSetImage: {
     width: '100%',
@@ -844,28 +818,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     lineHeight: 22,
   },
-  // 악기 순환 버튼 컨테이너 (반응형 절대값 배치)
-  controlButtonsContainer: {
-    position: 'absolute',
-    bottom: 10,
-    zIndex: 100, // 다른 요소 위에 표시되도록 z-index 추가
-  },
-  cycleButton: {
-    width: 60,
-    height: 60,
-    backgroundColor: '#ecc681',
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3,
-  },
-  cycleButtonText: {
-    fontSize: 20,
-    color: 'white',  // 흰색으로 복구
-    fontWeight: 'bold',
-  },
-
-  // 기존 arrowController 스타일 제거 (더 이상 사용되지 않음)
 });
 
 const InteractiveDrumSet = forwardRef<InteractiveDrumSetRef, InteractiveDrumSetProps>(InteractiveDrumSetInner);

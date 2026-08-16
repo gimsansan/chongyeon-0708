@@ -15,17 +15,51 @@ import Svg, { Circle, G, Path } from 'react-native-svg';
 
 // 하단 고정 버튼(다시 듣기/순환) 반응형 치수 (기준 너비 390)
 const REFERENCE_WIDTH = 390;
-const fixedBtnScale = Dimensions.get('window').width / REFERENCE_WIDTH;
-const FIXED_BUTTON_WIDTH = Math.round(88 * fixedBtnScale);
-const FIXED_BUTTON_HEIGHT = Math.round(56 * fixedBtnScale);
-const FIXED_BUTTON_GAP = Math.round(150 * fixedBtnScale);
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const fixedBtnScale = SCREEN_WIDTH / REFERENCE_WIDTH;
+/** 태블릿에서 버튼만 거대해지지 않도록 하는 상한 (390dp 기준의 1.5배) */
+const FIXED_BUTTON_WIDTH = Math.min(Math.round(88 * fixedBtnScale), 132);
+const FIXED_BUTTON_HEIGHT = Math.min(Math.round(56 * fixedBtnScale), 84);
+/** 좌우 버튼 사이 간격. 두 버튼 + 간격이 오버레이 안쪽 폭(화면 - 좌우 패딩 27)을 넘지 않게 막는다 */
+const FIXED_BUTTON_GAP = Math.min(
+  Math.round(150 * fixedBtnScale),
+  225,
+  Math.max(0, SCREEN_WIDTH - 54 - FIXED_BUTTON_WIDTH * 2)
+);
 const FIXED_BUTTON_RADIUS = Math.round(12 * fixedBtnScale);
 const FIXED_ICON_FONT_SIZE = Math.max(22, Math.min(34, Math.round(26 * fixedBtnScale)));
 const FIXED_REPLAY_MARGIN_LEFT = -(FIXED_BUTTON_WIDTH + FIXED_BUTTON_GAP / 2);
 const FIXED_CYCLE_MARGIN_LEFT = FIXED_BUTTON_GAP / 2;
 const DRUM_BACKGROUND_IMAGE = require('../../../assets/images/drum_m.webp');
-const DRUM_BACKGROUND_ASSET = Image.resolveAssetSource(DRUM_BACKGROUND_IMAGE);
-const DRUM_BACKGROUND_ASPECT_RATIO = DRUM_BACKGROUND_ASSET.width / DRUM_BACKGROUND_ASSET.height;
+
+/**
+ * 하단 고정 버튼의 바닥 여백.
+ * 예전에는 배경 이미지의 레터박스 간격에서 역산했는데, 배경이 화면을 꽉 채우는 기기
+ * (320×568, 800×1280 등)에서 값이 -70까지 떨어져 버튼이 화면 밖으로 밀려났다.
+ * 393dp 기기의 기존 위치(바닥 위 13dp)를 전 기기 공통 상수로 고정한다.
+ */
+const FIXED_BUTTON_BOTTOM = 13;
+/** 드럼 그림이 하단 버튼을 덮지 않도록 스크롤 영역 아래에 비워 두는 높이 */
+const DRUM_BOTTOM_RESERVE = FIXED_BUTTON_HEIGHT + 26;
+/** 드럼 그림 크기 = 화면 폭 × 이 비율 (393dp에서 기존 283dp를 재현) */
+const DRUM_WIDTH_RATIO = 0.72;
+/** 태블릿 상한 */
+const DRUM_MAX_SIZE = 520;
+/** 드럼 위아래 고정 여백 합: 스크롤 패딩 20+30, 드럼세트 패딩 20+20, 컨테이너 여백 20, 섹션 여백 10 */
+const DRUM_CHROME_NORMAL = 120;
+/** 압축 모드의 같은 합: 10+12, 10+10, 10, 6 */
+const DRUM_CHROME_COMPACT = 58;
+/** 실측 높이가 필요치 + 이 여유에도 못 미치면 압축 모드를 켠다 */
+const DRUM_COMPACT_MARGIN = 20;
+/** 드럼 위 여백. 남는 높이를 이 칸이 흡수하고, 모자라면 이 칸부터 줄어든다 */
+const DRUM_TOP_SPACER_MAX = 150;
+const DRUM_TOP_SPACER_MAX_COMPACT = 60;
+/** 헤더 좌우 패딩 (헤더 중앙 배지의 좌우 한계를 계산할 때 기준점으로 쓴다) */
+const HEADER_PADDING_H = 15;
+/** 헤더 중앙 배지와 좌우 버튼 사이 최소 간격 */
+const HEADER_CENTER_GAP = 8;
+/** 이 폭 미만이면 헤더 좌우 여백을 줄여 중앙 배지 자리를 확보한다 */
+const NARROW_HEADER_WIDTH = 360;
 
 /** 헤더 중앙 모드 배지 글자 크기. 우측 '듣기연습' 버튼은 이 값을 기준으로 0.8배 축소 */
 const HEADER_BADGE_FONT_SIZE = LAYOUT.drumHeaderTextFontSize + 2;
@@ -86,7 +120,11 @@ export default function Index() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
-  const [backgroundViewport, setBackgroundViewport] = useState({ width: 0, height: 0 });
+  /** 스크롤 영역의 실측 높이. 드럼 크기와 압축 모드 판단의 유일한 근거 */
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  /** 헤더 좌/우 버튼의 실측 경계. 중앙 배지가 이 사이에만 놓이도록 한계를 준다 */
+  const [headerLeftEnd, setHeaderLeftEnd] = useState(0);
+  const [headerRightStart, setHeaderRightStart] = useState(0);
 
   const audioManager = useAudioManager();
   const headerFlashAnim = useRef(new RNAnimated.Value(0)).current;
@@ -118,16 +156,26 @@ export default function Index() {
   const isStartingQuizRef = useRef(false);
   /** 현재 보이는 페이지 = 악기 수 (설정에서 제거, 화면이 곧 선택) */
   const instrumentCount = currentDrumScrollIndex + 2;
-  const viewportAspectRatio = backgroundViewport.width > 0 && backgroundViewport.height > 0
-    ? backgroundViewport.width / backgroundViewport.height
+
+  /**
+   * 드럼 그림 크기와 압축 모드.
+   * 창 높이에서 탭바를 빼서 추정하지 않고 스크롤 영역을 onLayout으로 잰 값만 쓴다.
+   * (탭바 높이는 app/(tabs)/_layout.tsx에만 있어야 하는 값이라 여기 베껴 두지 않는다)
+   */
+  const drumTargetSize = Math.min(windowWidth * DRUM_WIDTH_RATIO, DRUM_MAX_SIZE);
+  const isCompactDrum = scrollViewHeight > 0
+    && scrollViewHeight < DRUM_CHROME_NORMAL + DRUM_COMPACT_MARGIN + DRUM_BOTTOM_RESERVE + drumTargetSize;
+  const drumChrome = isCompactDrum ? DRUM_CHROME_COMPACT : DRUM_CHROME_NORMAL;
+  const drumSize = scrollViewHeight > 0
+    ? Math.max(120, Math.min(drumTargetSize, scrollViewHeight - drumChrome - DRUM_BOTTOM_RESERVE))
+    : drumTargetSize;
+  /** 좁은 폭에서만 헤더 여백을 줄인다 (중앙 배지가 좌우 버튼과 겹치지 않도록) */
+  const isNarrowHeader = windowWidth < NARROW_HEADER_WIDTH;
+  /** 중앙 배지가 놓일 수 있는 좌우 한계. 절대배치를 유지해 393dp에서 위치가 변하지 않는다 */
+  const headerCenterLeft = headerLeftEnd > 0 ? headerLeftEnd - HEADER_PADDING_H + HEADER_CENTER_GAP : 0;
+  const headerCenterRight = headerRightStart > 0
+    ? windowWidth - HEADER_PADDING_H - headerRightStart + HEADER_CENTER_GAP
     : 0;
-  const renderedBackgroundHeight = viewportAspectRatio > 0
-    ? (viewportAspectRatio > DRUM_BACKGROUND_ASPECT_RATIO
-      ? backgroundViewport.height
-      : backgroundViewport.width / DRUM_BACKGROUND_ASPECT_RATIO)
-    : 0;
-  const backgroundBottomGap = Math.max(0, (backgroundViewport.height - renderedBackgroundHeight) / 2);
-  const fixedButtonBottomOffset = Math.max(-70, Math.round((backgroundBottomGap - FIXED_BUTTON_HEIGHT) / 2) - 45);
 
   // 설정 변경 콜백 (세그먼트 터치 시 호출, Haptic 포함)
   const handleQuestionCountChange = useCallback((value: typeof QUESTION_COUNTS[number]) => {
@@ -301,26 +349,19 @@ export default function Index() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         {/* 전체 화면 배경: contain으로 한 영역 안에 맞춤 */}
-        <View
-          style={[StyleSheet.absoluteFill, styles.backgroundImageWrapper]}
-          onLayout={(event) => {
-            const { width, height } = event.nativeEvent.layout;
-            setBackgroundViewport({ width, height });
-          }}
-        >
+        <View style={[StyleSheet.absoluteFill, styles.backgroundImageWrapper]}>
           <Image
             source={DRUM_BACKGROUND_IMAGE}
             style={{ width: windowWidth, height: windowHeight }}
             resizeMode="contain"
           />
         </View>
-        {/* 콘텐츠: 상단 인셋은 헤더가 직접 흡수(헤더 배경이 상태바 뒤까지 이어짐) + 하단 탭 공간 확보 */}
-        <View
-          style={[
-            styles.contentWrapper,
-            { paddingBottom: insets.bottom },
-          ]}
-        >
+        {/*
+          콘텐츠: 상단 인셋은 헤더가 직접 흡수(헤더 배경이 상태바 뒤까지 이어짐).
+          하단은 패딩을 두지 않는다 — 탭바 높이가 이미 64 + insets.bottom이라
+          여기서 insets.bottom을 또 빼면 같은 값을 두 번 깎게 된다.
+        */}
+        <View style={styles.contentWrapper}>
           {/* 고정 헤더: 설정 & 퀴즈 시작 / Round & 그만하기 */}
           <RNAnimated.View
             onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
@@ -344,18 +385,23 @@ export default function Index() {
               <>
                 <TouchableOpacity
                   onPress={toggleSettingsPanel}
-                  style={styles.headerCountButton}
+                  style={[styles.headerCountButton, isNarrowHeader && styles.headerCountButtonNarrow]}
                   activeOpacity={0.8}
+                  onLayout={(event) => {
+                    const { x, width } = event.nativeEvent.layout;
+                    setHeaderLeftEnd(x + width);
+                  }}
                 >
                   <Text style={styles.headerCountButtonText}>⚙️ {questionCount}문제 </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleStartQuiz}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, isNarrowHeader && styles.headerActionButtonNarrow]}
                   activeOpacity={0.8}
+                  onLayout={(event) => setHeaderRightStart(event.nativeEvent.layout.x)}
                 >
                   {/* 👆 = 여기를 눌러 진입하라는 신호. 코랄 배경에 노란 손 이모지가 묻혀서 흰 원형 칩 위에 올림 */}
-                  <View style={styles.headerActionIconChip}>
+                  <View style={[styles.headerActionIconChip, isNarrowHeader && styles.headerActionIconChipNarrow]}>
                     <Text style={styles.headerActionButtonIcon}>👆</Text>
                   </View>
                   <Text style={styles.headerActionButtonText}>듣기연습</Text>
@@ -363,10 +409,17 @@ export default function Index() {
               </>
             ) : (
               <>
-                <View style={styles.headerSide}>
+                <View
+                  style={styles.headerSide}
+                  onLayout={(event) => {
+                    const { x, width } = event.nativeEvent.layout;
+                    setHeaderLeftEnd(x + width);
+                  }}
+                >
                   <Text style={styles.headerText}>{round}/{questionCount} 회</Text>
                 </View>
                 <TouchableOpacity
+                  onLayout={(event) => setHeaderRightStart(event.nativeEvent.layout.x)}
                   onPress={() => {
                     RNAnimated.sequence([
                       RNAnimated.timing(headerFlashAnim, { toValue: 2, duration: 150, useNativeDriver: false }),
@@ -383,16 +436,31 @@ export default function Index() {
               </>
             )}
 
-            {/* 헤더 정중앙 타이틀: 좌우 버튼 폭에 영향받지 않도록 절대 배치, 모드에 따라 문구 전환 */}
+            {/*
+              헤더 정중앙 타이틀: 절대 배치를 유지하되 좌우 버튼의 실측 경계를 한계로 준다.
+              left/right가 0이면 배지가 좌우 버튼 위로 올라타 겹쳤다(320dp에서 좌 31dp).
+            */}
             <View
               pointerEvents="none"
               style={[
                 styles.headerCenter,
-                { top: insets.top + 12, bottom: 12 },
+                {
+                  top: insets.top + 12,
+                  bottom: 12,
+                  left: headerCenterLeft,
+                  right: headerCenterRight,
+                },
               ]}
             >
-              <View style={[styles.headerCenterBadge, isQuizActive ? styles.headerCenterBadgeQuiz : styles.headerCenterBadgeListen]}>
-                <Text style={[styles.headerCenterText, isQuizActive ? styles.headerCenterTextQuiz : styles.headerCenterTextListen]}>
+              <View style={[
+                styles.headerCenterBadge,
+                isNarrowHeader && styles.headerCenterBadgeNarrow,
+                isQuizActive ? styles.headerCenterBadgeQuiz : styles.headerCenterBadgeListen,
+              ]}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.headerCenterText, isQuizActive ? styles.headerCenterTextQuiz : styles.headerCenterTextListen]}
+                >
                   {isQuizActive ? '퀴즈모드' : '듣기모드'}
                 </Text>
               </View>
@@ -414,12 +482,19 @@ export default function Index() {
           <ScrollView
             ref={scrollViewRef}
             style={styles.scrollContainer}
-            contentContainerStyle={[styles.scrollContent, { flex: 1, justifyContent: 'center' }]}
+            contentContainerStyle={[styles.scrollContent, isCompactDrum && styles.scrollContentCompact]}
+            onLayout={(event) => setScrollViewHeight(event.nativeEvent.layout.height)}
             scrollEnabled={true}
             showsVerticalScrollIndicator={false}
           >
+            {/*
+              늘고 주는 칸은 이 하나뿐이다. 남는 높이를 여기가 흡수하고(최대 150),
+              모자라면 여기부터 0까지 줄어 드럼과 하단 버튼이 밀려나지 않는다.
+              예전의 marginTop: 150은 공간이 없어도 자리를 고집해 드럼을 밖으로 밀어냈다.
+            */}
+            <View style={[styles.drumTopSpacer, isCompactDrum && styles.drumTopSpacerCompact]} />
             {/* 드럼 세트 (연주 + 퀴즈 시 정답 제출) */}
-            <View style={[styles.section, styles.sectionDrum]}>
+            <View style={[styles.section, styles.sectionDrum, isCompactDrum && styles.sectionDrumCompact]}>
               <View>
                 <HorizontalDrumScroller
                   ref={horizontalDrumScrollerRef}
@@ -437,14 +512,18 @@ export default function Index() {
                   }}
                   hideCurrentInstrumentLabel={isQuizActive}
                   scrollEnabled={!isQuizActive}
+                  drumSize={drumSize}
+                  compact={isCompactDrum}
                 />
               </View>
             </View>
+            {/* 하단 고정 버튼 자리. 드럼이 여기까지 내려오지 않게 막는다 */}
+            <View style={styles.drumBottomReserve} />
           </ScrollView>
 
           {/* 드럼 캐릭터+순환 버튼 오버레이 (결과창 떠 있을 때는 미표시) */}
           {!(isQuizActive && isGameOver) && (
-            <View style={[styles.drumOverlayFixed, { bottom: insets.bottom + fixedButtonBottomOffset }]} pointerEvents="box-none">
+            <View style={[styles.drumOverlayFixed, { bottom: FIXED_BUTTON_BOTTOM }]} pointerEvents="box-none">
               <View
                 style={[styles.drumOverlayClip, { width: drumContainerWidth }]}
                 pointerEvents="box-none"
@@ -574,17 +653,39 @@ const styles = StyleSheet.create({
     paddingTop: 20,  // 고정 헤더와의 간격
     paddingBottom: 30,
   },
+  /** 세로가 좁은 기기에서 여백만 줄인다 */
+  scrollContentCompact: {
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  /** 드럼 위 여백. 늘고 주는 유일한 칸 */
+  drumTopSpacer: {
+    flex: 1,
+    minHeight: 0,
+    maxHeight: DRUM_TOP_SPACER_MAX,
+  },
+  drumTopSpacerCompact: {
+    maxHeight: DRUM_TOP_SPACER_MAX_COMPACT,
+  },
+  /** 하단 고정 버튼이 차지하는 높이. 줄어들면 안 되므로 flexShrink 기본값(0) 유지 */
+  drumBottomReserve: {
+    height: DRUM_BOTTOM_RESERVE,
+  },
 
   // 섹션 스타일
   section: {
     marginHorizontal: 15,
     marginVertical: 10,
   },
-  /** 사운드 테스트(드럼) 영역 - 중앙 정렬 */
+  /** 사운드 테스트(드럼) 영역 - 중앙 정렬. 위 여백은 drumTopSpacer가 담당한다 */
   sectionDrum: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 150,
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  sectionDrumCompact: {
+    marginBottom: 6,
   },
   // 2칸 레이아웃 (설정 버튼 없을 때)
   headerSide: {
@@ -616,6 +717,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     elevation: 1,
   },
+  /** 좁은 폭에서 중앙 배지 자리를 내주기 위해 좌우 여백만 줄인다 */
+  headerCountButtonNarrow: {
+    marginHorizontal: 8,
+  },
   headerCountButtonText: {
     fontSize: HEADER_ACTION_FONT_SIZE,
     fontWeight: 'bold',
@@ -639,6 +744,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.5,
     maxWidth: '100%',
+  },
+  headerCenterBadgeNarrow: {
+    paddingHorizontal: 8,
   },
   headerCenterBadgeListen: {
     backgroundColor: COLORS.blueLight,
@@ -672,6 +780,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     elevation: 2,
   },
+  headerActionButtonNarrow: {
+    paddingRight: 8,
+  },
   headerActionButtonText: {
     fontSize: HEADER_ACTION_FONT_SIZE,
     fontWeight: 'bold',
@@ -686,6 +797,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 6,
+  },
+  headerActionIconChipNarrow: {
+    marginRight: 4,
   },
   /** 칩 안에 꽉 차 보이도록 글자보다 살짝 크게. lineHeight를 주지 않으면 안드로이드에서 이모지 하단이 잘림 */
   headerActionButtonIcon: {
@@ -963,6 +1077,10 @@ interface HorizontalDrumScrollerProps {
   readonly scrollX?: React.MutableRefObject<RNAnimated.Value>;
   readonly onContainerLayout?: (width: number) => void;
   readonly onScrollIndexChange?: (index: number) => void;
+  /** 부모가 실측 높이로 계산한 드럼 그림 크기(dp) */
+  readonly drumSize?: number;
+  /** 세로가 좁은 기기에서 여백만 줄이는 압축 모드 */
+  readonly compact?: boolean;
 }
 
 export interface HorizontalDrumScrollerRef {
@@ -980,7 +1098,7 @@ const AnimatedFlatList = RNAnimated.createAnimatedComponent(FlatList);
 
 const HorizontalDrumScroller = React.forwardRef<HorizontalDrumScrollerRef, Readonly<HorizontalDrumScrollerProps>>(
   function HorizontalDrumScroller(
-    { onInstrumentPlay, onInstrumentChange, isGameAudioPlaying, isGameMode, isQuizWaiting = false, onAnswerSubmit, hideCurrentInstrumentLabel = false, scrollEnabled = true, scrollX: scrollXRef, onContainerLayout, onScrollIndexChange },
+    { onInstrumentPlay, onInstrumentChange, isGameAudioPlaying, isGameMode, isQuizWaiting = false, onAnswerSubmit, hideCurrentInstrumentLabel = false, scrollEnabled = true, scrollX: scrollXRef, onContainerLayout, onScrollIndexChange, drumSize, compact = false },
     ref
   ) {
     const flatListRef = useRef<FlatList>(null);
@@ -1111,7 +1229,8 @@ const HorizontalDrumScroller = React.forwardRef<HorizontalDrumScrollerRef, Reado
                   isQuizWaiting={isQuizWaiting}
                   onAnswerSubmit={onAnswerSubmit}
                   hideCurrentInstrumentLabel={hideCurrentInstrumentLabel}
-                  hideCycleButton
+                  drumSize={drumSize}
+                  compact={compact}
                 />
               </View>
             );
