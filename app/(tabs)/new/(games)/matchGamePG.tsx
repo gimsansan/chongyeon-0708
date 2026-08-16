@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { memo, useCallback, useContext, useEffect, useReducer, useRef } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import MissionProgressIcon from '../../../../components/MissionProgressIcon';
-import { createMatchGameScreenStyles, MATCH_THEME, MatchGameListeningScreen, MatchGameStatsScreen, MatchGameStatusChips } from '../../../../components/game/MatchGameShared';
+import { createMatchGameScreenStyles, getMatchGameScreenBg, MATCH_THEME, MatchGameListeningScreen, MatchGameStatsScreen, MatchGameStatusChips } from '../../../../components/game/MatchGameShared';
 import { ClearContext } from '../../../../context/ClearContext';
 import { StarContext } from '../../../../context/StarContext';
 import { SOUNDS_CONFIG } from '../../../../constants/animalSounds';
@@ -328,7 +328,8 @@ const GameScreen = memo(({ state, onSelect }: { state: GameState, onSelect: (nam
                     >
                         <Text style={[
                             styles.gameButtonText,
-                            !!status && styles.disabledButtonText
+                            status === 'correct' && styles.correctButtonText,
+                            status === 'incorrect' && styles.incorrectButtonText,
                         ]}>
                             {name}
                         </Text>
@@ -341,16 +342,18 @@ const GameScreen = memo(({ state, onSelect }: { state: GameState, onSelect: (nam
 
 const ResultsScreen = memo(({ state, onContinue, onGoHome }: { state: GameState, onContinue: (mode: GameMode, isNewRun: boolean) => void, onGoHome: () => void }) => (
     <View style={styles.centered}>
-        <Text style={styles.mainTitle}>{state.roundResult === 'WIN' ? '🎉 라운드 성공! 🎉' : '😥 라운드 실패 😥'}</Text>
+        <View style={styles.resultTitleCard}>
+            <Text style={styles.resultTitle}>{state.roundResult === 'WIN' ? '🎉 라운드 성공! 🎉' : '😥 라운드 실패 😥'}</Text>
+        </View>
         <Text style={styles.resultText}>최종 점수: {state.score}</Text>
         {state.roundResult === 'LOSE' &&
             <Text style={styles.resultText}>남은 정답: {[...state.correctSoundNames].join(', ') || '없음'}</Text>
         }
-        <TouchableOpacity style={styles.primaryButton} onPress={() => onContinue(state.mode, false)} activeOpacity={0.8}>
-            <Text style={styles.primaryButtonText}>▶️ 계속하기</Text>
+        <TouchableOpacity style={styles.resultPrimaryButton} onPress={() => onContinue(state.mode, false)} activeOpacity={0.8}>
+            <Text style={styles.resultPrimaryButtonText}>계속하기</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.statsButton} onPress={onGoHome} activeOpacity={0.8}>
-            <Text style={styles.statsButtonText}>🏠 홈으로</Text>
+            <Text style={styles.statsButtonText}>홈으로</Text>
         </TouchableOpacity>
     </View>
 ));
@@ -370,7 +373,7 @@ export default function MatchGamePG() {
     };
 
         return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: getMatchGameScreenBg(state.status) }]}>
         {state.status !== 'LOADING' && state.status !== 'HOME' && (
           <MissionProgressIcon
             gameId="matchGamePG"
@@ -388,4 +391,4 @@ export default function MatchGamePG() {
     );
 }
 
-const styles = createMatchGameScreenStyles(MATCH_THEME.accentPG);
+const styles = createMatchGameScreenStyles(MATCH_THEME.accentAI);

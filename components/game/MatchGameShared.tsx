@@ -6,33 +6,60 @@ import WaveRipple from '../WaveRipple';
 
 export const MATCH_THEME = {
     bg: '#352B46',
-    card: '#1F1A32',
-    tile: '#53486A',
+    bgEntry: '#645185',
+    bgDeep: '#8D7AAE',
+    card: '#4A3B66',
+    tile: '#FFF7E8',
+    tileText: '#2A1F3D',
+    tileBorder: '#2A1F3D',
     text: '#FFF7E8',
-    textMuted: 'rgba(255, 247, 232, 0.68)',
-    border: 'rgba(255, 255, 255, 0.10)',
+    textMuted: 'rgba(255, 247, 232, 0.86)',
+    border: 'rgba(255, 247, 232, 0.22)',
     gold: '#FFD54F',
+    goldSoft: '#F4E7A8',
     mint: '#6FE0B0',
     accentAI: '#FF7A8A',
     accentPG: '#A78BFA',
+    rose: '#F06B7C',
     ink: '#1A1420',
-    correctBg: 'rgba(126, 224, 176, 0.22)',
-    correctBorder: '#6FE0B0',
-    incorrectBg: 'rgba(255, 122, 138, 0.22)',
-    incorrectBorder: '#FF7A8A',
-    heartOff: 'rgba(255, 247, 232, 0.28)',
-    track: 'rgba(255, 247, 232, 0.12)',
+    correctBg: '#6FE0B0',
+    correctBorder: '#1F6B4A',
+    incorrectBg: '#E4485C',
+    incorrectBorder: '#8B1E2C',
+    heartOff: 'rgba(255, 247, 232, 0.36)',
+    track: 'rgba(255, 247, 232, 0.18)',
 } as const;
+
+export function getMatchGameScreenBg(status: string) {
+    return status === 'HOME' || status === 'LOADING'
+        ? MATCH_THEME.bgEntry
+        : MATCH_THEME.bgDeep;
+}
 
 export function createMatchGameScreenStyles(accent: string) {
     return StyleSheet.create({
-        container: { flex: 1, backgroundColor: MATCH_THEME.bg },
+        container: { flex: 1, backgroundColor: MATCH_THEME.bgEntry },
         centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: LAYOUT.spacingMD },
         mainTitle: {
             fontSize: LAYOUT.sectionTitleFontSize,
             fontWeight: '900',
             color: MATCH_THEME.text,
             marginBottom: LAYOUT.spacingLG,
+            textAlign: 'center',
+        },
+        resultTitleCard: {
+            backgroundColor: MATCH_THEME.card,
+            borderRadius: 18,
+            paddingVertical: LAYOUT.spacingMD,
+            paddingHorizontal: LAYOUT.spacingLG,
+            marginBottom: LAYOUT.spacingLG,
+            borderWidth: 1,
+            borderColor: MATCH_THEME.border,
+        },
+        resultTitle: {
+            fontSize: LAYOUT.sectionTitleFontSize,
+            fontWeight: '900',
+            color: '#FFFFFF',
             textAlign: 'center',
         },
         statusText: {
@@ -47,7 +74,7 @@ export function createMatchGameScreenStyles(accent: string) {
             fontSize: LAYOUT.completedTitleFontSize,
             marginVertical: LAYOUT.spacingXS,
             textAlign: 'center',
-            color: MATCH_THEME.text,
+            color: '#FFFFFF',
         },
         primaryButton: {
             backgroundColor: accent,
@@ -56,6 +83,20 @@ export function createMatchGameScreenStyles(accent: string) {
             borderRadius: 18,
             marginVertical: LAYOUT.spacingXS,
             width: LAYOUT.auditoryPrimaryButtonWidthPercent,
+        },
+        resultPrimaryButton: {
+            backgroundColor: accent,
+            paddingVertical: LAYOUT.completeButtonPaddingV,
+            paddingHorizontal: LAYOUT.spacingLG,
+            borderRadius: 18,
+            marginVertical: LAYOUT.spacingXS,
+            width: LAYOUT.auditoryPrimaryButtonWidthPercent,
+        },
+        resultPrimaryButtonText: {
+            color: '#FFFFFF',
+            fontSize: LAYOUT.buttonTextFontSize,
+            fontWeight: '800',
+            textAlign: 'center',
         },
         primaryButtonText: {
             color: MATCH_THEME.text,
@@ -98,7 +139,7 @@ export function createMatchGameScreenStyles(accent: string) {
             paddingHorizontal: LAYOUT.spacingMD,
             borderRadius: 18,
             borderWidth: 2,
-            borderColor: accent,
+            borderColor: MATCH_THEME.tileBorder,
             margin: LAYOUT.auditoryGameButtonMargin,
             minWidth: LAYOUT.auditoryGameButtonMinWidth,
         },
@@ -111,16 +152,22 @@ export function createMatchGameScreenStyles(accent: string) {
             borderColor: MATCH_THEME.incorrectBorder,
         },
         disabledButton: {
-            opacity: 0.7,
+            opacity: 1,
         },
         gameButtonText: {
-            color: MATCH_THEME.text,
+            color: MATCH_THEME.tileText,
             fontSize: LAYOUT.smallButtonTextFontSize,
             fontWeight: '700',
             textAlign: 'center',
         },
+        correctButtonText: {
+            color: '#1A1420',
+        },
+        incorrectButtonText: {
+            color: '#FFFFFF',
+        },
         disabledButtonText: {
-            color: MATCH_THEME.textMuted,
+            color: MATCH_THEME.tileText,
         },
     });
 }
@@ -250,7 +297,7 @@ export function MatchGameListeningScreen() {
         <View style={styles.loadingContainer}>
             <WaveRipple
                 size={LAYOUT.auditoryWaveAnimationSize}
-                color={MATCH_THEME.gold}
+                color={MATCH_THEME.goldSoft}
                 style={styles.waveAnimation}
             />
             <Text style={styles.loadingText}>소리를 재생하고 있습니다...</Text>
@@ -259,7 +306,7 @@ export function MatchGameListeningScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: MATCH_THEME.bg },
+    container: { flex: 1, backgroundColor: MATCH_THEME.bgDeep },
     title: { fontSize: LAYOUT.completionTextFontSize, fontWeight: '900', color: MATCH_THEME.text, marginBottom: LAYOUT.spacingLG, textAlign: 'center' },
     statsHeaderSection: {
         paddingHorizontal: LAYOUT.spacingMD,
@@ -283,7 +330,7 @@ const styles = StyleSheet.create({
     overallStatsValue: {
         fontSize: LAYOUT.auditoryOverallStatsValueFontSize,
         fontWeight: '900',
-        color: MATCH_THEME.gold,
+        color: MATCH_THEME.goldSoft,
         marginBottom: LAYOUT.spacingXS,
     },
     overallStatsDetail: {
@@ -378,7 +425,7 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: MATCH_THEME.bg,
+        backgroundColor: MATCH_THEME.bgDeep,
     },
     loadingText: {
         marginTop: LAYOUT.auditoryLoadingTextMarginTop,
@@ -419,7 +466,7 @@ const styles = StyleSheet.create({
         marginHorizontal: 1,
     },
     heartOn: {
-        color: MATCH_THEME.accentAI,
+        color: MATCH_THEME.rose,
     },
     heartOff: {
         color: MATCH_THEME.heartOff,
