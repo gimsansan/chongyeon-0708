@@ -84,7 +84,7 @@ const Ripple = ({
 
 export default function WaveRipple({
   size = 3000,
-  color = '#79A1FF',
+  color = '#fff',
   count = 8,
   duration = 3000,
   style,

@@ -1,12 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { memo, useCallback, useContext, useEffect, useReducer, useRef } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import MissionProgressIcon from '../../../../components/MissionProgressIcon';
-import { MatchGameListeningScreen, MatchGameStatsScreen } from '../../../../components/game/MatchGameShared';
+import { createMatchGameScreenStyles, MATCH_THEME, MatchGameListeningScreen, MatchGameStatsScreen, MatchGameStatusChips } from '../../../../components/game/MatchGameShared';
 import { ClearContext } from '../../../../context/ClearContext';
 import { StarContext } from '../../../../context/StarContext';
-import { LAYOUT } from '../../../../constants/layout';
-import { COLORS } from '../../../../constants/colors';
 import { SOUNDS_CONFIG } from '../../../../constants/animalSounds';
 import { gameAudioManager } from '../../../../services/GameAudioManager';
 import { useSyncGameData } from '../../../../hooks/useSyncGameData';
@@ -292,20 +290,25 @@ const HomeScreen = memo(({ onStartGame, onShowStats }: { onStartGame: (mode: Gam
     <View style={styles.centered}>
         <Text style={styles.mainTitle}>🎯 청능 훈련 (PG)</Text>
         <TouchableOpacity style={styles.primaryButton} onPress={() => onStartGame('STANDARD', true)} activeOpacity={0.8}>
-            <Text style={styles.primaryButtonText}>🎮 표준 모드</Text>
+            <Text style={styles.primaryButtonText}>표준 모드</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondaryButton} onPress={() => onStartGame('WEAKNESS', true)} activeOpacity={0.8}>
-            <Text style={styles.secondaryButtonText}>🔥 약점 훈련 모드</Text>
+            <Text style={styles.secondaryButtonText}>약점 훈련 모드</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.statsButton} onPress={onShowStats} activeOpacity={0.8}>
-            <Text style={styles.statsButtonText} numberOfLines={1}>📊 내 통계 보기</Text>
+            <Text style={styles.statsButtonText} numberOfLines={1}>내 통계 보기</Text>
         </TouchableOpacity>
     </View>
 ));
 
 const GameScreen = memo(({ state, onSelect }: { state: GameState, onSelect: (name: string) => void }) => (
     <View style={styles.centered}>
-        <Text style={styles.statusText}>난이도: {state.difficulty} | 남은 기회: {state.remainingChoices} | 점수: {state.score}</Text>
+        <MatchGameStatusChips
+            difficulty={state.difficulty}
+            remainingChoices={state.remainingChoices}
+            score={state.score}
+            maxChoices={MAX_CHOICES}
+        />
         <Text style={styles.statusText}>들었던 소리를 모두 선택하세요</Text>
         <View style={styles.gameBoard}>
             {SOUNDS_CONFIG.map(({ name }) => {
@@ -362,7 +365,7 @@ export default function MatchGamePG() {
             case 'RESULTS': return <ResultsScreen state={state} onContinue={startGame} onGoHome={() => navigate('HOME')} />;
             case 'STATS': return <MatchGameStatsScreen stats={state.userStats} onGoHome={() => navigate('HOME')} />;
             case 'LISTENING': return <MatchGameListeningScreen />;
-            case 'LOADING': default: return <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.activityIndicator} /></View>;
+            case 'LOADING': default: return <View style={styles.centered}><ActivityIndicator size="large" color={MATCH_THEME.gold} /></View>;
         }
     };
 
@@ -385,101 +388,4 @@ export default function MatchGamePG() {
     );
 }
 
-// ===================================================================================
-// 📁 src/styles.ts
-// ===================================================================================
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.backgroundGray },
-    centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: LAYOUT.spacingMD },
-    mainTitle: { fontSize: LAYOUT.sectionTitleFontSize, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: LAYOUT.spacingLG, textAlign: 'center' },
-    statusText: { fontSize: LAYOUT.hintTextFontSize, fontWeight: '500', color: COLORS.textMuted, marginBottom: LAYOUT.spacingMD, textAlign: 'center' },
-    gameBoard: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', width: '100%' },
-    resultText: { fontSize: LAYOUT.completedTitleFontSize, marginVertical: LAYOUT.spacingXS, textAlign: 'center' },
-    primaryButton: {
-        backgroundColor: COLORS.blue,
-        paddingVertical: LAYOUT.completeButtonPaddingV,
-        paddingHorizontal: LAYOUT.spacingLG,
-        borderRadius: LAYOUT.cardBorderRadius,
-        marginVertical: LAYOUT.spacingXS,
-        width: LAYOUT.auditoryPrimaryButtonWidthPercent,
-        elevation: 3,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-    },
-    primaryButtonText: {
-        color: COLORS.white,
-        fontSize: LAYOUT.buttonTextFontSize,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
-    secondaryButton: {
-        backgroundColor: COLORS.orange,
-        paddingVertical: LAYOUT.completeButtonPaddingV,
-        paddingHorizontal: LAYOUT.spacingLG,
-        borderRadius: LAYOUT.cardBorderRadius,
-        marginVertical: LAYOUT.spacingXS,
-        width: LAYOUT.auditoryPrimaryButtonWidthPercent,
-        elevation: 3,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-    },
-    secondaryButtonText: {
-        color: COLORS.white,
-        fontSize: LAYOUT.buttonTextFontSize,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
-    statsButton: {
-        backgroundColor: COLORS.successGreen,
-        paddingVertical: LAYOUT.completeButtonPaddingV,
-        paddingHorizontal: LAYOUT.spacingLG,
-        borderRadius: LAYOUT.cardBorderRadius,
-        marginVertical: LAYOUT.spacingXS,
-        width: LAYOUT.auditoryPrimaryButtonWidthPercent,
-        elevation: 3,
-     
-    },
-    statsButtonText: {
-        color: COLORS.white,
-        fontSize: LAYOUT.buttonTextFontSize,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        flexShrink: 0,
-    },
-    gameButton: {
-        backgroundColor: COLORS.blueLight,
-        paddingVertical: LAYOUT.spacingSM,
-        paddingHorizontal: LAYOUT.spacingMD,
-        borderRadius: LAYOUT.auditoryStatsCardBorderRadius,
-        borderWidth: 2,
-        borderColor: COLORS.blue,
-        margin: LAYOUT.auditoryGameButtonMargin,
-        minWidth: LAYOUT.auditoryGameButtonMinWidth,
-    },
-    correctButton: {
-        backgroundColor: COLORS.successLight,
-        borderColor: COLORS.success,
-    },
-    incorrectButton: {
-        backgroundColor: COLORS.errorLight,
-        borderColor: COLORS.error,
-    },
-    disabledButton: {
-        backgroundColor: COLORS.backgroundGray,
-        borderColor: COLORS.borderGray,
-        opacity: 0.6,
-    },
-    gameButtonText: {
-        color: COLORS.textPrimary,
-        fontSize: LAYOUT.smallButtonTextFontSize,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-    disabledButtonText: {
-        color: COLORS.textLight,
-    },
-});
+const styles = createMatchGameScreenStyles(MATCH_THEME.accentPG);

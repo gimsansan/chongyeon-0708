@@ -23,7 +23,7 @@ const games = [
         desc: '들린 동물 소리를 골라보세요',
         route: '/new/(games)/matchGame',
         color: '#6FE0B0',
-        emoji: '🐾'
+        ionicon: 'volume-high' as const
     },
     { 
         id: 'orderGame', 
@@ -39,7 +39,7 @@ const games = [
         desc: 'AI가 약점을 분석해 훈련해요',
         route: '/new/(games)/matchGameAI',
         color: '#FF7A8A',
-        emoji: '🚀'
+        ionicon: 'rocket' as const
     },
     { 
         id: 'matchGamePG', 
@@ -47,7 +47,7 @@ const games = [
         desc: '정책 기반 강화학습 모드',
         route: '/new/(games)/matchGamePG',
         color: '#A78BFA',
-        emoji: '📊'
+        ionicon: 'stats-chart' as const
     },
 ] as const;
 
@@ -209,7 +209,14 @@ export default function App() {
                                             ]}
                                         >
                                             <View style={[styles.cardAccent, { backgroundColor: game.color }]} />
-                                            <Text style={styles.gameEmoji}>{game.emoji}</Text>
+                                            {'ionicon' in game ? (
+                                                <>
+                                                    <View style={[styles.iconGlow, { backgroundColor: game.color }]} />
+                                                    <Ionicons name={game.ionicon} size={38} color="#FFF7E8" />
+                                                </>
+                                            ) : (
+                                                <Text style={styles.gameEmoji}>{game.emoji}</Text>
+                                            )}
                                         </View>
                                         
                                         {/* 게임 이름 */}
@@ -432,6 +439,13 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.18,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 5 },
+    },
+    iconGlow: {
+        position: 'absolute',
+        width: 58,
+        height: 58,
+        borderRadius: 29,
+        opacity: 0.28,
     },
     gameEmoji: {
         fontSize: 38,

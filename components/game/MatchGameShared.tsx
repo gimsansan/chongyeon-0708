@@ -4,6 +4,127 @@ import { COLORS } from '../../constants/colors';
 import { LAYOUT } from '../../constants/layout';
 import WaveRipple from '../WaveRipple';
 
+export const MATCH_THEME = {
+    bg: '#352B46',
+    card: '#1F1A32',
+    tile: '#53486A',
+    text: '#FFF7E8',
+    textMuted: 'rgba(255, 247, 232, 0.68)',
+    border: 'rgba(255, 255, 255, 0.10)',
+    gold: '#FFD54F',
+    mint: '#6FE0B0',
+    accentAI: '#FF7A8A',
+    accentPG: '#A78BFA',
+    ink: '#1A1420',
+    correctBg: 'rgba(126, 224, 176, 0.22)',
+    correctBorder: '#6FE0B0',
+    incorrectBg: 'rgba(255, 122, 138, 0.22)',
+    incorrectBorder: '#FF7A8A',
+    heartOff: 'rgba(255, 247, 232, 0.28)',
+    track: 'rgba(255, 247, 232, 0.12)',
+} as const;
+
+export function createMatchGameScreenStyles(accent: string) {
+    return StyleSheet.create({
+        container: { flex: 1, backgroundColor: MATCH_THEME.bg },
+        centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: LAYOUT.spacingMD },
+        mainTitle: {
+            fontSize: LAYOUT.sectionTitleFontSize,
+            fontWeight: '900',
+            color: MATCH_THEME.text,
+            marginBottom: LAYOUT.spacingLG,
+            textAlign: 'center',
+        },
+        statusText: {
+            fontSize: LAYOUT.hintTextFontSize,
+            fontWeight: '500',
+            color: MATCH_THEME.textMuted,
+            marginBottom: LAYOUT.spacingMD,
+            textAlign: 'center',
+        },
+        gameBoard: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', width: '100%' },
+        resultText: {
+            fontSize: LAYOUT.completedTitleFontSize,
+            marginVertical: LAYOUT.spacingXS,
+            textAlign: 'center',
+            color: MATCH_THEME.text,
+        },
+        primaryButton: {
+            backgroundColor: accent,
+            paddingVertical: LAYOUT.completeButtonPaddingV,
+            paddingHorizontal: LAYOUT.spacingLG,
+            borderRadius: 18,
+            marginVertical: LAYOUT.spacingXS,
+            width: LAYOUT.auditoryPrimaryButtonWidthPercent,
+        },
+        primaryButtonText: {
+            color: MATCH_THEME.text,
+            fontSize: LAYOUT.buttonTextFontSize,
+            fontWeight: '800',
+            textAlign: 'center',
+        },
+        secondaryButton: {
+            backgroundColor: MATCH_THEME.gold,
+            paddingVertical: LAYOUT.completeButtonPaddingV,
+            paddingHorizontal: LAYOUT.spacingLG,
+            borderRadius: 18,
+            marginVertical: LAYOUT.spacingXS,
+            width: LAYOUT.auditoryPrimaryButtonWidthPercent,
+        },
+        secondaryButtonText: {
+            color: MATCH_THEME.ink,
+            fontSize: LAYOUT.buttonTextFontSize,
+            fontWeight: '800',
+            textAlign: 'center',
+        },
+        statsButton: {
+            backgroundColor: MATCH_THEME.mint,
+            paddingVertical: LAYOUT.completeButtonPaddingV,
+            paddingHorizontal: LAYOUT.spacingLG,
+            borderRadius: 18,
+            marginVertical: LAYOUT.spacingXS,
+            width: LAYOUT.auditoryPrimaryButtonWidthPercent,
+        },
+        statsButtonText: {
+            color: MATCH_THEME.ink,
+            fontSize: LAYOUT.buttonTextFontSize,
+            fontWeight: '800',
+            textAlign: 'center',
+            flexShrink: 0,
+        },
+        gameButton: {
+            backgroundColor: MATCH_THEME.tile,
+            paddingVertical: LAYOUT.spacingSM,
+            paddingHorizontal: LAYOUT.spacingMD,
+            borderRadius: 18,
+            borderWidth: 2,
+            borderColor: accent,
+            margin: LAYOUT.auditoryGameButtonMargin,
+            minWidth: LAYOUT.auditoryGameButtonMinWidth,
+        },
+        correctButton: {
+            backgroundColor: MATCH_THEME.correctBg,
+            borderColor: MATCH_THEME.correctBorder,
+        },
+        incorrectButton: {
+            backgroundColor: MATCH_THEME.incorrectBg,
+            borderColor: MATCH_THEME.incorrectBorder,
+        },
+        disabledButton: {
+            opacity: 0.7,
+        },
+        gameButtonText: {
+            color: MATCH_THEME.text,
+            fontSize: LAYOUT.smallButtonTextFontSize,
+            fontWeight: '700',
+            textAlign: 'center',
+        },
+        disabledButtonText: {
+            color: MATCH_THEME.textMuted,
+        },
+    });
+}
+
 export type MatchGameUserStats = { [sound: string]: { correct: number; total: number } };
 
 const getGrade = (correct: number, total: number) => {
@@ -26,7 +147,7 @@ export const MatchGameStatsScreen = memo(({ stats, onGoHome }: { stats: MatchGam
     return (
         <View style={styles.container}>
             <View style={styles.statsHeaderSection}>
-                <Text style={styles.title}>📊 내 통계</Text>
+                <Text style={styles.title}>내 통계</Text>
                 <View style={styles.overallStatsCard}>
                     <Text style={styles.overallStatsTitle}>전체 정확도</Text>
                     <Text style={styles.overallStatsValue}>
@@ -91,12 +212,45 @@ export const MatchGameStatsScreen = memo(({ stats, onGoHome }: { stats: MatchGam
     );
 });
 
+export const MatchGameStatusChips = memo(function MatchGameStatusChips({
+    difficulty,
+    remainingChoices,
+    score,
+    maxChoices = 3,
+}: {
+    difficulty: number;
+    remainingChoices: number;
+    score: number;
+    maxChoices?: number;
+}) {
+    return (
+        <View style={styles.statusRow}>
+            <View style={styles.chip}>
+                <Text style={styles.chipText}>LV {difficulty}</Text>
+            </View>
+            <View style={styles.chip}>
+                {Array.from({ length: maxChoices }, (_, i) => (
+                    <Text
+                        key={i}
+                        style={[styles.heart, i < remainingChoices ? styles.heartOn : styles.heartOff]}
+                    >
+                        {i < remainingChoices ? '♥' : '♡'}
+                    </Text>
+                ))}
+            </View>
+            <View style={styles.chip}>
+                <Text style={styles.chipText}>{score}점</Text>
+            </View>
+        </View>
+    );
+});
+
 export function MatchGameListeningScreen() {
     return (
         <View style={styles.loadingContainer}>
             <WaveRipple
                 size={LAYOUT.auditoryWaveAnimationSize}
-                color="#79A1FF"
+                color={MATCH_THEME.gold}
                 style={styles.waveAnimation}
             />
             <Text style={styles.loadingText}>소리를 재생하고 있습니다...</Text>
@@ -105,39 +259,36 @@ export function MatchGameListeningScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.backgroundGray },
-    title: { fontSize: LAYOUT.completionTextFontSize, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: LAYOUT.spacingLG, textAlign: 'center' },
+    container: { flex: 1, backgroundColor: MATCH_THEME.bg },
+    title: { fontSize: LAYOUT.completionTextFontSize, fontWeight: '900', color: MATCH_THEME.text, marginBottom: LAYOUT.spacingLG, textAlign: 'center' },
     statsHeaderSection: {
         paddingHorizontal: LAYOUT.spacingMD,
         paddingTop: LAYOUT.spacingMD,
         paddingBottom: LAYOUT.spacingSM,
     },
     overallStatsCard: {
-        backgroundColor: COLORS.background,
-        borderRadius: LAYOUT.cardBorderRadius,
+        backgroundColor: MATCH_THEME.card,
+        borderRadius: 18,
         padding: LAYOUT.spacingMD,
         marginTop: LAYOUT.spacingSM,
-        elevation: 3,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        borderWidth: 1,
+        borderColor: MATCH_THEME.border,
         alignItems: 'center',
     },
     overallStatsTitle: {
         fontSize: LAYOUT.smallButtonTextFontSize,
-        color: COLORS.textSecondary,
+        color: MATCH_THEME.textMuted,
         marginBottom: LAYOUT.spacingXS,
     },
     overallStatsValue: {
         fontSize: LAYOUT.auditoryOverallStatsValueFontSize,
-        fontWeight: 'bold',
-        color: COLORS.blue,
+        fontWeight: '900',
+        color: MATCH_THEME.gold,
         marginBottom: LAYOUT.spacingXS,
     },
     overallStatsDetail: {
         fontSize: LAYOUT.totalCountFontSize,
-        color: COLORS.textLight,
+        color: MATCH_THEME.textMuted,
     },
     statsContainer: {
         paddingHorizontal: LAYOUT.spacingMD,
@@ -145,15 +296,12 @@ const styles = StyleSheet.create({
         paddingBottom: LAYOUT.spacingMD
     },
     statCard: {
-        backgroundColor: COLORS.background,
-        borderRadius: LAYOUT.auditoryStatsCardBorderRadius,
+        backgroundColor: MATCH_THEME.card,
+        borderRadius: 18,
         padding: LAYOUT.auditoryStatsCardPadding,
         marginBottom: LAYOUT.auditoryStatsCardMarginBottom,
-        elevation: 2,
-        shadowColor: COLORS.shadow,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
+        borderWidth: 1,
+        borderColor: MATCH_THEME.border,
     },
     statCardHeader: {
         flexDirection: 'row',
@@ -163,8 +311,8 @@ const styles = StyleSheet.create({
     },
     statName: {
         fontSize: LAYOUT.completedTitleFontSize,
-        fontWeight: 'bold',
-        color: COLORS.textPrimary,
+        fontWeight: '800',
+        color: MATCH_THEME.text,
     },
     gradeContainer: {
         flexDirection: 'row',
@@ -180,7 +328,7 @@ const styles = StyleSheet.create({
     },
     progressBarContainer: {
         height: LAYOUT.auditoryProgressBarHeight,
-        backgroundColor: COLORS.grayLight,
+        backgroundColor: MATCH_THEME.track,
         borderRadius: LAYOUT.auditoryProgressBarBorderRadius,
         overflow: 'hidden',
         marginBottom: LAYOUT.spacingXS,
@@ -196,34 +344,33 @@ const styles = StyleSheet.create({
     },
     accuracyText: {
         fontSize: LAYOUT.smallButtonTextFontSize,
-        fontWeight: 'bold',
-        color: COLORS.textPrimary,
+        fontWeight: '800',
+        color: MATCH_THEME.text,
     },
     attemptText: {
         fontSize: LAYOUT.totalCountFontSize,
-        color: COLORS.textSecondary,
+        color: MATCH_THEME.textMuted,
     },
     noDataText: {
         fontSize: LAYOUT.totalCountFontSize,
-        color: COLORS.textLight,
+        color: MATCH_THEME.textMuted,
         fontStyle: 'italic',
         textAlign: 'center',
         paddingVertical: LAYOUT.spacingXS,
     },
     statsBackButton: {
-        backgroundColor: COLORS.successGreen,
+        backgroundColor: MATCH_THEME.mint,
         paddingVertical: LAYOUT.completeButtonPaddingV,
         paddingHorizontal: LAYOUT.spacingLG,
-        borderRadius: LAYOUT.cardBorderRadius,
+        borderRadius: 18,
         marginVertical: LAYOUT.spacingXS,
         width: LAYOUT.auditoryStatsBackButtonWidthPercent,
         alignSelf: 'center',
-        elevation: 3,
     },
     statsBackButtonText: {
-        color: COLORS.white,
+        color: MATCH_THEME.ink,
         fontSize: LAYOUT.buttonTextFontSize,
-        fontWeight: 'bold',
+        fontWeight: '800',
         textAlign: 'center',
         flexShrink: 0,
     },
@@ -231,16 +378,50 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: MATCH_THEME.bg,
     },
     loadingText: {
         marginTop: LAYOUT.auditoryLoadingTextMarginTop,
         fontSize: LAYOUT.smallButtonTextFontSize,
-        color: COLORS.textLoading,
+        color: MATCH_THEME.textMuted,
         textAlign: 'center',
         fontWeight: '500',
     },
     waveAnimation: {
         width: LAYOUT.auditoryWaveAnimationSize,
         height: LAYOUT.auditoryWaveAnimationSize,
+    },
+    statusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: LAYOUT.spacingSM,
+        marginBottom: LAYOUT.spacingMD,
+    },
+    chip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: MATCH_THEME.card,
+        borderWidth: 1,
+        borderColor: MATCH_THEME.border,
+        borderRadius: 18,
+        paddingVertical: LAYOUT.spacingSM,
+        paddingHorizontal: LAYOUT.spacingMD,
+    },
+    chipText: {
+        fontSize: LAYOUT.hintTextFontSize,
+        fontWeight: '800',
+        color: MATCH_THEME.text,
+    },
+    heart: {
+        fontSize: LAYOUT.hintTextFontSize,
+        marginHorizontal: 1,
+    },
+    heartOn: {
+        color: MATCH_THEME.accentAI,
+    },
+    heartOff: {
+        color: MATCH_THEME.heartOff,
     },
 });
