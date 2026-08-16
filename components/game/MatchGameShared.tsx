@@ -56,10 +56,16 @@ export function createMatchGameScreenStyles(accent: string) {
             borderWidth: 1,
             borderColor: MATCH_THEME.border,
         },
+        resultTitleRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: LAYOUT.spacingSM,
+        },
         resultTitle: {
             fontSize: LAYOUT.sectionTitleFontSize,
             fontWeight: '900',
-            color: '#FFFFFF',
+            color: MATCH_THEME.text,
             textAlign: 'center',
         },
         statusText: {
@@ -253,7 +259,7 @@ export const MatchGameStatsScreen = memo(({ stats, onGoHome }: { stats: MatchGam
             </ScrollView>
 
             <TouchableOpacity style={styles.statsBackButton} onPress={onGoHome} activeOpacity={0.8}>
-                <Text style={styles.statsBackButtonText} numberOfLines={1}>🏠 홈으로</Text>
+                <Text style={styles.statsBackButtonText} numberOfLines={1}>홈으로</Text>
             </TouchableOpacity>
         </View>
     );

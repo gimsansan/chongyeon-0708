@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import React, { memo, useCallback, useContext, useEffect, useReducer, useRef } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import MissionProgressIcon from '../../../../components/MissionProgressIcon';
@@ -345,7 +346,10 @@ const GameScreen = memo(({ state, onSelect }: { state: GameState, onSelect: (nam
 const ResultsScreen = memo(({ state, onContinue, onGoHome }: { state: GameState, onContinue: (mode: GameMode, isNewRun: boolean) => void, onGoHome: () => void }) => (
     <View style={styles.centered}>
         <View style={styles.resultTitleCard}>
-            <Text style={styles.resultTitle}>{state.roundResult === 'WIN' ? '🎉 라운드 성공! 🎉' : '😥 라운드 실패 😥'}</Text>
+            <View style={styles.resultTitleRow}>
+                <Ionicons name={state.roundResult === 'WIN' ? 'trophy' : 'sad'} size={28} color={MATCH_THEME.text} />
+                <Text style={styles.resultTitle}>{state.roundResult === 'WIN' ? '라운드 성공!' : '라운드 실패'}</Text>
+            </View>
         </View>
         <Text style={styles.resultText}>최종 점수: {state.score}</Text>
         {state.roundResult === 'LOSE' && 
