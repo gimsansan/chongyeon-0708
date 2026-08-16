@@ -1,13 +1,14 @@
 # 인계문 3 — 세션 15부터
 
-현재 브랜치 **`3-branch`** / HEAD **`fdcb30b`** (`이모지수정함`).
-origin/`3-branch`보다 **로컬 3커밋 앞** (`fafab21` `uibackgroudmae`, `e5dc03f` `컬러수정함`, `fdcb30b` `이모지수정함`). 푸시는 사용자가 함.
+현재 브랜치 **`3-branch`** / HEAD **`868a4ce`** (`피아노설정간격수정`).
+origin/`3-branch`보다 **로컬 1커밋 앞** (`868a4ce`). 푸시는 사용자가 함.
 `main`은 **`04fa48f`** (`doc_10_갱신`)이고 origin/`main`과 같습니다.
 
 세션 10~14 UI는 [`doc/handoff_2.md`](./handoff_2.md)에 있다. 사운드 1~9는 [`doc/handoff.md`](./handoff.md). **이 파일이 현재 인계문이다.** 구 인계문 전체를 읽지 않는다.
 
-세션 15 결과 제목 Ionicons는 **`fdcb30b`에 커밋됨.** 피아노·기타 무음 수정은 **미커밋.**
+세션 15 결과 제목 Ionicons는 **`fdcb30b`.** 피아노·기타 무음은 **`0b6c216`.** 세션 17 피아노 설정 간격·결과 모달은 **`868a4ce`.**
 세션 16은 인계문 머리 확인만. **코드 변경 없음.**
+세션 18 기타 탭 UI는 **미커밋**(워킹트리). 상세는 [`doc/기타탭-UI개선.md`](./기타탭-UI개선.md).
 
 ---
 
@@ -18,21 +19,29 @@ origin/`3-branch`보다 **로컬 3커밋 앞** (`fafab21` `uibackgroudmae`, `e5d
 | 세션 10~14 UI | 칩·문구·홈 아이콘·다크 A·배경 단계·안쪽 색 | **완료** (`handoff_2`, `e5dc03f`까지) |
 | AI/PG 결과 제목 `🎉`/`😥` | 안드로이드 단색 → Ionicons `trophy`/`sad` + `#FFF7E8` | **완료** (`fdcb30b`) |
 | 공용 `MatchGameResultTitle` | 넣었다가 효용 없음 → **AI/PG에 인라인으로 되돌림** | **완료** (`fdcb30b`) |
-| 피아노·기타 `playSound` | `currentTime > 0`일 때만 `seekTo` → **항상** `await seekTo(0)` 후 `play()` | **코드만.** 미커밋. 실기기 확인 전 |
-| 피아노·기타 블러 `pause` | 전부 pause → **`playing`만 pause** (첫 진입 가로 회전 무음) | **코드만.** 미커밋. 실기기 확인 전 |
+| 피아노·기타 `playSound` | `currentTime > 0`일 때만 `seekTo` → **항상** `await seekTo(0)` 후 `play()` | **완료** (`0b6c216`) |
+| 피아노·기타 블러 `pause` | 전부 pause → **`playing`만 pause** (첫 진입 가로 회전 무음) | **완료** (`0b6c216`) |
+| 5음·8음 / 보통·느림 간격 | `marginHorizontal` 3→10, 줄 사이 `marginBottom` 5→10 | **완료** (`868a4ce`) |
+| 하단 바 높이 | 토글 간격에 곡명이 밀림 → `IDLE_BOTTOM_PANEL_HEIGHT` 96→106 | **완료** (`868a4ce`) |
+| 낙하 결과 모달 뱃지 | 완벽·훌륭·양호·놓침 4색 → 시안 단색. 확인 `#00e5ff` | **완료** (`868a4ce`) |
+| 기타 탭 UI (갈색 톤 유지) | 좌측 패널 재구성 · 지판에 나무판/너트/프렛 와이어 · 로딩 화면 | **완료·미커밋** (세션 18) |
+| 기타 프렛 누름 피드백 | 안 쓰이던 `activeNotes` 연결. 260ms 앰버 하이라이트 | **완료·미커밋** (세션 18) |
+| 기타 미션 `?` 아이콘 | 이중 absolute 제거 + 지판과 겹침 해소 | **완료·미커밋** (세션 18) |
+| 기타 별 획득 조건 | 정답 1회마다 → **누적 3회**(모달 안내와 일치, 피아노와 동일) | **완료·미커밋** (세션 18) |
 
 ---
 
 ## 남은 일
 
-지시된 작업은 없다. 피아노·기타 무음은 코드만 넣었고 **앱을 끄고 첫 진입 확인은 아직이다.**
+지시된 작업은 없다.
 
 선택(지시 없음):
 
 | 항목 | 지금 | 메모 |
 |---|---|---|
-| 피아노·기타 무음 커밋 | 워킹트리 `MusicTrainingScreen.tsx`, `guitar/_layout.tsx` | 확인 후 커밋 여부 사용자가 정함 |
-| 푸시 | `3-branch` 로컬 3커밋 앞 + 위 미커밋 | 푸시는 사용자가 함 |
+| 푸시 | `3-branch` 로컬 1커밋 앞 (`868a4ce`) | 푸시는 사용자가 함 |
+| 기타 탭 워킹트리 | `guitar/_layout.tsx` + 스크린샷 + `doc/기타탭-UI개선.md` | 세션 18 작업. **미커밋** |
+| 기타 상태바 겹침 | 시계·알림이 좌측 패널 SCORE 카드 위를 지남 | 패널 위에 `insets.top` 여백을 주면 됨. 지시 없음 |
 | AI/PG 리스닝 웨이브 | `MATCH_THEME.goldSoft` (`#F4E7A8`) | 소리 맞추기·순서는 `#79A1FF` |
 | `WaveRipple` 기본값 | 사용자가 `#fff`로 바꿈 | 호출부가 `color`를 넘겨서 화면에 안 먹음 |
 | 게임 Stack 전환 | 기본(살짝 확대처럼 보임) | `(games)/_layout.tsx`에 `animation: 'none'` 미적용 |
@@ -60,6 +69,27 @@ origin/`3-branch`보다 **로컬 3커밋 앞** (`fafab21` `uibackgroudmae`, `e5d
 - 인계문 머리 읽음. 지시된 작업 없음. 코드 안 만짐.
 - 인계문 작성: 이 로그. `conversation_16.md` 추가.
 
+### 2026-08-17 (세션 17)
+
+- 인계문 머리 읽음 뒤 피아노 낙하 설정 UI. 건반은 안 건드림.
+- 5음·8음 / 보통·느림이 붙어 터치가 어려움. `scaleToggleButton.marginHorizontal` 3→10, `scaleToggleRow.marginBottom` 5→10.
+- 줄 간격을 늘리니 곡명 4개가 화면 아래로 밀림. 하단 바 높이를 96→106으로 올려 여분을 위로 흡수. 상수 `IDLE_BOTTOM_PANEL_HEIGHT`. 미션·프리뷰 오버레이 `bottom`도 같이 맞춤. 낙하 중 바 56은 그대로.
+- 낙하 결과 모달: 완벽(노랑)·훌륭(시안)·양호(민트)·놓침(빨강) + 확인 `#007BFF`가 색이 갈라짐. 뱃지 전부 시안 테두리, 확인 `#00e5ff` / 글자 `#0a1218`. 숫자·판정 로직 그대로. 리플레이 창의 `결과 보기`(`resultCloseButton` `#007BFF`)는 안 바꿈.
+- 커밋: 사용자가 `868a4ce` (`피아노설정간격수정`). `MusicTrainingScreen.tsx` + `FallingResultOverlays.tsx`.
+
+### 2026-08-17 (세션 18)
+
+- 기타 탭 **디자인만** 개선 요청. 갈색 톤 유지(A안) + 프렛 누름 피드백 포함. 대상은 `app/(tabs)/guitar/_layout.tsx` 한 파일.
+- 좌측 패널: 폭 반응형(150~200), SCORE 카드화, 시작(앰버)/종료(`#7a4a3a`) 색 분리, `난이도` 라벨, 훈련 중 비선택 흐림, 피드백 박스 + 정답 초록·오답 붉은색 + 하단 고정.
+- 지판: 나무판(`woodPanel`)·너트(`nut`)·프렛 와이어 3개(`fretWire`) 추가. 줄 이름 칸 `NAME_COL_WIDTH` 84, 프렛 글자 화면 높이 기준 12~18px.
+- 프렛 누름 피드백: 선언만 돼 있던 `activeNotes` 연결. `handleNotePress`에서만 260ms 하이라이트 — 출제·다시 듣기에 걸면 정답이 노출됨. 언마운트 시 타이머 정리.
+- `SafeAreaView` → `View` + `useSafeAreaInsets`(가로 노치). `missionWrapper` 이중 absolute 제거 → 피아노처럼 `style` prop. 지판 오른쪽에 `MISSION_ICON_CLEARANCE`(52) 확보해 `?`와 G4 칸 겹침 해소.
+- 3프렛 인레이 점은 넣었다가 요청으로 삭제.
+- 안 쓰는 칸을 점선 테두리로 바꿨더니 **안드로이드에서 점선이 활성 칸까지 새어** 1단계 6칸 중 E4·B3만 점선(→ 4칸만 실선)이 됨. 점선 제거, `opacity 0.15` 원복.
+- 미션 모달 '현재 진행 상황'에 클리어(✓/✗) 추가 + 문구를 피아노와 통일. 별 조건을 `newCumulativeSuccesses >= 3`으로 감쌈(모달 안내와 불일치였음).
+- 난이도 버튼의 별 표시는 모달과 중복이라 삭제. 딸린 스타일(`diffStar`)·정렬(`space-between`)·낡은 주석까지 정리.
+- 문서 `doc/기타탭-UI개선.md` 생성. `npx tsc --noEmit` 통과(기존 `useSyncGameData.ts:44` 1건 제외). **미커밋.**
+
 ---
 
 ## 주의사항
@@ -77,8 +107,15 @@ origin/`3-branch`보다 **로컬 3커밋 앞** (`fafab21` `uibackgroudmae`, `e5d
 - **기타 연타는 유지.** 같은 캐시 스피커 + `await seekTo(0)` + `play()`. `tempPlayers` 없음. 같은 음 연타 시 앞 음 끊김은 의도. 멀티터치 안 함.
 - ~~`currentTime > 0`일 때만 `seekTo`.~~ → 세션 15부터 피아노·기타 **항상** `await seekTo(0)` 후 `play()`.
 - ~~블러 때 캐시 전부 `pause()`.~~ → 세션 15부터 **`playing`만 `pause()`.** 미로드 플레이어까지 멈추면 첫 진입이 무음.
-- 🎹 피아노 별도 확인은 세션 7~8에서 의도적으로 안 했음. 세션 15에서 무음이 재현됨. 수정 코드 실기기 확인은 아직.
+- 🎹 피아노 별도 확인은 세션 7~8에서 의도적으로 안 했음. 세션 15에서 무음이 재현됨. 수정은 `0b6c216`에 커밋됨.
 - A안 다크·배경 단계·웨이브 `goldSoft`·표준 버튼 `accentAI`는 `handoff_2`와 같다. 홈·소리 맞추기·순서는 안 만짐.
+- ~~낙하 결과 뱃지 4색(노랑·시안·민트·빨강).~~ → 세션 17부터 시안 단색. 등급은 글자(`완벽 3`)로만 구분.
+- 낙하 결과 `확인`과 리플레이 `결과 보기`는 스타일 분리. 리플레이는 `#007BFF` 유지.
+- 대기 하단 바 높이는 `IDLE_BOTTOM_PANEL_HEIGHT`(106). 낙하 중은 56.
+- **`borderStyle: 'dashed'`를 쓰지 않는다.** 안드로이드에서 점선이 같은 부모의 다른 뷰로 새어 나온다(기타 프렛에서 재현). 구분은 색·투명도로.
+- 기타 프렛 하이라이트는 **사용자 터치에만** 건다. 출제(`playNextQuestion`)·다시 듣기에 걸면 정답 위치가 노출된다.
+- 기타 별은 **누적 3회**부터. 이미 첫 정답으로 받아 둔 별은 `AsyncStorage`에 남으므로, 새 조건 확인은 모달 ↻로 초기화 후에 한다.
+- 기타 지판 오른쪽 여백(`MISSION_ICON_CLEARANCE` 52)은 `?` 아이콘 자리다. 줄이면 1번줄 G4 칸과 겹친다.
 
 ---
 
@@ -90,6 +127,7 @@ origin/`3-branch`보다 **로컬 3커밋 앞** (`fafab21` `uibackgroudmae`, `e5d
 | `doc/handoff_2.md` | 세션 10~14 UI 작업 (아카이브) |
 | `doc/conversation_15.md` | 세션 15 대화 (결과 제목·피아노/기타 무음) |
 | `doc/conversation_16.md` | 세션 16 대화 (인계문 머리 확인) |
+| `doc/기타탭-UI개선.md` | 세션 18 기타 탭 UI 변경 내역 (before/after) |
 | `doc/matchGame-AI-PG-비교.md` | Q-Learning vs PG, 통계·약점 모드 |
 | `doc/matchGame-백엔드-전송-이전현재.md` | 공용 분리와 payload 불변 근거 |
 | `CLAUDE.md` | 작업 규칙 (현재 인계문 `handoff_3.md`) |
