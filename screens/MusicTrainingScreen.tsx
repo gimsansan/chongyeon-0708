@@ -23,7 +23,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useIsFocused } from 'expo-router';
+import { useIsFocused } from 'expo-router';
 
 // Context 및 컴포넌트 임포트
 import MissionProgressIcon from '../components/MissionProgressIcon';
@@ -103,6 +103,24 @@ const useAutoFocusViewport = ({
     setViewportStartIdx(target);
   }, [currentNote, totalWhite, viewportSize, setViewportStartIdx]);
 };
+
+/**
+ * 상주시킬 건반 플레이어 수.
+ *
+ * 안드로이드는 **앱(UID)당 동시 AudioTrack을 약 40개로 제한**한다. `createAudioPlayer`는
+ * 재생 여부와 무관하게 만드는 즉시 트랙 하나를 잡으므로(내부에서 `prepare()`까지 한다),
+ * 52개를 미리 만들면 한도를 넘겨 **만들어지자마자 죽고 `play()`가 무음이 된다.**
+ * 넘겼을 때 뜨는 로그: `AF::Track: no more tracks available` / `Cannot create AudioTrack`.
+ *
+ * 12인 이유: 동물 12 · 단어 8 · 드럼 5 · 냉장고 1 = **26개가 앱 수명 동안 상주**하므로
+ * 이 화면 몫은 14 안팎이다. 여유 2를 두었다. 예전 15는 그 계산 없이 고른 값이었다.
+ *
+ * 화면에는 27건반(백건 16 + 흑건 11)이 보이므로 **12는 한 화면을 다 못 덮는다.**
+ * 처음 누르는 음과 축출된 음을 다시 누를 때 지연이 있다. 한도 안에서의 의도된 절충이다.
+ *
+ * 근거·다른 방향: `doc/audio-무음-원인과-방향.md`
+ */
+const CACHE_LIMIT = 12;
 
 type TrainingMode = 'random' | 'falling' | null;
 
@@ -500,8 +518,9 @@ export function MusicTrainingScreen() {
   const rippleProgress = useSharedValue(0);
   const triggerTime = useSharedValue(0); // 파티클 트리거용 시간 Shared Value
 
-  // 오디오 플레이어 캐시
+  // 오디오 플레이어 캐시 (최대 CACHE_LIMIT개). 맨 앞이 가장 최근에 친 음이다
   const soundCache = useRef<{ [key in Note]?: any }>({});
+  const recentlyUsedNotes = useRef<Note[]>([]);
   const starContext = useContext(StarContext) as any;
   const clearContext = useContext(ClearContext) as any;
   const isFocused = useIsFocused();
@@ -567,6 +586,7 @@ export function MusicTrainingScreen() {
       }
       // 캐시 강제 소거로 핫 리로드 시 발생하는 release 충돌 해결
       soundCache.current = {};
+      recentlyUsedNotes.current = [];
     };
   }, [clearFallingNoteTimers]);
 
@@ -577,20 +597,6 @@ export function MusicTrainingScreen() {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => { });
     }
   }, [isFocused, isReady]);
-
-  // 탭 진입 시 피아노 음 52개를 미리 만들어 둔다. 이미 있으면 건너뛴다 (캐시는 블러 때 비우지 않음).
-  useFocusEffect(
-    useCallback(() => {
-      for (const note of Object.keys(soundFiles) as Note[]) {
-        if (soundCache.current[note]) continue;
-        try {
-          soundCache.current[note] = createAudioPlayer(soundFiles[note]);
-        } catch (error) {
-          console.warn(`피아노 프리로드 실패: ${note}`, error);
-        }
-      }
-    }, [])
-  );
 
   // 저장 기록 동기화
   useEffect(() => {
@@ -670,19 +676,54 @@ export function MusicTrainingScreen() {
     setMissPulseKey(0);
   };
 
+  /**
+   * 가장 오래 안 쓴 음부터 플레이어를 해제해 AudioTrack을 돌려준다.
+   * **울리는 중인 음은 건너뛴다** — 해제하면 나던 소리가 끊긴다.
+   * 해제에 성공하면 true.
+   */
+  const evictLeastRecentlyUsedNote = (): boolean => {
+    for (let i = recentlyUsedNotes.current.length - 1; i >= 0; i--) {
+      const candidate = recentlyUsedNotes.current[i];
+      const player = soundCache.current[candidate];
+      if (player?.playing) continue;
+
+      recentlyUsedNotes.current.splice(i, 1);
+      delete soundCache.current[candidate];
+      try {
+        player?.remove();
+      } catch (e) { }
+      return true;
+    }
+    return false;
+  };
+
   const playSound = async (note: Note) => {
     try {
       let player = soundCache.current[note];
       if (!player) {
+        // 만드는 순간 AudioTrack을 잡으므로 **만들기 전에** 자리를 비운다.
+        // 전부 울리는 중이라 못 비우면 그냥 만든다 — 여유 2를 남겨 둔 이유다.
+        while (recentlyUsedNotes.current.length >= CACHE_LIMIT) {
+          if (!evictLeastRecentlyUsedNote()) break;
+        }
         player = createAudioPlayer(soundFiles[note]);
         soundCache.current[note] = player;
+
+        // 죽은 플레이어는 예외도 로그도 없이 무음이 된다. 유일한 통보 경로가 이 이벤트다.
+        try {
+          player.addListener('playbackStatusUpdate', (status: any) => {
+            if (status?.error) console.warn(`[audio] '${note}' 재생 에러:`, status.error);
+          });
+        } catch (e) { }
       }
 
-      // 처음(0)이면 되감기 없이 바로 재생. 위치가 남아 있을 때만 되감기를 기다린다.
-      // 같은 음 연타는 임시 플레이어를 만들지 않고 이 캐시 스피커를 처음부터 다시 낸다.
-      if (player.currentTime > 0) {
-        await player.seekTo(0);
-      }
+      // 방금 친 음을 맨 앞으로 (맨 뒤가 가장 오래 안 쓴 음 = 축출 대상)
+      recentlyUsedNotes.current = recentlyUsedNotes.current.filter(n => n !== note);
+      recentlyUsedNotes.current.unshift(note);
+
+      // 탭을 떠날 때 pause()만 하면 currentTime이 0이어도 play()가 무음이 된다.
+      // 동물게임과 같이 항상 되감은 뒤 재생한다.
+      await player.seekTo(0);
       player.play();
     } catch (error) {
       console.log(`'${note}' 음원 재생 실패:`, error);
@@ -690,16 +731,22 @@ export function MusicTrainingScreen() {
   };
 
   /**
-   * 🎹 탭을 떠날 때 울리던 건반 소리를 끊는다.
-   * 탭은 언마운트되지 않으므로 위 언마운트 클린업(플레이어 해제)은 탭 전환 때 실행되지 않는다.
-   * **캐시는 비우지 않는다** — 비우면 다시 들어올 때 첫 음 지연이 되살아난다.
+   * 🎹 탭을 떠날 때 건반 소리를 끊고 **플레이어를 해제한다.**
+   * 탭은 언마운트되지 않으므로 위 언마운트 클린업은 탭 전환 때 실행되지 않는다.
+   *
+   * 이전에는 `pause()`만 하고 캐시를 남겼다(재진입 첫 음 지연을 피하려고).
+   * 그런데 `pause()`는 소리만 멈추고 **AudioTrack은 계속 붙잡는다.** 그래서 피아노를
+   * 다녀오면 기타·단어 탭까지 앱 전체 한도에 걸려 무음이 됐다.
+   * **자리를 돌려주려면 해제해야 한다.** 재진입 첫 음 지연은 그 대가로 받아들인 것이다.
    */
   useStopAudioOnBlur(() => {
     for (const player of Object.values(soundCache.current)) {
       try {
-        player?.pause();
+        player?.remove();
       } catch (e) { }
     }
+    soundCache.current = {};
+    recentlyUsedNotes.current = [];
   });
 
   const playNextQuestion = useCallback(() => {
