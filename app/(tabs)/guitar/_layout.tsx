@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
   ActivityIndicator
 } from 'react-native';
-import { useFocusEffect, useIsFocused } from 'expo-router';
+import { useIsFocused } from 'expo-router';
 import MissionProgressIcon from '../../../components/MissionProgressIcon';
 import { useStopAudioOnBlur } from '../../../hooks/useStopAudioOnBlur';
 import { ClearContext } from '../../../context/ClearContext';
@@ -43,6 +43,17 @@ const guitarSounds: { [key in GuitarNote]: any } = {
 
 const GUITAR_PROGRESS_KEY = '@MiniGameApp:guitarProgress';
 
+/**
+ * 상주시킬 기타 플레이어 수. 피아노(`MusicTrainingScreen`)와 같은 이유·같은 값이다.
+ *
+ * 안드로이드는 앱당 동시 AudioTrack을 약 40개로 제한하고, `createAudioPlayer`는 만드는
+ * 즉시 트랙을 잡는다. 28개를 미리 만들면 앱 전체 한도에 걸려 **만들어지자마자 죽는다.**
+ * 배경 상주(동물 12 · 단어 8 · 드럼 5 · 냉장고 1 = 26)를 빼면 이 화면 몫은 14 안팎이다.
+ *
+ * 근거·다른 방향: `doc/audio-무음-원인과-방향.md`
+ */
+const CACHE_LIMIT = 12;
+
 export default function Guitar() {
   const [isReady, setIsReady] = useState(false);
   const [activeNotes, setActiveNotes] = useState<{ [key in GuitarNote]?: boolean }>({});
@@ -53,8 +64,10 @@ export default function Guitar() {
   const [difficulty, setDifficulty] = useState('1단계');
   const [progress, setProgress] = useState<any>({});
 
+  // 최대 CACHE_LIMIT개. 맨 앞이 가장 최근에 낸 음이다
   const soundCache = useRef<{ [key in GuitarNote]?: any }>({});
-  
+  const recentlyUsedNotes = useRef<GuitarNote[]>([]);
+
   const { syncData } = useSyncGameData();
   const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
   const [repeatCount, setRepeatCount] = useState(0);
@@ -85,6 +98,8 @@ export default function Guitar() {
       for (const player of Object.values(soundCache.current)) {
         player?.remove();
       }
+      soundCache.current = {};
+      recentlyUsedNotes.current = [];
     };
   }, []);
 
@@ -102,20 +117,6 @@ export default function Guitar() {
     changeOrientation().catch(err => console.log(err));
   }, [isFocused]);
 
-  // 탭 진입 시 기타 음 28개를 미리 만들어 둔다. 이미 있으면 건너뛴다 (캐시는 블러 때 비우지 않음).
-  useFocusEffect(
-    useCallback(() => {
-      for (const note of Object.keys(guitarSounds) as GuitarNote[]) {
-        if (soundCache.current[note]) continue;
-        try {
-          soundCache.current[note] = createAudioPlayer(guitarSounds[note]);
-       } catch (error) {
-          console.warn(`기타 프리로드 실패: ${note}`, error);
-        }
-      }
-    }, [])
-  );
-
   useEffect(() => {
     if (Object.keys(progress).length > 0) {
       AsyncStorage.setItem(GUITAR_PROGRESS_KEY, JSON.stringify(progress));
@@ -123,17 +124,42 @@ export default function Guitar() {
   }, [progress]);
 
   /**
-   * 🎸 탭을 떠날 때 울리던 기타 소리를 끊는다.
-   * 탭은 언마운트되지 않으므로 언마운트 클린업(플레이어 해제)은 탭 전환 때 실행되지 않는다.
-   * **캐시는 비우지 않는다** — 비우면 다시 들어올 때 첫 음 지연이 되살아난다.
+   * 🎸 탭을 떠날 때 기타 소리를 끊고 **플레이어를 해제한다.**
+   * 탭은 언마운트되지 않으므로 언마운트 클린업은 탭 전환 때 실행되지 않는다.
+   *
+   * 이전에는 `pause()`만 하고 캐시를 남겼다. 그런데 `pause()`는 소리만 멈추고
+   * **AudioTrack은 계속 붙잡는다.** 기타를 다녀오면 피아노·단어가 앱 전체 한도에 걸렸다.
+   * 자리를 돌려주려면 해제해야 한다. 재진입 첫 음 지연은 그 대가다.
    */
   const isScreenFocused = useStopAudioOnBlur(() => {
     for (const player of Object.values(soundCache.current)) {
       try {
-        player?.pause();
+        player?.remove();
       } catch (e) { }
     }
+    soundCache.current = {};
+    recentlyUsedNotes.current = [];
   });
+
+  /**
+   * 가장 오래 안 쓴 음부터 플레이어를 해제해 AudioTrack을 돌려준다.
+   * **울리는 중인 음은 건너뛴다** — 해제하면 나던 소리가 끊긴다. 해제에 성공하면 true.
+   */
+  const evictLeastRecentlyUsedNote = (): boolean => {
+    for (let i = recentlyUsedNotes.current.length - 1; i >= 0; i--) {
+      const candidate = recentlyUsedNotes.current[i];
+      const player = soundCache.current[candidate];
+      if (player?.playing) continue;
+
+      recentlyUsedNotes.current.splice(i, 1);
+      delete soundCache.current[candidate];
+      try {
+        player?.remove();
+      } catch (e) { }
+      return true;
+    }
+    return false;
+  };
 
   // 2. 사운드 재생 (expo-audio 방식: 폴리포니 지원)
   const playSound = async (note: GuitarNote) => {
@@ -145,16 +171,29 @@ export default function Guitar() {
     try {
       let player = soundCache.current[note];
       if (!player) {
+        // 만드는 순간 AudioTrack을 잡으므로 **만들기 전에** 자리를 비운다
+        while (recentlyUsedNotes.current.length >= CACHE_LIMIT) {
+          if (!evictLeastRecentlyUsedNote()) break;
+        }
         player = createAudioPlayer(guitarSounds[note]);
         soundCache.current[note] = player;
+
+        // 죽은 플레이어는 예외도 로그도 없이 무음이 된다. 유일한 통보 경로가 이 이벤트다.
+        try {
+          player.addListener('playbackStatusUpdate', (status: any) => {
+            if (status?.error) console.warn(`[audio] '${note}' 재생 에러:`, status.error);
+          });
+        } catch (e) { }
       }
 
-      // 처음(0)이면 되감기 없이 바로 재생. 위치가 남아 있을 때만 되감기를 기다린다.
-      // 같은 음 연타는 임시 플레이어를 만들지 않고 이 캐시 스피커를 처음부터 다시 낸다.
-      if (player.currentTime > 0) {
-        await player.seekTo(0);
-        if (!isScreenFocused.current) return;
-      }
+      // 방금 낸 음을 맨 앞으로 (맨 뒤가 가장 오래 안 쓴 음 = 축출 대상)
+      recentlyUsedNotes.current = recentlyUsedNotes.current.filter(n => n !== note);
+      recentlyUsedNotes.current.unshift(note);
+
+      // 탭을 떠날 때 pause()만 하면 currentTime이 0이어도 play()가 무음이 된다.
+      // 동물게임과 같이 항상 되감은 뒤 재생한다.
+      await player.seekTo(0);
+      if (!isScreenFocused.current) return;
       player.play();
     } catch (error) {
       console.log(`재생 실패: ${note}`, error);
