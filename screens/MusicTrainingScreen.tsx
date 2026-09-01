@@ -35,6 +35,7 @@ import { ParticleVisualizer } from '../components/ParticleVisualizer';
 import { MiniKeyboardMap } from '../components/MiniKeyboardMap';
 import { FallingNoteTrack } from '../components/FallingNoteTrack';
 import { FallingReplayPrompt, FallingResultOverlay } from '../components/FallingResultOverlays';
+import SongSlotFrame from '../assets/icons/pan_res.svg';
 import { songs, type Song, type SongScale } from '../data/songs';
 import { useStopAudioOnBlur } from '../hooks/useStopAudioOnBlur';
 import type { Difficulty, Note } from '../types/music';
@@ -1229,6 +1230,9 @@ export function MusicTrainingScreen() {
           {!isTraining && !isFallingResultVisible && !showFallingReplayPrompt && (
             <View style={styles.songSlotSection} {...songSlotPanResponder.panHandlers}>
               <View style={styles.songSlotWindow} pointerEvents="none">
+                <View style={styles.songSlotFrame}>
+                  <SongSlotFrame width="100%" height="100%" preserveAspectRatio="none" />
+                </View>
                 {!!prevFallingSongTitle && (
                   <Text style={styles.songSlotPeek} numberOfLines={1}>{prevFallingSongTitle}</Text>
                 )}
@@ -1391,7 +1395,7 @@ const styles = StyleSheet.create({
   trainingContainer: {
     width: '100%',
     height: 110,
-    paddingVertical: 8,
+    paddingVertical:8,
     paddingHorizontal: 14,
     backgroundColor: 'rgba(34, 34, 34, 0.85)',
     alignItems: 'center',
@@ -1443,10 +1447,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 6,
+    paddingHorizontal: 16,
+  },
+  songSlotFrame: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   songSlotPeek: {
     color: 'rgba(255, 255, 255, 0.35)',
