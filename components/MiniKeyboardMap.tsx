@@ -18,13 +18,15 @@ export const MiniKeyboardMap: React.FC<MiniKeyboardMapProps> = ({
   isTraining,
   viewportSize = 16,
 }) => {
-  // 미니맵 수치 정의
-  const WHITE_KEY_WIDTH = 6;
-  const WHITE_KEY_HEIGHT = 28;
-  const BLACK_KEY_WIDTH = 3.6;
-  const BLACK_KEY_HEIGHT = 18;
+  // 옥타브 버튼 높이(36)에 맞추고, 너비는 기존 비율(6:28)을 유지
+  const KEY_SCALE = 36 / 28;
+  const WHITE_KEY_WIDTH = 6 * KEY_SCALE;
+  const WHITE_KEY_HEIGHT = 28 * KEY_SCALE;
+  const BLACK_KEY_WIDTH = 3.6 * KEY_SCALE;
+  const BLACK_KEY_HEIGHT = 18 * KEY_SCALE;
+  const TARGET_DOT_SIZE = 6 * KEY_SCALE;
 
-  const totalWidth = whiteNotes.length * WHITE_KEY_WIDTH; // 30 * 6 = 180px
+  const totalWidth = whiteNotes.length * WHITE_KEY_WIDTH;
 
   // 뷰포트 하이라이트 박스 애니메이션
   const animatedBoxStyle = useAnimatedStyle(() => {
@@ -64,7 +66,7 @@ export const MiniKeyboardMap: React.FC<MiniKeyboardMapProps> = ({
     if (idx === undefined) return null;
     
     // 백건의 가로 너비 중심에 맞춰 도트 배치
-    return idx * WHITE_KEY_WIDTH + (WHITE_KEY_WIDTH / 2) - 3;
+    return idx * WHITE_KEY_WIDTH + (WHITE_KEY_WIDTH / 2) - TARGET_DOT_SIZE / 2;
   };
 
   const targetDotLeft = getTargetDotLeft();
@@ -126,7 +128,17 @@ export const MiniKeyboardMap: React.FC<MiniKeyboardMapProps> = ({
 
       {/* 4. 정답 안내 LED 가이드 도트 */}
       {targetDotLeft !== null && (
-        <View style={[styles.targetGuideDot, { left: targetDotLeft }]} />
+        <View
+          style={[
+            styles.targetGuideDot,
+            {
+              left: targetDotLeft,
+              width: TARGET_DOT_SIZE,
+              height: TARGET_DOT_SIZE,
+              borderRadius: TARGET_DOT_SIZE / 2,
+            },
+          ]}
+        />
       )}
     </TouchableOpacity>
   );

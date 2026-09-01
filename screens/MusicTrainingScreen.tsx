@@ -150,9 +150,6 @@ const PianoKey = React.memo(({
     translateY.value = isBlack ? 9 : 12;
     shadowOpacity.value = 0.06; // 눌리면 입체 그림자가 사라지듯 옅어짐
 
-    // 햅틱 진동 유발 (중간 세기 타격감)
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
-
     onPressIn(note, event);
   };
 
@@ -1477,7 +1474,7 @@ const styles = StyleSheet.create({
   },
   difficultyButtonText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '800',
   },
   scaleToggleRow: {
