@@ -62,6 +62,7 @@ export const songs: Song[] = [
 
   // ── 5음 1 · Hot Cross Buns (전통 · PD) ─────────────────
   // [단순화: 없음]  사용 음 = C·D·E (5음 중 3음만 사용). F/B 없음, 음역 장3도.
+  // 1절 = 원곡 멜로디 전부. 추가로 이을 소절 없음.
   {
     id: 'pd_hotcross',
     title: '핫 크로스 번',
@@ -84,6 +85,7 @@ export const songs: Song[] = [
 
   // ── 5음 2 · Ring Around the Rosie (전통 · PD) ──────────
   // [단순화: 없음]  사용 음 = C·D·E·G·A (5음 전부). F/B 없음, 음역 장6도(딱 맞음).
+  // 1절 = 통용 멜로디 한 바퀴. 추가로 이을 소절 없음.
   {
     id: 'pd_ring',
     title: '링 어라운드 더 로지',
@@ -106,7 +108,8 @@ export const songs: Song[] = [
   },
 
   // ── 5음 3 · Jingle Bells (Pierpont, 1857 · PD) ─────────
-  // [단순화: 없음]  후렴 첫 줄만 사용 → 사용 음 = C·D·E·G. F('oh what fun' 부분)는 미사용.
+  // [단순화: 있음]  후렴 한 바퀴. F('oh what fun') → G, 종지 G-G-F-D-C의 F → E.
+  //   사용 음 = C·D·E·G.
   {
     id: 'pd_jingle',
     title: '징글벨',
@@ -122,14 +125,22 @@ export const songs: Song[] = [
       { note: 'E3', beat: 0 }, { note: 'E3', beat: 1 }, { note: 'E3', beat: 2 },
       { note: 'E3', beat: 4 }, { note: 'E3', beat: 5 }, { note: 'E3', beat: 6 },
       { note: 'E3', beat: 8 }, { note: 'G3', beat: 9 }, { note: 'C3', beat: 10 }, { note: 'D3', beat: 11 }, { note: 'E3', beat: 12 },
-      { note: 'E3', beat: 14 }, { note: 'E3', beat: 15 }, { note: 'E3', beat: 16 },
-      { note: 'E3', beat: 18 }, { note: 'E3', beat: 19 }, { note: 'E3', beat: 20 },
-      { note: 'E3', beat: 22 }, { note: 'G3', beat: 23 }, { note: 'C3', beat: 24 }, { note: 'D3', beat: 25 }, { note: 'E3', beat: 26 },
+      { note: 'G3', beat: 14 }, { note: 'G3', beat: 15 }, { note: 'G3', beat: 16 }, { note: 'G3', beat: 17 },
+      { note: 'G3', beat: 18 }, { note: 'E3', beat: 19 }, { note: 'E3', beat: 20 }, { note: 'E3', beat: 21 },
+      { note: 'E3', beat: 22 }, { note: 'D3', beat: 23 }, { note: 'D3', beat: 24 }, { note: 'E3', beat: 25 },
+      { note: 'D3', beat: 26 }, { note: 'G3', beat: 28 },
+      { note: 'E3', beat: 30 }, { note: 'E3', beat: 31 }, { note: 'E3', beat: 32 },
+      { note: 'E3', beat: 34 }, { note: 'E3', beat: 35 }, { note: 'E3', beat: 36 },
+      { note: 'E3', beat: 38 }, { note: 'G3', beat: 39 }, { note: 'C3', beat: 40 }, { note: 'D3', beat: 41 }, { note: 'E3', beat: 42 },
+      { note: 'G3', beat: 44 }, { note: 'G3', beat: 45 }, { note: 'G3', beat: 46 }, { note: 'G3', beat: 47 },
+      { note: 'G3', beat: 48 }, { note: 'E3', beat: 49 }, { note: 'E3', beat: 50 }, { note: 'E3', beat: 51 },
+      { note: 'G3', beat: 52 }, { note: 'G3', beat: 53 }, { note: 'E3', beat: 54 }, { note: 'D3', beat: 55 },
+      { note: 'C3', beat: 56 },
     ],
   },
 
   // ── 5음 4 · Old MacDonald Had a Farm (전통 · PD) ───────
-  // [단순화: 있음]  'E-I-E-I-O'의 시(B)를 라(A)로 내림(B→A, 2회). 그 외 원곡 그대로.
+  // [단순화: 있음]  'E-I-E-I-O'의 시(B)를 라(A)로 내림(B→A). 그 외 1절 통용 멜로디.
   //   사용 음 = D·E·G·A. 원곡 음역은 5음 뷰포트(장6도) 안에 들어옴.
   {
     id: 'pd_oldmac',
@@ -149,6 +160,17 @@ export const songs: Song[] = [
       { note: 'G3', beat: 14 }, { note: 'G3', beat: 15 }, { note: 'G3', beat: 16 }, { note: 'D3', beat: 17 },
       { note: 'E3', beat: 18 }, { note: 'E3', beat: 19 }, { note: 'D3', beat: 20 },
       { note: 'A3', beat: 22 }, { note: 'A3', beat: 23 }, { note: 'A3', beat: 24 }, { note: 'A3', beat: 25 }, { note: 'G3', beat: 26 },
+      { note: 'D3', beat: 28 }, { note: 'D3', beat: 29 }, { note: 'D3', beat: 30 }, { note: 'D3', beat: 31 },
+      { note: 'E3', beat: 32 }, { note: 'E3', beat: 33 }, { note: 'D3', beat: 34 },
+      { note: 'D3', beat: 36 }, { note: 'D3', beat: 37 }, { note: 'D3', beat: 38 }, { note: 'D3', beat: 39 },
+      { note: 'E3', beat: 40 }, { note: 'E3', beat: 41 }, { note: 'D3', beat: 42 },
+      { note: 'D3', beat: 44 }, { note: 'D3', beat: 45 }, { note: 'E3', beat: 46 }, { note: 'E3', beat: 47 },
+      { note: 'D3', beat: 48 }, { note: 'D3', beat: 49 }, { note: 'E3', beat: 50 }, { note: 'E3', beat: 51 },
+      { note: 'D3', beat: 52 }, { note: 'D3', beat: 53 }, { note: 'D3', beat: 54 }, { note: 'D3', beat: 55 },
+      { note: 'E3', beat: 56 }, { note: 'E3', beat: 57 }, { note: 'D3', beat: 58 },
+      { note: 'G3', beat: 60 }, { note: 'G3', beat: 61 }, { note: 'G3', beat: 62 }, { note: 'D3', beat: 63 },
+      { note: 'E3', beat: 64 }, { note: 'E3', beat: 65 }, { note: 'D3', beat: 66 },
+      { note: 'A3', beat: 68 }, { note: 'A3', beat: 69 }, { note: 'A3', beat: 70 }, { note: 'A3', beat: 71 }, { note: 'G3', beat: 72 },
     ],
   },
 
@@ -157,6 +179,7 @@ export const songs: Song[] = [
   // ══════════════════════════════════════════════════════
 
   // ── 8음 1 · 반짝반짝 작은별 (원곡 "Ah! vous dirai-je, maman", 18세기 · PD) ──
+  // 통용 멜로디 한 바퀴(6소절). 사용 음 = C·D·E·F·G·A.
   {
     id: 'pd_twinkle',
     title: '반짝반짝 작은별',
@@ -173,10 +196,19 @@ export const songs: Song[] = [
       { note: 'A4', beat: 4 }, { note: 'A4', beat: 5 }, { note: 'G4', beat: 6 },
       { note: 'F4', beat: 8 }, { note: 'F4', beat: 9 }, { note: 'E4', beat: 10 }, { note: 'E4', beat: 11 },
       { note: 'D4', beat: 12 }, { note: 'D4', beat: 13 }, { note: 'C4', beat: 14 },
+      { note: 'G4', beat: 16 }, { note: 'G4', beat: 17 }, { note: 'F4', beat: 18 }, { note: 'F4', beat: 19 },
+      { note: 'E4', beat: 20 }, { note: 'E4', beat: 21 }, { note: 'D4', beat: 22 },
+      { note: 'G4', beat: 24 }, { note: 'G4', beat: 25 }, { note: 'F4', beat: 26 }, { note: 'F4', beat: 27 },
+      { note: 'E4', beat: 28 }, { note: 'E4', beat: 29 }, { note: 'D4', beat: 30 },
+      { note: 'C4', beat: 32 }, { note: 'C4', beat: 33 }, { note: 'G4', beat: 34 }, { note: 'G4', beat: 35 },
+      { note: 'A4', beat: 36 }, { note: 'A4', beat: 37 }, { note: 'G4', beat: 38 },
+      { note: 'F4', beat: 40 }, { note: 'F4', beat: 41 }, { note: 'E4', beat: 42 }, { note: 'E4', beat: 43 },
+      { note: 'D4', beat: 44 }, { note: 'D4', beat: 45 }, { note: 'C4', beat: 46 },
     ],
   },
 
   // ── 8음 2 · 메리의 어린 양 (전통 멜로디 · PD) ──────────
+  // 1절 = 통용 멜로디 한 바퀴. 2절은 같은 음이라 추가하지 않음.
   {
     id: 'pd_mary',
     title: '메리의 어린 양',
@@ -201,7 +233,7 @@ export const songs: Song[] = [
   },
 
   // ── 8음 3 · 환희의 송가 (Beethoven 교향곡 9번 · PD) ────
-  // 사용 음 = C·D·E·F·G. 원곡 그대로(백건 8음 범위 안).
+  // 통용 주제 한 바퀴(A + A' + B + A). 사용 음 = C·D·E·F·G. 8분음표는 4분음표로 단순화.
   {
     id: 'pd_ode',
     title: '환희의 송가',
@@ -222,11 +254,20 @@ export const songs: Song[] = [
       { note: 'G4', beat: 20 }, { note: 'F4', beat: 21 }, { note: 'E4', beat: 22 }, { note: 'D4', beat: 23 },
       { note: 'C4', beat: 24 }, { note: 'C4', beat: 25 }, { note: 'D4', beat: 26 }, { note: 'E4', beat: 27 },
       { note: 'D4', beat: 28 }, { note: 'C4', beat: 29 }, { note: 'C4', beat: 30 },
+      { note: 'D4', beat: 32 }, { note: 'D4', beat: 33 }, { note: 'E4', beat: 34 }, { note: 'C4', beat: 35 },
+      { note: 'D4', beat: 36 }, { note: 'E4', beat: 37 }, { note: 'F4', beat: 38 }, { note: 'E4', beat: 39 },
+      { note: 'C4', beat: 40 },
+      { note: 'D4', beat: 42 }, { note: 'E4', beat: 43 }, { note: 'F4', beat: 44 }, { note: 'E4', beat: 45 },
+      { note: 'D4', beat: 46 }, { note: 'C4', beat: 47 }, { note: 'D4', beat: 48 }, { note: 'G4', beat: 49 },
+      { note: 'E4', beat: 52 }, { note: 'E4', beat: 53 }, { note: 'F4', beat: 54 }, { note: 'G4', beat: 55 },
+      { note: 'G4', beat: 56 }, { note: 'F4', beat: 57 }, { note: 'E4', beat: 58 }, { note: 'D4', beat: 59 },
+      { note: 'C4', beat: 60 }, { note: 'C4', beat: 61 }, { note: 'D4', beat: 62 }, { note: 'E4', beat: 63 },
+      { note: 'D4', beat: 64 }, { note: 'C4', beat: 65 }, { note: 'C4', beat: 66 },
     ],
   },
 
   // ── 8음 4 · 성자의 행진 (When the Saints Go Marching In · 전통 · PD) ──
-  // 사용 음 = C·D·E·F·G. 전통곡(버전 편차 있음), 백건 8음 범위 안.
+  // 1절 통용 멜로디(마지막 "when the saints go marching in" 포함). 사용 음 = C·D·E·F·G.
   {
     id: 'pd_saints',
     title: '성자의 행진',
@@ -245,6 +286,8 @@ export const songs: Song[] = [
       { note: 'E4', beat: 14 }, { note: 'C4', beat: 15 }, { note: 'E4', beat: 16 }, { note: 'D4', beat: 17 },
       { note: 'E4', beat: 19 }, { note: 'E4', beat: 20 }, { note: 'D4', beat: 21 }, { note: 'C4', beat: 22 },
       { note: 'D4', beat: 23 }, { note: 'E4', beat: 24 }, { note: 'C4', beat: 25 },
+      { note: 'C4', beat: 27 }, { note: 'E4', beat: 28 }, { note: 'F4', beat: 29 }, { note: 'G4', beat: 30 },
+      { note: 'E4', beat: 31 }, { note: 'C4', beat: 32 }, { note: 'D4', beat: 33 }, { note: 'C4', beat: 34 },
     ],
   },
 ];

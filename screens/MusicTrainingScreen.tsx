@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   Pressable,
+  PanResponder,
   useWindowDimensions,
   ActivityIndicator,
 
@@ -350,6 +351,13 @@ export function MusicTrainingScreen() {
     ?? availableFallingSongs[0]
     ?? songs[0]
     ?? null;
+  const fallingSongIndex = Math.max(0, availableFallingSongs.findIndex(song => song.id === selectedFallingSong?.id));
+  const prevFallingSongTitle = availableFallingSongs.length > 1
+    ? availableFallingSongs[(fallingSongIndex - 1 + availableFallingSongs.length) % availableFallingSongs.length].title
+    : '';
+  const nextFallingSongTitle = availableFallingSongs.length > 1
+    ? availableFallingSongs[(fallingSongIndex + 1) % availableFallingSongs.length].title
+    : '';
   const activeFallingSong = currentSong ?? selectedFallingSong;
   const activeFallingBpm = activeFallingSong
     ? selectedTempoMode === 'normal'
@@ -407,10 +415,13 @@ export function MusicTrainingScreen() {
     }, HIT_WINDOW_MS);
   }, []);
 
+  // 대기(자유 연주) 건반은 훈련 난이도와 분리. 훈련 종료 후에도 항상 3단계 레이아웃.
+  const keyboardDifficulty: Difficulty = mode === 'random' ? difficulty : '3단계';
+
   // 옥타브 시프트 뷰포트 상태 (난이도에 따라 백건 개수 가변)
   const getViewportSize = () => {
-    if (difficulty === '1단계') return 8;
-    if (difficulty === '2단계') return 15;
+    if (keyboardDifficulty === '1단계') return 8;
+    if (keyboardDifficulty === '2단계') return 15;
     return 16; // 3단계(중급) 및 4단계(상급)에서 16건반 지원
   };
   const VIEWPORT_SIZE = getViewportSize();
@@ -419,7 +430,7 @@ export function MusicTrainingScreen() {
   const [fallingTrackWidth, setFallingTrackWidth] = useState(0);
 
   // 1, 2, 3단계에서는 시작 옥타브 인덱스를 C3(14)로 강제 고정
-  const isFixedViewport = difficulty === '1단계' || difficulty === '2단계' || difficulty === '3단계';
+  const isFixedViewport = keyboardDifficulty === '1단계' || keyboardDifficulty === '2단계' || keyboardDifficulty === '3단계';
   const currentStartIdx = isFixedViewport ? 14 : viewportStartIdx;
 
   // 옥타브 버튼 애니메이션용 Shared Values
@@ -624,8 +635,36 @@ export function MusicTrainingScreen() {
     }
   };
 
+  const handleCycleFallingSong = useCallback((direction: 1 | -1 = 1) => {
+    const list = songs.filter(song => song.scale === selectedSongScale);
+    if (list.length === 0) return;
+    const currentIndex = list.findIndex(song => song.id === selectedSongId);
+    const nextSong = list[(Math.max(currentIndex, 0) + direction + list.length) % list.length];
+    setSelectedSongId(nextSong.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }, [selectedSongScale, selectedSongId]);
+
+  const handleCycleFallingSongRef = useRef(handleCycleFallingSong);
+  handleCycleFallingSongRef.current = handleCycleFallingSong;
+
+  const songSlotPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy <= -12) {
+          handleCycleFallingSongRef.current(1);
+        } else if (gesture.dy >= 12) {
+          handleCycleFallingSongRef.current(-1);
+        } else {
+          handleCycleFallingSongRef.current(1);
+        }
+      },
+    })
+  ).current;
+
   const getVisibleNoteSet = (): Set<Note> => {
-    switch (difficulty) {
+    switch (keyboardDifficulty) {
       case '1단계': return new Set(level1_absoluteBeginner);
       case '2단계': return new Set(level2_beginner);
       case '3단계': return new Set(level3_intermediate);
@@ -979,7 +1018,7 @@ export function MusicTrainingScreen() {
 
   const isFallingResultVisible = fallingResult !== null;
   const shouldUseFallingBottomPanel = isFallingNoteActive || isFallingResultVisible || showFallingReplayPrompt;
-  const bottomPanelHeight = shouldUseFallingBottomPanel ? 56 : 96;
+  const bottomPanelHeight = shouldUseFallingBottomPanel ? 56 : 110;
   const usableWidth = Math.max(1, width - insets.left - insets.right);
   const usableHeight = Math.max(1, height - insets.top - insets.bottom);
   const PIANO_AREA_PADDING = 20;
@@ -1187,8 +1226,24 @@ export function MusicTrainingScreen() {
             </View>
           )}
 
+          {!isTraining && !isFallingResultVisible && !showFallingReplayPrompt && (
+            <View style={styles.songSlotSection} {...songSlotPanResponder.panHandlers}>
+              <View style={styles.songSlotWindow} pointerEvents="none">
+                {!!prevFallingSongTitle && (
+                  <Text style={styles.songSlotPeek} numberOfLines={1}>{prevFallingSongTitle}</Text>
+                )}
+                <Text style={styles.songSlotTitle} numberOfLines={1}>
+                  {selectedFallingSong?.title ?? ''}
+                </Text>
+                {!!nextFallingSongTitle && (
+                  <Text style={styles.songSlotPeek} numberOfLines={1}>{nextFallingSongTitle}</Text>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* 중앙 영역: 무작위 난이도 / 낙하노트 곡 선택 */}
-          <View style={styles.fallingPickerSection}>
+          <View style={[styles.fallingPickerSection, !isTraining && styles.fallingPickerSectionRight]}>
             {mode === 'random' && (
               <View style={styles.difficultyContainer}>
                 {difficultyLevels.map(({ name, label }) => (
@@ -1211,7 +1266,9 @@ export function MusicTrainingScreen() {
                       style={[styles.scaleToggleButton, selectedSongScale === scale && styles.scaleToggleButtonActive]}
                       onPress={() => handleSelectSongScale(scale)}
                     >
-                      <Text style={styles.scaleToggleText}>{fallingScaleLabels[scale]}</Text>
+                      <Text style={[styles.scaleToggleText, selectedSongScale === scale && styles.scaleToggleTextActive]}>
+                        {fallingScaleLabels[scale]}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1222,18 +1279,9 @@ export function MusicTrainingScreen() {
                       style={[styles.scaleToggleButton, selectedTempoMode === tempoMode && styles.scaleToggleButtonActive]}
                       onPress={() => setSelectedTempoMode(tempoMode)}
                     >
-                      <Text style={styles.scaleToggleText}>{fallingTempoLabels[tempoMode]}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.songPickerRow}>
-                  {availableFallingSongs.map(song => (
-                    <TouchableOpacity
-                      key={song.id}
-                      style={[styles.songPickerButton, selectedFallingSong?.id === song.id && styles.songPickerButtonActive]}
-                      onPress={() => setSelectedSongId(song.id)}
-                    >
-                      <Text style={styles.songPickerText}>{song.title}</Text>
+                      <Text style={[styles.scaleToggleText, selectedTempoMode === tempoMode && styles.scaleToggleTextActive]}>
+                        {fallingTempoLabels[tempoMode]}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1342,8 +1390,8 @@ const styles = StyleSheet.create({
   },
   trainingContainer: {
     width: '100%',
-    height: 96,
-    paddingVertical: 7,
+    height: 110,
+    paddingVertical: 8,
     paddingHorizontal: 14,
     backgroundColor: 'rgba(34, 34, 34, 0.85)',
     alignItems: 'center',
@@ -1351,6 +1399,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 2,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 20,
+    elevation: 20,
   },
   fallingTrainingContainer: {
     height: 56,
@@ -1377,6 +1427,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  fallingPickerSectionRight: {
+    flex: 1.2,
+    alignItems: 'center',
+  },
+  songSlotSection: {
+    flex: 1.8,
+    minWidth: 0,
+    alignSelf: 'stretch',
+    marginHorizontal: 8,
+    justifyContent: 'center',
+  },
+  songSlotWindow: {
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 6,
+  },
+  songSlotPeek: {
+    color: 'rgba(255, 255, 255, 0.35)',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  songSlotTitle: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginVertical: 2,
+  },
   actionSection: {
     flex: 1.2,
     alignItems: 'center',
@@ -1394,6 +1478,7 @@ const styles = StyleSheet.create({
   },
   pianoArea: {
     flex: 1,
+    width: '100%',
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1480,45 +1565,30 @@ const styles = StyleSheet.create({
   scaleToggleRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   scaleToggleButton: {
-    backgroundColor: '#444',
-    paddingVertical: 5,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    backgroundColor: '#3a3a3a',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    minWidth: 56,
+    alignItems: 'center',
+    borderRadius: 6,
     marginHorizontal: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
   },
   scaleToggleButtonActive: {
     backgroundColor: '#007BFF',
+    borderColor: '#007BFF',
   },
   scaleToggleText: {
-    color: '#fff',
-    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.45)',
+    fontSize: 15,
     fontWeight: '800',
   },
-  songPickerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  songPickerButton: {
-    backgroundColor: '#333',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    marginHorizontal: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  songPickerButtonActive: {
-    borderColor: '#00e5ff',
-    backgroundColor: 'rgba(0, 229, 255, 0.18)',
-  },
-  songPickerText: {
+  scaleToggleTextActive: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
   },
   pianoContainer: {
     flex: 1,
