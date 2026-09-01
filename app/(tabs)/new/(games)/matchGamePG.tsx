@@ -10,6 +10,7 @@ import { COLORS } from '../../../../constants/colors';
 import { SOUNDS_CONFIG } from '../../../../constants/animalSounds';
 import { gameAudioManager } from '../../../../services/GameAudioManager';
 import { useSyncGameData } from '../../../../hooks/useSyncGameData';
+import { useStopAudioOnBlur } from '../../../../hooks/useStopAudioOnBlur';
 
 const LEARNING_RATE = 0.1;
 
@@ -194,6 +195,17 @@ const useAuditoryGame = () => {
         loadData();
     }, []);
 
+    /**
+     * 🐾 화면을 떠나면 동물 12개를 **반납한다.**
+     * 남겨두면 앱을 끌 때까지 AudioTrack 12칸을 붙잡아, 아무 소리도 내지 않으면서
+     * 피아노·기타 예산을 그만큼 깎는다(안드로이드는 앱당 약 40개 제한).
+     * 재진입 시 다시 만드는 것은 `startGame` 첫 줄이 맡는다.
+     * 경위: `doc/audio-무음-원인과-방향.md`
+     */
+    useStopAudioOnBlur(() => {
+        gameAudioManager.unloadAll();
+    });
+
     // RESULTS 상태가 되면 전송
     useEffect(() => {
         if (state.status === 'RESULTS') {
@@ -227,6 +239,9 @@ const useAuditoryGame = () => {
     }, [state.difficulty, state.policy, state.userStats]);
 
     const startGame = useCallback(async (mode: GameMode, isNewRun: boolean = false) => {
+        // 떠났다 돌아온 뒤라면 여기서 다시 만든다 (이미 있으면 즉시 돌아온다)
+        await gameAudioManager.loadSoundsAsync();
+
         let quizSounds: { name: string; file: any }[] = [];
         const soundCount = Math.min(2 + state.difficulty, SOUNDS_CONFIG.length);
         let useStandardMode = mode === 'STANDARD';
