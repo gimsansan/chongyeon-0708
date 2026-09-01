@@ -1019,7 +1019,7 @@ export function MusicTrainingScreen() {
 
   const isFallingResultVisible = fallingResult !== null;
   const shouldUseFallingBottomPanel = isFallingNoteActive || isFallingResultVisible || showFallingReplayPrompt;
-  const bottomPanelHeight = shouldUseFallingBottomPanel ? 56 : 110;
+  const bottomPanelHeight = shouldUseFallingBottomPanel ? 76 : 110;
   const usableWidth = Math.max(1, width - insets.left - insets.right);
   const usableHeight = Math.max(1, height - insets.top - insets.bottom);
   const PIANO_AREA_PADDING = 20;
@@ -1407,7 +1407,7 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   fallingTrainingContainer: {
-    height: 56,
+    height: 76,
     paddingVertical: 5,
   },
   infoSection: {
