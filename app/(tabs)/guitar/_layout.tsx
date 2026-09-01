@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer } from 'expo-audio';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   SafeAreaView,
@@ -11,7 +10,6 @@ import {
   useWindowDimensions,
   ActivityIndicator
 } from 'react-native';
-import { useIsFocused } from 'expo-router';
 import MissionProgressIcon from '../../../components/MissionProgressIcon';
 import { useStopAudioOnBlur } from '../../../hooks/useStopAudioOnBlur';
 import { ClearContext } from '../../../context/ClearContext';
@@ -75,14 +73,13 @@ export default function Guitar() {
 
   const starContext = useContext(StarContext);
   const clearContext = useContext(ClearContext);
-  const isFocused = useIsFocused();
 
   // 1. 초기화 (오디오 모드 및 화면 방향)
   useEffect(() => {
     let isMounted = true;
     async function init() {
       try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        // 화면 방향은 `app/(tabs)/_layout.tsx`가 단독으로 건다. 여기서 걸면 피아노 탭과 서로 덮어쓴다.
         // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
         const saved = await AsyncStorage.getItem(GUITAR_PROGRESS_KEY);
         if (saved && isMounted) setProgress(JSON.parse(saved));
@@ -102,20 +99,6 @@ export default function Guitar() {
       recentlyUsedNotes.current = [];
     };
   }, []);
-
-  useEffect(() => {
-    const changeOrientation = async () => {
-      if (isFocused) {
-        // 기타 화면을 보고 있을 때만 가로
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-      } else {
-        // 다른 탭으로 나가는 순간 세로로 복구
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-      }
-    };
-
-    changeOrientation().catch(err => console.log(err));
-  }, [isFocused]);
 
   useEffect(() => {
     if (Object.keys(progress).length > 0) {

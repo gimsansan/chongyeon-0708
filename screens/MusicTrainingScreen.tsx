@@ -13,7 +13,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer } from 'expo-audio';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -24,7 +23,6 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from 'expo-router';
 
 // Context 및 컴포넌트 임포트
 import MissionProgressIcon from '../components/MissionProgressIcon';
@@ -532,7 +530,6 @@ export function MusicTrainingScreen() {
   const recentlyUsedNotes = useRef<Note[]>([]);
   const starContext = useContext(StarContext) as any;
   const clearContext = useContext(ClearContext) as any;
-  const isFocused = useIsFocused();
 
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -550,21 +547,9 @@ export function MusicTrainingScreen() {
   useEffect(() => {
     let isMounted = true;
 
-    async function initializeApp() {
-      try {
-        // 화면 방향 고정 (가로)
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-        // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
-      } catch (e) {
-        console.error('App initialization failed:', e);
-      } finally {
-        if (isMounted) {
-          setIsReady(true);
-        }
-      }
-    }
-
-    initializeApp();
+    // 화면 방향은 `app/(tabs)/_layout.tsx`가 단독으로 건다. 여기서 걸면 기타 탭과 서로 덮어쓴다.
+    // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
+    setIsReady(true);
 
     // 저장 기록 로드
     const loadProgress = async () => {
@@ -598,14 +583,6 @@ export function MusicTrainingScreen() {
       recentlyUsedNotes.current = [];
     };
   }, [clearFallingNoteTimers]);
-
-  useEffect(() => {
-    if (!isFocused) {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => { });
-    } else if (isReady) {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => { });
-    }
-  }, [isFocused, isReady]);
 
   // 저장 기록 동기화
   useEffect(() => {

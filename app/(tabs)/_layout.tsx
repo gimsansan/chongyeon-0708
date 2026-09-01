@@ -1,6 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
-import { useRef } from "react";
+import { Tabs, usePathname } from "expo-router";
+import { useEffect, useRef } from "react";
+import * as ScreenOrientation from 'expo-screen-orientation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -54,8 +55,41 @@ const AnimatedTabBarButton = ({
   );
 };
 
+/** 가로로 보여줄 탭. 나머지는 전부 세로다. */
+const LANDSCAPE_ROUTES = ['/activity', '/guitar'];
+
+/**
+ * 화면 방향의 **유일한 소유자.**
+ *
+ * 예전에는 피아노(`screens/MusicTrainingScreen.tsx`)와 기타(`app/(tabs)/guitar/_layout.tsx`)가
+ * 각자 "포커스 O → 가로 / 포커스 X → 세로"를 걸었다. 탭은 언마운트되지 않아 둘 다 살아 있으므로
+ * 탭을 바꾸면 두 effect가 **같이** 실행됐고, 방향은 전역 설정이라 나중에 실행된 쪽이 이겼다.
+ *
+ * effect는 트리 순서(`activity` → `guitar`)로 돌기 때문에 **기타 → 피아노** 이동에서
+ * 피아노가 건 가로를 기타의 "나가니까 세로" 가 덮어썼다. 반대 방향은 우연히 멀쩡했다.
+ *
+ * 나가는 화면은 다음 화면이 무엇인지 모른다. 그래서 **떠나는 쪽이 방향을 되돌리면 안 된다.**
+ * 지금 어느 탭에 있는지 아는 여기서만 건다.
+ */
+function useOrientationForRoute() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const wantsLandscape = LANDSCAPE_ROUTES.some(
+      route => pathname === route || pathname.startsWith(route + '/')
+    );
+
+    ScreenOrientation.lockAsync(
+      wantsLandscape
+        ? ScreenOrientation.OrientationLock.LANDSCAPE
+        : ScreenOrientation.OrientationLock.PORTRAIT_UP
+    ).catch(() => { });
+  }, [pathname]);
+}
+
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  useOrientationForRoute();
 
   return (
 
