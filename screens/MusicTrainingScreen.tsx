@@ -418,10 +418,10 @@ export function MusicTrainingScreen() {
     targetNote.reached = true;
     targetNote.hitX = hitX;
     targetNote.hitY = hitY;
-    const driftMs = Math.round(reachedTimestamp - targetNote.expectedTimestamp);
-    console.log(`[FallingNote] ${id} reached judgment line. drift=${driftMs}ms`);
-
-    setTimeout(() => {
+    // 타이머 id를 노트에 기록해야 clearFallingNoteTimers가 실제로 취소할 수 있다.
+    // 기록하지 않으면 다시하기·재시작 때 이전 판의 미스 판정이 살아남아
+    // 같은 id(음+박)로 새로 예약된 노트에 미스를 꽂는다.
+    targetNote.timeoutId = setTimeout(() => {
       const latestNote = scheduledNotesRef.current.find(scheduledNote => scheduledNote.id === id);
       if (latestNote && !latestNote.hit && !latestNote.missed) {
         latestNote.missed = true;
@@ -926,10 +926,8 @@ export function MusicTrainingScreen() {
 
     // 2. 터치한 절대 좌표 위치(pageX, pageY)를 이용한 물결(Ripple) 이펙트 트리거
     const nativeEvent = event?.nativeEvent;
-    console.log(`[Touch debug] note: ${note}, hasEvent: ${!!event}, hasNativeEvent: ${!!nativeEvent}`);
     if (nativeEvent && !isFallingNoteActive) {
       const { pageX, pageY } = nativeEvent;
-      console.log(`[Touch debug] Coordinates: pageX=${pageX}, pageY=${pageY}`);
       touchX.value = pageX;
       touchY.value = pageY;
       triggerTime.value = Date.now(); // 파티클 트리거 시간 갱신
@@ -962,6 +960,11 @@ export function MusicTrainingScreen() {
         const judgment = getJudgmentGrade(driftMs);
         scheduledNotesRef.current[targetIndex].hit = true;
         scheduledNotesRef.current[targetIndex].judgment = judgment;
+        // 판정이 끝났으니 대기 중인 미스 타이머를 즉시 해제한다.
+        if (hitNote.timeoutId) {
+          clearTimeout(hitNote.timeoutId);
+          scheduledNotesRef.current[targetIndex].timeoutId = undefined;
+        }
         setHitNoteIds(prev => [...prev, hitNote.id]);
 
         triggerFallingHitEffect(note, hitNote.hitX ?? nativeEvent?.pageX, hitNote.hitY ?? nativeEvent?.pageY);
