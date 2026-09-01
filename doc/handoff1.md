@@ -5,8 +5,8 @@
 - [`doc/handoff.md`](./handoff.md) — 세션 1~9 아카이브 (사운드 초기 작업)
 - [`doc/handoff_3.md`](./handoff_3.md) — `3-branch`에서 가져온 기록. **이 브랜치의 인계문이 아니다**
 
-현재 브랜치 **`main`** / HEAD **`f141325`** (`doc: 세션 20 대화 기록`).
-origin/`main`보다 **로컬 6커밋 앞**. **푸시는 사용자가 한다.**
+현재 브랜치 **`main`** / HEAD **`1135c8f`** (`낙하모드 미스 판정 타이머 정리와 디버그 로그 제거`).
+origin/`main`보다 **로컬 8커밋 앞**. **푸시는 사용자가 한다.**
 세션 20 진입 시점의 `main`은 `1ae5528`(`svg새로덮어쓰기`)이었다.
 
 되돌릴 지점으로 브랜치 `audio-silence-fix`를 남겨 뒀다 (`8abfec3`까지 동일). 필요 없으면 삭제해도 된다.
@@ -22,10 +22,10 @@ origin/`main`보다 **로컬 6커밋 앞**. **푸시는 사용자가 한다.**
 | 🎸 기타 무음 | ✅ 해결 · 실기기 확인 |
 | 🔁 탭 왕복(피아노→기타→단어) 후 무음 | ✅ 해결 · 실기기 확인 |
 | 📱 기타 → 피아노 이동 시 가로 안 걸림 | ✅ 해결 · 실기기 확인 |
-| ⏱️ `clearFallingNoteTimers` 타이머 누수 | ❌ 미착수 (원인만 확인) |
-| ⚠️ `Source error` 근본 원인 | ❌ 미해결 (3-branch에서도 미해결) |
+| ⏱️ `clearFallingNoteTimers` 타이머 누수 | ⚠️ 수정함 (`1135c8f`) · **실기기 미확인** |
+| ⚠️ `Source error` 근본 원인 | ❌ 미해결 · **릴리스 빌드 필요라 보류** (사용자 판단) |
 | 🐾 동물게임 12개 앱 수명 상주 | ❌ 미착수 |
-| 🧹 `[Touch debug]` 로그 정리 | ❌ 미착수 |
+| 🧹 디버그 로그 정리 | ✅ 제거 (`1135c8f`) |
 
 ---
 
@@ -99,6 +99,48 @@ E MediaCodecAudioRenderer: Cannot create AudioTrack   (format=audio/mp4a-latm �
 
 ---
 
+## 세션 21 작업 로그 (2026-09-02)
+
+인계문 「다음 작업」 1번과 4번을 했다. 한 커밋(`1135c8f`)이다.
+
+### 1. 미스 판정 타이머 (다음 작업 1번)
+
+인계문의 진단이 맞았다. `handleTrackNoteHit`이 `setTimeout`의 반환값을 **어디에도 두지 않았다.**
+`ScheduledFallingNote.timeoutId` 필드(`screens/musicTrainingHelpers.ts:26`)도,
+`clearFallingNoteTimers`의 `clearTimeout`도 **이미 있었다.** 대입 한 줄만 없었다.
+
+```ts
+// 전
+setTimeout(() => { ... }, HIT_WINDOW_MS);
+// 후
+targetNote.timeoutId = setTimeout(() => { ... }, HIT_WINDOW_MS);
+```
+
+노트 id가 `음+박`이라 같은 곡을 다시 하면 **id가 재사용된다.** 그래서 이전 판의 콜백이
+`scheduledNotesRef`에서 새 판의 동일 id 노트를 찾아 `missed`를 꽂았다.
+`startFallingNoteMode` · `stopTraining` · `handleSongEnd` · 언마운트 정리 **네 경로가 함께 고쳐진다.**
+
+히트 판정부(`:964-966`)에서 노트를 맞히면 대기 중인 타이머를 그 자리에서 해제하도록도 했다.
+콜백에 `!latestNote.hit` 가드가 있어 **오판정은 원래 없었다.** 300ms를 남겨둘 이유가 없어서 정리한 것뿐이다.
+
+### 2. 디버그 로그 (다음 작업 4번)
+
+- `handleNotePressIn`의 `[Touch debug]` 2줄
+- `handleTrackNoteHit`의 `[FallingNote] ... drift=...ms` 1줄 — 인계문 4번 범위 밖이었으나 사용자 승인 후 함께 제거
+
+`drift` 계산은 그 로그 전용이라 같이 지웠다. **히트 판정부의 동명 `driftMs`는 `getJudgmentGrade`에 쓰이므로 남겼다.**
+
+남은 `console.log` 2개는 디버그가 아니라 판단해 두었다: `:755` 음원 재생 실패, `:853` 의료 데이터 전송 페이로드.
+
+### 3. 검증
+
+`npx tsc --noEmit` 통과. 남은 에러 1건(`hooks/useSyncGameData.ts:44` `'error' is of type 'unknown'`)은
+**이번 수정과 무관한 기존 에러**다.
+
+**실기기 확인은 아직 안 했다.** 확인법은 아래 「다음 작업」 1번에 남겨 뒀다.
+
+---
+
 ## 주의사항 / 확인된 의도 동작
 
 ### 되돌리면 안 되는 것
@@ -131,23 +173,18 @@ E MediaCodecAudioRenderer: Cannot create AudioTrack   (format=audio/mp4a-latm �
 
 ## 다음 작업
 
-### 1. `clearFallingNoteTimers` 타이머 누수 (원인 확인됨, 미수정)
+### 1. ~~`clearFallingNoteTimers` 타이머 누수~~ → 코드 수정 완료, **실기기 확인만 남음**
 
-`screens/MusicTrainingScreen.tsx:369-376`
+세션 21에서 고쳤다 (`1135c8f`). 경위는 위 세션 21 로그 1번.
 
-```ts
-if (scheduledNote.timeoutId) clearTimeout(scheduledNote.timeoutId);
-```
+> **확인법: 곡을 끝까지 치거나 중간에 멈춘 뒤 곧바로 다시하기를 눌러,
+> 누르지 않은 미스가 뜨는지 본다.** 안 뜨면 표를 ✅로 올린다.
 
-**`timeoutId`를 읽기만 하고 이 파일 어디에서도 대입하지 않는다.** 배열만 비우고 끝난다.
+확인되면 진행 현황 표의 ⚠️를 ✅로 바꾼다.
 
-진짜 타이머는 `handleTrackNoteHit`(`407-415`)의 `setTimeout(..., HIT_WINDOW_MS)`인데 추적되지 않는다. 그래서 곡을 끝내거나 중간에 다시 시작하면 **이전 판의 미스 판정 타이머가 살아남아 새 판의 `missNoteIds`에 미스를 꽂는다.**
+### 2. `Source error` 근본 원인 (3-branch에서도 미해결) — **보류**
 
-`startFallingNoteMode` / `stopTraining` / `handleSongEnd`가 전부 이 함수를 믿고 있어 **다시하기·재시작 경로가 영향을 받는다.**
-
-> 증상 확인법: 연주를 다시 시작한 직후 **누르지 않은 미스**가 뜨는지 본다.
-
-### 2. `Source error` 근본 원인 (3-branch에서도 미해결)
+> **개발 중(디버그 빌드)에는 확인할 수 없어 나중으로 미룬 항목이다** (사용자 판단, 세션 21).
 
 개발 서버 HTTP 로드 실패로 **추정**만 된 상태. 다음 단서는 **릴리스 빌드에서도 이 경고가 뜨는지** 여부.
 `doc/audio-무음-원인과-방향.md` 13-2에 있다. 1장의 출력 층 무음과 **다른 층(입력 층)**이라 `adb logcat` 명령이 다르다.
@@ -158,10 +195,10 @@ if (scheduledNote.timeoutId) clearTimeout(scheduledNote.timeoutId);
 
 `:22`의 `if (this.sounds.size > 0) return` 체크가 await 전에만 있어 **동시 호출 시 두 번 로드**되는 문제도 같이 있다.
 
-### 4. `[Touch debug]` 로그 정리
+### 4. ~~`[Touch debug]` 로그 정리~~ → 완료 (`1135c8f`)
 
-`screens/MusicTrainingScreen.tsx`의 `handleNotePressIn`에 디버그 로그가 남아 있다. 릴리스 전 제거.
+`[Touch debug]` 2줄과 `[FallingNote]` drift 1줄을 지웠다. 세션 21 로그 2번.
 
 ### 5. 푸시
 
-`main`이 origin보다 6커밋 앞서 있다. **사용자가 직접 푸시한다.**
+`main`이 origin보다 **8커밋** 앞서 있다. **사용자가 직접 푸시한다.**
