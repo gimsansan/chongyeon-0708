@@ -8,9 +8,9 @@
  *   - 8음(white8): C4·D4·E4·F4·G4·A4·B4·C5   (백건 1옥타브 = 도레미파솔라시도)
  *
  * 템포: beat = 판정선 도달 시점(박, 4분음표 1박 기준).
- *   - normalBpm : '보통' = 원곡 느낌이 크게 어색하지 않은 속도
- *   - slowBpm   : '느림' = 초보자가 따라칠 수 있는 속도
- *   UI 표기는 '보통 / 느림'. (값은 합리적 기본값이며 실기기에서 조정 가능)
+ *   - normalBpm : '보통' = 그 곡 성격(자장가·행진 등)이 어색하지 않은 속도
+ *   - slowBpm   : '느림' = 따라치기 쉽게 약 20% 느리게. 느낌을 잃지 않을 정도만 내린다
+ *   UI 표기는 '보통 / 느림'. 전곡 동일 구간이 아니라 곡별로 상대적으로 둔다.
  *
  * ※ 5음 곡은 C·D·E·G·A(장5음계, F·B 없음, 음역 = 장6도) 안에 넣어야 하므로,
  *   원곡에 F/B가 있거나 음역이 넘칠 경우 인접 5음으로 살짝 옮겨 단순화한다.
@@ -46,8 +46,8 @@ export interface Song {
   tags: string[];
   description: string;
   palette: Note[];   // 이 곡이 쓰는 음 집합 (건반 필터 / 레인 구성용)
-  normalBpm: number; // 보통(원곡 느낌)
-  slowBpm: number;   // 느림(초보자용)
+  normalBpm: number; // 보통(곡 성격에 맞는 속도)
+  slowBpm: number;   // 느림(약 20% 느리게, 느낌 유지)
   notes: SongNote[];
 }
 
@@ -72,8 +72,8 @@ export const songs: Song[] = [
     tags: ['5음', '짧음', '반복', '퍼블릭 도메인'],
     description: '도·레·미 3음만 오가며 손과 귀를 여는 가장 쉬운 몸풀기 곡',
     palette: PENTA5,
-    normalBpm: 96,
-    slowBpm: 66,
+    normalBpm: 88,
+    slowBpm: 72,
     notes: [
       { note: 'E3', beat: 0 }, { note: 'D3', beat: 1 }, { note: 'C3', beat: 2 },
       { note: 'E3', beat: 4 }, { note: 'D3', beat: 5 }, { note: 'C3', beat: 6 },
@@ -95,8 +95,8 @@ export const songs: Song[] = [
     tags: ['5음', '움직임', '5음 전체', '퍼블릭 도메인'],
     description: '5음 전체를 위아래로 오가며 상대음정 느낌을 익히는 몸풀기 곡',
     palette: PENTA5,
-    normalBpm: 100,
-    slowBpm: 66,
+    normalBpm: 96,
+    slowBpm: 78,
     notes: [
       { note: 'G3', beat: 0 }, { note: 'G3', beat: 1 }, { note: 'E3', beat: 2 }, { note: 'A3', beat: 3 },
       { note: 'G3', beat: 4 }, { note: 'E3', beat: 5 },
@@ -119,8 +119,8 @@ export const songs: Song[] = [
     tags: ['5음', '익숙한 멜로디', '반복', '퍼블릭 도메인'],
     description: '한 음(미) 반복 뒤 도·레·솔로 뛰는 익숙한 후렴 몸풀기 곡',
     palette: PENTA5,
-    normalBpm: 116,
-    slowBpm: 76,
+    normalBpm: 120,
+    slowBpm: 96,
     notes: [
       { note: 'E3', beat: 0 }, { note: 'E3', beat: 1 }, { note: 'E3', beat: 2 },
       { note: 'E3', beat: 4 }, { note: 'E3', beat: 5 }, { note: 'E3', beat: 6 },
@@ -152,7 +152,7 @@ export const songs: Song[] = [
     description: '반복 후렴으로 집중을 유지하며 5음에 익숙해지는 몸풀기 곡',
     palette: PENTA5,
     normalBpm: 104,
-    slowBpm: 69,
+    slowBpm: 84,
     notes: [
       { note: 'G3', beat: 0 }, { note: 'G3', beat: 1 }, { note: 'G3', beat: 2 }, { note: 'D3', beat: 3 },
       { note: 'E3', beat: 4 }, { note: 'E3', beat: 5 }, { note: 'D3', beat: 6 },
@@ -189,8 +189,8 @@ export const songs: Song[] = [
     tags: ['8음', '익숙한 멜로디', '퍼블릭 도메인'],
     description: '도레미파솔라시도 8음 범위에 익숙해지는 멜로디 곡',
     palette: WHITE8,
-    normalBpm: 96,
-    slowBpm: 63,
+    normalBpm: 80,
+    slowBpm: 64,
     notes: [
       { note: 'C4', beat: 0 }, { note: 'C4', beat: 1 }, { note: 'G4', beat: 2 }, { note: 'G4', beat: 3 },
       { note: 'A4', beat: 4 }, { note: 'A4', beat: 5 }, { note: 'G4', beat: 6 },
@@ -218,8 +218,8 @@ export const songs: Song[] = [
     tags: ['8음', '긴 곡', '반복', '퍼블릭 도메인'],
     description: '반복 패턴과 집중 유지를 연습하는 조금 긴 몸풀기 곡',
     palette: WHITE8,
-    normalBpm: 100,
-    slowBpm: 66,
+    normalBpm: 88,
+    slowBpm: 70,
     notes: [
       { note: 'E4', beat: 0 }, { note: 'D4', beat: 1 }, { note: 'C4', beat: 2 }, { note: 'D4', beat: 3 },
       { note: 'E4', beat: 4 }, { note: 'E4', beat: 5 }, { note: 'E4', beat: 6 },
@@ -243,8 +243,8 @@ export const songs: Song[] = [
     tags: ['8음', '익숙한 멜로디', '순차진행', '퍼블릭 도메인'],
     description: '이웃한 음이 계단처럼 이어져 음정 간격을 익히기 좋은 곡',
     palette: WHITE8,
-    normalBpm: 112,
-    slowBpm: 72,
+    normalBpm: 100,
+    slowBpm: 80,
     notes: [
       { note: 'E4', beat: 0 }, { note: 'E4', beat: 1 }, { note: 'F4', beat: 2 }, { note: 'G4', beat: 3 },
       { note: 'G4', beat: 4 }, { note: 'F4', beat: 5 }, { note: 'E4', beat: 6 }, { note: 'D4', beat: 7 },
@@ -278,7 +278,7 @@ export const songs: Song[] = [
     description: '도약과 순차를 섞어 8음 범위를 넓게 움직이는 조금 긴 곡',
     palette: WHITE8,
     normalBpm: 120,
-    slowBpm: 76,
+    slowBpm: 96,
     notes: [
       { note: 'C4', beat: 0 }, { note: 'E4', beat: 1 }, { note: 'F4', beat: 2 }, { note: 'G4', beat: 3 },
       { note: 'C4', beat: 5 }, { note: 'E4', beat: 6 }, { note: 'F4', beat: 7 }, { note: 'G4', beat: 8 },
