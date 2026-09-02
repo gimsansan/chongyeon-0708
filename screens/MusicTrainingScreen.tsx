@@ -27,6 +27,14 @@ import { Ionicons } from '@expo/vector-icons';
 // Context 및 컴포넌트 임포트
 import { LandscapeBackButton } from '../components/LandscapeBackButton';
 import MissionProgressIcon from '../components/MissionProgressIcon';
+import {
+  DifficultyRow,
+  InstrumentButton,
+  InstrumentControlBar,
+  ScoreFeedback,
+  useInstrumentMetrics,
+} from '../components/instrument';
+import { CONTROL_BAR, INSTRUMENT_ACCENT, SEMANTIC } from '../constants/instrumentTheme';
 import { ClearContext } from '../context/ClearContext';
 import { StarContext } from '../context/StarContext';
 import { RippleLayer } from '../components/RippleLayer';
@@ -72,6 +80,8 @@ import { useSyncGameData } from '../hooks/useSyncGameData';
 
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const PIANO = INSTRUMENT_ACCENT.piano;
 
 const useAutoFocusViewport = ({
   currentNote,
@@ -533,8 +543,7 @@ export function MusicTrainingScreen() {
   const starContext = useContext(StarContext) as any;
   const clearContext = useContext(ClearContext) as any;
 
-  const { height, width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const { height, width, insets, safeAreaFrameStyle, missionIconStyle } = useInstrumentMetrics();
 
   // 자동 옥타브 포커싱 훅 결합 (기존 포커싱 기능은 완전히 비활성화하여 수동 이동 유도)
   useAutoFocusViewport({
@@ -1060,7 +1069,9 @@ export function MusicTrainingScreen() {
 
   const isFallingResultVisible = fallingResult !== null;
   const shouldUseFallingBottomPanel = isFallingNoteActive || isFallingResultVisible || showFallingReplayPrompt;
-  const bottomPanelHeight = shouldUseFallingBottomPanel ? 76 : 110;
+  const bottomPanelHeight = shouldUseFallingBottomPanel
+    ? CONTROL_BAR.compactHeight
+    : CONTROL_BAR.standardHeight;
   const usableWidth = Math.max(1, width - insets.left - insets.right);
   const usableHeight = Math.max(1, height - insets.top - insets.bottom);
   const PIANO_AREA_PADDING = 20;
@@ -1110,13 +1121,6 @@ export function MusicTrainingScreen() {
   const fallingResultAccuracy = fallingResult && fallingResult.totalNotes > 0
     ? Math.round((fallingResultHits / fallingResult.totalNotes) * 100)
     : 0;
-  const safeAreaFrameStyle = {
-    top: insets.top,
-    right: insets.right,
-    bottom: insets.bottom,
-    left: insets.left,
-  };
-
   const progressItems = difficultyLevels.map(level => {
     const levelProgress = progress[level.name] || { cumulativeSuccesses: 0, highestScore: 0 };
     const starStatus = starContext?.starData[`music_${level.name}`] ? '★' : '☆';
@@ -1143,10 +1147,7 @@ export function MusicTrainingScreen() {
         missionText="각 난이도에서 정답 누적 3회"
         clearText="각 난이도에서 총점 5점 달성"
         progressItems={progressItems}
-        style={{
-          top: Math.max(12, insets.top),
-          right: insets.right + 12,
-        }}
+        style={missionIconStyle}
         onReset={handleResetProgress}
       />
       {/* 2. Midground Layer (Piano & 훈련 인터페이스) */}
@@ -1269,21 +1270,20 @@ export function MusicTrainingScreen() {
         </View>
 
         {/* 하단 미션 제어반 */}
-        <View style={[styles.trainingContainer, shouldUseFallingBottomPanel && styles.fallingTrainingContainer]}>
+        <InstrumentControlBar
+          height={bottomPanelHeight}
+          background={PIANO.bar}
+          paddingVertical={shouldUseFallingBottomPanel ? 5 : CONTROL_BAR.paddingVertical}
+        >
           <LandscapeBackButton style={styles.landscapeBackButton} />
           {/* 왼쪽 영역: 점수 및 피드백 */}
           {!shouldUseFallingBottomPanel && (
-            <View style={styles.infoSection}>
-              {mode === 'random' && (
-                <View style={styles.scoreRow}>
-                  <Text style={styles.scoreText}>점수: {score}</Text>
-                </View>
-              )}
-              <Text style={styles.feedbackText}>{feedback}</Text>
-              {SHOW_ANSWER_HINT && isTraining && currentNote && (
-                <Text style={styles.hintText}>★ 정답: {currentNote}</Text>
-              )}
-            </View>
+            <ScoreFeedback
+              score={mode === 'random' ? score : null}
+              feedback={feedback}
+              hint={SHOW_ANSWER_HINT && isTraining ? currentNote : null}
+              style={styles.infoSection}
+            />
           )}
 
           {!isTraining && !isFallingResultVisible && !showFallingReplayPrompt && (
@@ -1307,17 +1307,14 @@ export function MusicTrainingScreen() {
 
           {mode === 'random' && (
             <View style={styles.fallingPickerSection}>
-              <View style={styles.difficultyContainer}>
-                {difficultyLevels.map(({ name, label }) => (
-                  <TouchableOpacity
-                    key={name}
-                    style={[styles.difficultyButton, difficulty === name && styles.difficultyButtonActive]}
-                    onPress={() => handleDifficultyChange(name)}
-                  >
-                    <Text style={styles.difficultyButtonText}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <DifficultyRow
+                levels={difficultyLevels}
+                selected={difficulty}
+                onSelect={handleDifficultyChange}
+                color={PIANO.idle}
+                activeColor={PIANO.accent}
+                style={styles.difficultyRow}
+              />
             </View>
           )}
 
@@ -1331,82 +1328,58 @@ export function MusicTrainingScreen() {
                   <View style={styles.consoleToggles}>
                     <View style={[styles.scaleToggleRow, { marginBottom: consoleFit.rowGap }]}>
                       {(['penta5', 'white8'] as SongScale[]).map(scale => (
-                        <TouchableOpacity
+                        <InstrumentButton
                           key={scale}
-                          style={[
-                            styles.scaleToggleButton,
-                            styles.consoleToggleButton,
-                            {
-                              paddingVertical: consoleFit.togglePadV,
-                              paddingHorizontal: consoleFit.togglePadH,
-                            },
-                            selectedSongScale === scale && styles.scaleToggleButtonActive,
-                          ]}
+                          variant="toggle"
+                          label={fallingScaleLabels[scale]}
+                          active={selectedSongScale === scale}
+                          activeColor={PIANO.accent}
+                          fontSize={consoleFit.toggleFont}
+                          paddingVertical={consoleFit.togglePadV}
+                          paddingHorizontal={consoleFit.togglePadH}
+                          style={styles.consoleToggleButton}
                           onPress={() => handleSelectSongScale(scale)}
-                        >
-                          <Text style={[
-                            styles.scaleToggleText,
-                            { fontSize: consoleFit.toggleFont },
-                            selectedSongScale === scale && styles.scaleToggleTextActive,
-                          ]}>
-                            {fallingScaleLabels[scale]}
-                          </Text>
-                        </TouchableOpacity>
+                        />
                       ))}
                     </View>
                     <View style={[styles.scaleToggleRow, styles.scaleToggleRowLast]}>
                       {(['normal', 'slow'] as FallingTempoMode[]).map(tempoMode => (
-                        <TouchableOpacity
+                        <InstrumentButton
                           key={tempoMode}
-                          style={[
-                            styles.scaleToggleButton,
-                            styles.consoleToggleButton,
-                            {
-                              paddingVertical: consoleFit.togglePadV,
-                              paddingHorizontal: consoleFit.togglePadH,
-                            },
-                            selectedTempoMode === tempoMode && styles.scaleToggleButtonActive,
-                          ]}
+                          variant="toggle"
+                          label={fallingTempoLabels[tempoMode]}
+                          active={selectedTempoMode === tempoMode}
+                          activeColor={PIANO.accent}
+                          fontSize={consoleFit.toggleFont}
+                          paddingVertical={consoleFit.togglePadV}
+                          paddingHorizontal={consoleFit.togglePadH}
+                          style={styles.consoleToggleButton}
                           onPress={() => setSelectedTempoMode(tempoMode)}
-                        >
-                          <Text style={[
-                            styles.scaleToggleText,
-                            { fontSize: consoleFit.toggleFont },
-                            selectedTempoMode === tempoMode && styles.scaleToggleTextActive,
-                          ]}>
-                            {fallingTempoLabels[tempoMode]}
-                          </Text>
-                        </TouchableOpacity>
+                        />
                       ))}
                     </View>
                   </View>
                   <View style={[styles.consoleActions, { gap: consoleFit.gap }]}>
-                    <TouchableOpacity
-                      style={[
-                        styles.trainingButton,
-                        styles.consoleActionButton,
-                        {
-                          paddingVertical: consoleFit.actionPadV,
-                          paddingHorizontal: consoleFit.actionPadH,
-                        },
-                      ]}
+                    <InstrumentButton
+                      label="연주 시작"
+                      color={PIANO.accent}
+                      fontSize={consoleFit.actionFont}
+                      paddingVertical={consoleFit.actionPadV}
+                      paddingHorizontal={consoleFit.actionPadH}
+                      style={styles.consoleActionButton}
+                      textStyle={styles.consoleActionText}
                       onPress={() => startFallingNoteMode()}
-                    >
-                      <Text style={[styles.buttonText, { fontSize: consoleFit.actionFont, textAlign: 'center' }]}>연주 시작</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.trainingButton,
-                        styles.consoleActionButton,
-                        {
-                          paddingVertical: consoleFit.actionPadV,
-                          paddingHorizontal: consoleFit.actionPadH,
-                        },
-                      ]}
+                    />
+                    <InstrumentButton
+                      label="훈련 모드"
+                      color={PIANO.accent}
+                      fontSize={consoleFit.actionFont}
+                      paddingVertical={consoleFit.actionPadV}
+                      paddingHorizontal={consoleFit.actionPadH}
+                      style={styles.consoleActionButton}
+                      textStyle={styles.consoleActionText}
                       onPress={startTraining}
-                    >
-                      <Text style={[styles.buttonText, { fontSize: consoleFit.actionFont, textAlign: 'center' }]}>훈련 모드</Text>
-                    </TouchableOpacity>
+                    />
                   </View>
                 </View>
               </View>
@@ -1415,23 +1388,23 @@ export function MusicTrainingScreen() {
 
           {isTraining && (
             <View style={styles.actionSection}>
-              <TouchableOpacity
-                style={[styles.trainingButton, styles.trainingButtonActive]}
+              <InstrumentButton
+                label="훈련 종료"
+                active
+                activeColor={SEMANTIC.stop}
                 onPress={stopTraining}
-              >
-                <Text style={styles.buttonText}>훈련 종료</Text>
-              </TouchableOpacity>
+              />
               {!isFallingNoteActive && (
-                <TouchableOpacity
-                  style={[styles.repeatButton, !currentNote && { backgroundColor: '#007BFF' }]}
+                <InstrumentButton
+                  label={currentNote ? '다시 듣기' : '문제 재생'}
+                  // 낼 음이 없으면 '다시 듣기'가 아니라 '문제 재생'이다. 뜻이 다르니 색도 다르다
+                  color={currentNote ? SEMANTIC.repeat : PIANO.accent}
                   onPress={currentNote ? repeatSound : playNextQuestion}
-                >
-                  <Text style={styles.buttonText}>{currentNote ? '다시 듣기' : '문제 재생'}</Text>
-                </TouchableOpacity>
+                />
               )}
             </View>
           )}
-        </View>
+        </InstrumentControlBar>
       </View>
 
       {/* 미션 성공 오버레이 (터치 차단 포함) */}
@@ -1506,39 +1479,8 @@ const styles = StyleSheet.create({
   landscapeBackButton: {
     marginRight: 4,
   },
-  trainingContainer: {
-    width: '100%',
-    height: 110,
-    paddingVertical:8,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(34, 34, 34, 0.85)',
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 2,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    zIndex: 20,
-    elevation: 20,
-  },
-  fallingTrainingContainer: {
-    height: 76,
-    paddingVertical: 5,
-  },
   infoSection: {
     flex: 1.2,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  scoreRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  hintText: {
-    color: '#FF453A',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 2,
   },
   fallingPickerSection: {
     flex: 1.8,
@@ -1592,6 +1534,9 @@ const styles = StyleSheet.create({
   consoleActionButton: {
     flexShrink: 1,
   },
+  consoleActionText: {
+    textAlign: 'center',
+  },
   songSlotSection: {
     flex: 1.8,
     minWidth: 0,
@@ -1632,14 +1577,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     flexDirection: 'row',
     gap: 8,
-  },
-  repeatButton: {
-    backgroundColor: '#34C759',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   pianoArea: {
     flex: 1,
@@ -1707,25 +1644,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginHorizontal: 4,
   },
-  difficultyContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  difficultyRow: {
     marginBottom: 5,
-  },
-  difficultyButton: {
-    backgroundColor: '#555',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    marginHorizontal: 3,
-  },
-  difficultyButtonActive: {
-    backgroundColor: '#007BFF',
-  },
-  difficultyButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
   },
   scaleToggleRow: {
     flexDirection: 'row',
@@ -1734,29 +1654,6 @@ const styles = StyleSheet.create({
   },
   scaleToggleRowLast: {
     marginBottom: 0,
-  },
-  scaleToggleButton: {
-    backgroundColor: '#3a3a3a',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    minWidth: 56,
-    alignItems: 'center',
-    borderRadius: 6,
-    marginHorizontal: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
-  },
-  scaleToggleButtonActive: {
-    backgroundColor: '#007BFF',
-    borderColor: '#007BFF',
-  },
-  scaleToggleText: {
-    color: 'rgba(255, 255, 255, 0.45)',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  scaleToggleTextActive: {
-    color: '#fff',
   },
   pianoContainer: {
     flex: 1,
@@ -1776,33 +1673,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     position: 'relative',
     marginVertical: 8,
-  },
-  trainingButton: {
-    backgroundColor: '#007BFF',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trainingButtonActive: {
-    backgroundColor: '#FF3B30',
-  },
-  scoreText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  feedbackText: {
-    fontSize: 15,
-    color: '#4CAF50',
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
   },
   whiteKey: {
     borderWidth: 1,

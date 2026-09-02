@@ -2,20 +2,36 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer } from 'expo-audio';
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  useWindowDimensions,
   ActivityIndicator
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LandscapeBackButton } from '../../../components/LandscapeBackButton';
 import MissionProgressIcon from '../../../components/MissionProgressIcon';
+import {
+  DifficultyRow,
+  InstrumentButton,
+  InstrumentControlBar,
+  ScoreFeedback,
+  clampRound,
+  useInstrumentMetrics,
+  type DifficultyLevel,
+} from '../../../components/instrument';
+import { CONTROL_BAR, INSTRUMENT_ACCENT, SEMANTIC } from '../../../constants/instrumentTheme';
 import { useStopAudioOnBlur } from '../../../hooks/useStopAudioOnBlur';
 import { ClearContext } from '../../../context/ClearContext';
 import { StarContext } from '../../../context/StarContext';
 import { useSyncGameData } from '../../../hooks/useSyncGameData';
+
+const GUITAR = INSTRUMENT_ACCENT.guitar;
+
+const GUITAR_LEVELS: DifficultyLevel[] = ['1단계', '2단계', '3단계', '4단계'].map(name => ({
+  name,
+  label: name,
+}));
 
 // 1. 기타용 노트 타입 정의 (총 28개)
 type GuitarNote = 
@@ -282,6 +298,40 @@ export default function Guitar() {
     }
   };
 
+  /**
+   * 화면 크기에 맞춘 치수.
+   *
+   * 고정 px로 잡으면 **작은 스마트폰 가로에서 프렛보드가 짓눌리고, 태블릿에서는 여백만 남는다.**
+   * 피아노(`screens/MusicTrainingScreen.tsx`)의 `consoleFit`과 같은 방식 —
+   * 비율로 잡고 clamp로 상·하한을 건다.
+   */
+  const { usableWidth, usableHeight, safeAreaFrameStyle, missionIconStyle } = useInstrumentMetrics();
+
+  // 가로 화면이라 세로 공간이 원래 빠듯하다. 제어반은 피아노의 **컴팩트 높이(76)** 쪽을 기준으로 잡는다
+  const controlBarHeight = clampRound(usableHeight * 0.2, 58, CONTROL_BAR.compactHeight + 12);
+  const fretboardPadTop = clampRound(usableHeight * 0.04, 6, 24);
+  const fretboardPadBottom = clampRound(usableHeight * 0.02, 4, 12);
+  // 줄 6개가 남은 높이를 똑같이 나눠 갖는다. 글자 크기는 이 줄 높이에서 나온다
+  const stringRowHeight = Math.max(
+    1,
+    (usableHeight - controlBarHeight - fretboardPadTop - fretboardPadBottom) / 6
+  );
+
+  const fit = {
+    stringNameWidth: clampRound(usableWidth * 0.1, 42, 92),
+    stringNameFont: clampRound(stringRowHeight * 0.26, 9, 14),
+    fretFont: clampRound(stringRowHeight * 0.3, 9, 16),
+    scoreFont: clampRound(controlBarHeight * 0.24, 13, 18),
+    feedbackFont: clampRound(controlBarHeight * 0.2, 11, 15),
+    diffFont: clampRound(controlBarHeight * 0.2, 11, 16),
+    diffPadV: clampRound(controlBarHeight * 0.07, 3, 6),
+    diffPadH: clampRound(usableWidth * 0.022, 7, 14),
+    actionFont: clampRound(controlBarHeight * 0.19, 11, 14),
+    actionPadV: clampRound(controlBarHeight * 0.11, 5, 9),
+    actionPadH: clampRound(usableWidth * 0.022, 8, 14),
+    gap: clampRound(usableWidth * 0.014, 4, 10),
+  };
+
   const renderGuitarStrings = () => {
     const visibleNoteSet = getVisibleNoteSet(difficulty);
     const strings = [
@@ -297,19 +347,26 @@ export default function Guitar() {
       <View style={styles.fretboardContainer}>
         {strings.map((str, idx) => (
           <View key={idx} style={styles.stringRow}>
-            <Text style={styles.stringName}>{str.name}</Text>
+            <Text
+              style={[styles.stringName, { width: fit.stringNameWidth, fontSize: fit.stringNameFont }]}
+              numberOfLines={1}
+            >
+              {str.name}
+            </Text>
             <View style={styles.fretContainer}>
               <View style={[styles.stringLine, { height: 1.2 + idx * 0.5 }]} />
               {str.notes.map(note => {
                 const isVisible = visibleNoteSet.has(note as GuitarNote);
                 return (
-                  <TouchableOpacity 
-                    key={note} 
+                  <TouchableOpacity
+                    key={note}
                     disabled={!isVisible}
                     style={[styles.fret, !isVisible && styles.fretDisabled]}
                     onPressIn={() => handleNotePress(note as GuitarNote)}
                   >
-                    <Text style={[styles.fretText, !isVisible && styles.textDisabled]}>{note}</Text>
+                    <Text style={[styles.fretText, { fontSize: fit.fretFont }, !isVisible && styles.textDisabled]}>
+                      {note}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -320,71 +377,126 @@ export default function Guitar() {
     );
   };
 
-  if (!isReady) return <ActivityIndicator size="large" style={{flex:1}} />;
+  if (!isReady) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color="#e5e5e5" />
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.sidebar}>
-        <LandscapeBackButton color="#e5e5e5" style={styles.landscapeBackButton} />
-        <Text style={styles.scoreText}>점수: {score}</Text>
-        <TouchableOpacity style={styles.mainBtn} onPress={isTraining ? stopTraining : startTraining}>
-          <Text style={styles.btnText}>{isTraining ? '종료' : '훈련 시작'}</Text>
-        </TouchableOpacity>
-        {isTraining && (
-            <TouchableOpacity style={styles.repeatBtn} onPress={() => {setRepeatCount(r=>r+1); playSound(currentNote!)}}>
-                <Text style={styles.btnText}>다시 듣기</Text>
-            </TouchableOpacity>
-        )}
-        <View style={styles.diffList}>
-          {['1단계','2단계','3단계','4단계'].map(d => (
-            <TouchableOpacity key={d} style={[styles.diffBtn, difficulty === d && styles.diffActive]} onPress={() => setDifficulty(d)} disabled={isTraining}>
-              <Text style={styles.diffText}>{d}</Text>
-            </TouchableOpacity>
-          ))}
+    <SafeAreaView edges={[]} style={styles.fullScreen}>
+      <MissionProgressIcon
+        gameId="guitar"
+        title="기타 미션"
+        missionText="난이도별 누적 3회 성공"
+        clearText="최고 점수 5점 달성"
+        progressItems={GUITAR_LEVELS.map(({ name: d }) => ({
+          label: `${d} (${starContext?.starData[`guitar_${d}`] ? '★' : '☆'})`,
+          value: `누적 ${progress[d]?.cumulativeSuccesses || 0} / 최고 ${progress[d]?.highestScore || 0}`
+        }))}
+        style={missionIconStyle}
+      />
+
+      <View style={[styles.midgroundLayer, safeAreaFrameStyle]} pointerEvents="box-none">
+        {/* 상단 프렛보드 영역 */}
+        <View
+          style={[styles.fretboardArea, { paddingTop: fretboardPadTop, paddingBottom: fretboardPadBottom }]}
+        >
+          {renderGuitarStrings()}
         </View>
-        <Text style={styles.feedback}>{feedback}</Text>
-      </View>
 
-      <View style={styles.fretboardArea}>{renderGuitarStrings()}</View>
+        {/* 하단 미션 제어반 — 피아노와 같은 골격(`InstrumentControlBar`), 색만 우드톤 */}
+        <InstrumentControlBar height={controlBarHeight} background={GUITAR.bar}>
+          <LandscapeBackButton color="#e5e5e5" style={styles.landscapeBackButton} />
 
-      <View style={styles.missionWrapper} pointerEvents="box-none">
-        <MissionProgressIcon
-          gameId="guitar"
-          title="기타 미션"
-          missionText="난이도별 누적 3회 성공"
-          clearText="최고 점수 5점 달성"
-          progressItems={['1단계','2단계','3단계','4단계'].map(d => ({
-            label: `${d} (${starContext?.starData[`guitar_${d}`] ? '★' : '☆'})`,
-            value: `누적 ${progress[d]?.cumulativeSuccesses || 0} / 최고 ${progress[d]?.highestScore || 0}`
-          }))}
-        />
+          {/* 왼쪽 영역: 점수 및 피드백 */}
+          <ScoreFeedback
+            score={score}
+            feedback={feedback}
+            scoreFontSize={fit.scoreFont}
+            feedbackFontSize={fit.feedbackFont}
+            feedbackLines={1}
+            style={styles.infoSection}
+          />
+
+          {/* 가운데 영역: 난이도 */}
+          <View style={styles.difficultySection}>
+            <DifficultyRow
+              levels={GUITAR_LEVELS}
+              selected={difficulty}
+              onSelect={setDifficulty}
+              disabled={isTraining}
+              color={GUITAR.idle}
+              activeColor={GUITAR.accent}
+              fontSize={fit.diffFont}
+              paddingVertical={fit.diffPadV}
+              paddingHorizontal={fit.diffPadH}
+            />
+          </View>
+
+          {/* 오른쪽 영역: 동작 버튼 */}
+          <View style={[styles.actionSection, { gap: fit.gap }]}>
+            {isTraining && (
+              <InstrumentButton
+                label="다시 듣기"
+                color={SEMANTIC.repeat}
+                fontSize={fit.actionFont}
+                paddingVertical={fit.actionPadV}
+                paddingHorizontal={fit.actionPadH}
+                onPress={() => {
+                  if (!currentNote) return;
+                  setRepeatCount(r => r + 1);
+                  playSound(currentNote);
+                }}
+              />
+            )}
+            <InstrumentButton
+              label={isTraining ? '훈련 종료' : '훈련 시작'}
+              active={isTraining}
+              color={GUITAR.accent}
+              activeColor={SEMANTIC.stop}
+              fontSize={fit.actionFont}
+              paddingVertical={fit.actionPadV}
+              paddingHorizontal={fit.actionPadH}
+              onPress={isTraining ? stopTraining : startTraining}
+            />
+          </View>
+        </InstrumentControlBar>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a120b', flexDirection: 'row' },
-  sidebar: { width: 170, backgroundColor: '#3c2a21', padding: 15, alignItems: 'center', borderRightWidth: 2, borderRightColor: '#d4a373' },
-  landscapeBackButton: { alignSelf: 'flex-start', marginBottom: 4 },
-  scoreText: { fontSize: 22, fontWeight: 'bold', color: '#e5e5e5', marginBottom: 15 },
-  mainBtn: { backgroundColor: '#d4a373', padding: 12, borderRadius: 8, width: '100%', alignItems: 'center', marginBottom: 8 },
-  repeatBtn: { backgroundColor: '#8b5e3c', padding: 10, borderRadius: 8, width: '100%', alignItems: 'center', marginBottom: 8 },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  diffList: { flexDirection: 'column', width: '100%', gap: 4, marginTop: 10 },
-  diffBtn: { backgroundColor: '#4f3422', padding: 6, borderRadius: 5, alignItems: 'center' },
-  diffActive: { backgroundColor: '#d4a373' },
-  diffText: { color: '#fff', fontSize: 11 },
-  feedback: { marginTop: 15, color: '#faedcd', fontWeight: 'bold', textAlign: 'center', fontSize: 12 },
-  fretboardArea: { flex: 1, paddingTop: 30, paddingBottom: 10, paddingHorizontal: 10 },
+  fullScreen: { flex: 1, backgroundColor: GUITAR.screen, flexDirection: 'column' },
+  loadingScreen: { flex: 1, backgroundColor: GUITAR.screen, justifyContent: 'center', alignItems: 'center' },
+  midgroundLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'column',
+    zIndex: 2,
+  },
+
+  /* 프렛보드 — 치수는 `fit`이 화면 크기에서 계산해 인라인으로 넣는다 */
+  fretboardArea: { flex: 1, paddingHorizontal: 10 },
   fretboardContainer: { flex: 1, flexDirection: 'column' },
   stringRow: { flex: 1, flexDirection: 'row', alignItems: 'center', position: 'relative' },
-  stringName: { width: 75, color: '#d4a373', fontWeight: 'bold', zIndex: 1, fontSize: 12, textAlign: 'center' },
+  stringName: { color: '#d4a373', fontWeight: 'bold', zIndex: 1, textAlign: 'center' },
   fretContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', zIndex: 1, position: 'relative' },
   stringLine: { position: 'absolute', left: 0, right: 0, top: '50%', backgroundColor: '#c5c5c5', zIndex: 0 },
   fret: { width: '22%', height: '80%', backgroundColor: '#2d2016', borderRadius: 6, borderWidth: 1, borderColor: '#5f4339', justifyContent: 'center', alignItems: 'center', elevation: 2 },
   fretDisabled: { backgroundColor: '#221a14', opacity: 0.15, borderColor: '#332211' },
-  fretText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  fretText: { color: '#fff', fontWeight: 'bold' },
   textDisabled: { color: '#444' },
-  missionWrapper: { position: 'absolute', top: 10, right: 20, zIndex: 999 },
+
+  /* 제어반 안 3구역의 폭 배분. 껍데기·버튼·점수는 `components/instrument`가 갖는다 */
+  landscapeBackButton: { marginRight: 4 },
+  infoSection: { flex: 1.2 },
+  difficultySection: { flex: 2.4, alignItems: 'center', justifyContent: 'center' },
+  actionSection: { flex: 1.6, alignItems: 'center', justifyContent: 'flex-end', flexDirection: 'row' },
 });
