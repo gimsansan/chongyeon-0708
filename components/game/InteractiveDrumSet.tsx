@@ -782,6 +782,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    // 악기명 레이블(minHeight 50)이 부모 안에서 드럼 세트 위에 앉도록 확보. 음수 top은 잘림
+    paddingTop: 72,
+    overflow: 'visible',
   },
   drumSetContainer: {
     position: 'relative',
@@ -823,7 +826,7 @@ const styles = StyleSheet.create({
   },
   currentInstrumentDisplay: {
     position: 'absolute',
-    top: 1,
+    top: 0,
     left: '50%',
     backgroundColor: 'rgba(252, 237, 204, 0.9)',
     paddingHorizontal: 16,
