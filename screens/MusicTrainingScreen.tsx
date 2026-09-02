@@ -1072,6 +1072,20 @@ export function MusicTrainingScreen() {
   const bottomPanelHeight = shouldUseFallingBottomPanel
     ? CONTROL_BAR.compactHeight
     : CONTROL_BAR.standardHeight;
+
+  /**
+   * 두 오버레이가 깔고 앉을 프레임.
+   *
+   * 오버레이는 `midgroundLayer`의 **형제**라 인셋을 자동으로 받지 못한다.
+   * 제어반은 `safeAreaFrameStyle`(인셋 안쪽)에 들어 있으니 오버레이도 같은 프레임을
+   * 쓰고, 거기서 제어반 높이만큼 더 띄워야 둘이 같은 자리를 본다.
+   * 인셋을 빼면 `insets.bottom`만큼 제어반을 파고들고, 가로모드 노치 쪽
+   * `insets.left`/`right`만큼 카운트다운 숫자가 옆으로 밀린다
+   */
+  const overlayFrameStyle = {
+    ...safeAreaFrameStyle,
+    bottom: insets.bottom + bottomPanelHeight,
+  };
   const usableWidth = Math.max(1, width - insets.left - insets.right);
   const usableHeight = Math.max(1, height - insets.top - insets.bottom);
   const PIANO_AREA_PADDING = 20;
@@ -1410,7 +1424,7 @@ export function MusicTrainingScreen() {
 
       {/* 미션 성공 오버레이 (터치 차단 포함) */}
       {showMissionSuccess && (
-        <View style={[styles.missionOverlay, { bottom: bottomPanelHeight }]}>
+        <View style={[styles.missionOverlay, overlayFrameStyle]}>
           <View style={styles.missionOverlayBox}>
             <Text style={styles.missionOverlayText}>★ 미션 성공! ★</Text>
             <Text style={styles.missionOverlaySubText}>자유롭게 계속 도전해보세요!</Text>
@@ -1419,7 +1433,7 @@ export function MusicTrainingScreen() {
       )}
 
       {isFallingNoteActive && previewCount !== null && (
-        <View style={[styles.previewOverlay, { bottom: bottomPanelHeight }]} pointerEvents="none">
+        <View style={[styles.previewOverlay, overlayFrameStyle]} pointerEvents="none">
           <Text style={styles.previewText}>{previewCount === 0 ? 'Start' : previewCount}</Text>
         </View>
       )}
@@ -1750,12 +1764,9 @@ const styles = StyleSheet.create({
   },
   missionOverlay: {
     // 하단 제어반을 제외한 피아노 영역 전체를 덮어 터치를 막는다.
-    // `bottom`은 렌더에서 `bottomPanelHeight`로 준다 — 제어반 높이가
-    // 모드마다 다르기 때문이다 (평소 110 · 낙하 76). 고정값으로 두면 어긋난다
+    // 네 변은 렌더에서 `overlayFrameStyle`로 준다 — 인셋은 기기마다,
+    // 제어반 높이는 모드마다 다르다 (평소 110 · 낙하 76). 고정값은 어긋난다
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1789,12 +1800,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   previewOverlay: {
-    // `bottom`은 `missionOverlay`와 같은 이유로 렌더에서 준다.
-    // 카운트다운 숫자가 연주 영역 한가운데에 오려면 제어반 높이를 알아야 한다
+    // 위치는 `missionOverlay`와 같은 이유로 렌더에서 준다. 숫자가 연주 영역
+    // 한가운데에 오려면 제어반 높이와 인셋을 둘 다 알아야 한다
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 95,
