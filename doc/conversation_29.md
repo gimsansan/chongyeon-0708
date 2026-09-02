@@ -118,3 +118,56 @@ const overlayFrameStyle = {
 - 「다음 작업」 2번: 남은 확인거리 없음, **완전히 닫힘**
 
 인계문의 「다음 작업」에서 이제 열려 있는 건 **1번 푸시**(사용자 몫), **3번 테스트 스위치 두 개**(인지하고 계신 판단), **4번 `Source error`**(릴리스 빌드 보류)뿐입니다.
+
+## 11. 사용자
+
+3번 테스트 스위치 지워
+
+## 12. Claude
+
+테스트 스위치 두 개 지웠습니다. 4파일 · 2+ / 65−. `npx tsc --noEmit` 새 오류 0건 (기존 `useSyncGameData.ts(44,51)` 하나는 그대로).
+
+**지운 것**
+
+**① 정답 힌트 (`SHOW_ANSWER_HINT`)** — 스위치만 끄지 않고 경로 전체를 걷어냈습니다. 스위치를 지우면 `hint`를 넘기는 곳이 없어져, 남겨두면 아무도 안 쓰는 죽은 prop이 됩니다.
+- `MusicTrainingScreen.tsx`: 상수와 `hint=` 전달
+- `ScoreFeedback.tsx`: `hint` prop · `★ 정답:` 렌더 · `hint` 스타일
+- `instrumentTheme.ts`: `SEMANTIC.hint` 토큰 (이제 참조 0건)
+
+**② 초기화 버튼 (`MissionProgressIcon`)** — 버튼·`handleReset`·`Alert` import·`resetButton` 스타일, 그리고 이어서 죽는 것들:
+- `onReset` prop (호출부가 사라져 아무도 안 부름)
+- `MusicTrainingScreen.handleResetProgress` (그 prop에만 연결돼 있었음)
+
+`AsyncStorage`·`MUSIC_PROGRESS_KEY`·`isTraining`은 다른 곳에서 계속 쓰여 남겼습니다. `StarContext.resetAll` / `ClearContext.resetAll`도 남겼습니다 — 아래 이유 때문입니다.
+
+**발견: 같은 성격의 세 번째 스위치**
+
+인계문 3번에 없던 건데, 게임 목록 화면에 **「전체 초기화」 버튼**이 하나 더 있습니다.
+
+`app/(tabs)/new/index.tsx:85` `handleResetAll` — 주석에 `[DEV] 나중에 삭제`라고 적혀 있고, 화면에 실제 버튼(`:225`)으로 노출됩니다. 별·클리어에 더해 게임 저장 키(`@AuditoryTrainingApp*:gameState`)까지 지웁니다.
+
+즉 **기록 초기화 수단이 앱에 아직 남아 있습니다.** 지시하신 두 개는 인계문 항목 그대로라 먼저 처리했고, 이건 다른 화면이라 임의로 건드리지 않았습니다.
+
+이것도 지울까요? 그리고 지금까지 변경분 커밋할까요?
+
+## 13. 사용자
+
+이전에 테스트 스위치 지운거 복구 해놔, 그리고, 전체  초기화 버튼도 그대로 둬
+
+## 14. Claude
+
+복구했습니다. 작업 트리는 다시 깨끗하고, 커밋한 적이 없어서 되돌릴 커밋도 없습니다.
+
+**원상태 확인**
+- `SHOW_ANSWER_HINT = true` (`MusicTrainingScreen.tsx:346`) · `hint=` 전달 (`:1299`) — 정답 힌트 다시 표시됨
+- `handleResetProgress` (`:827`) · `onReset=` (`:1166`) — 연결 복구
+- `ScoreFeedback`의 `hint` prop·렌더·스타일, `SEMANTIC.hint` 토큰 — 전부 제자리
+- `MissionProgressIcon`의 초기화 버튼·`handleReset`·`onReset`·`Alert` import·`resetButton` 스타일 — 전부 제자리
+
+**전체 초기화 버튼**(`app/(tabs)/new/index.tsx`)은 처음부터 손대지 않았습니다. 그대로입니다.
+
+현재 HEAD는 `a9dccc2`이고, 이번 세션에 커밋된 건 오버레이 인셋 수정(`ab37121`)과 문서 두 개뿐입니다. 인계문 3번은 계속 열린 항목으로 남습니다.
+
+## 15. 사용자
+
+인계문 작성해
