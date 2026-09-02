@@ -116,8 +116,23 @@ export default function Index() {
   const [currentDrumScrollIndex, setCurrentDrumScrollIndex] = useState(0);
   const horizontalDrumScrollerRef = useRef<HorizontalDrumScrollerRef>(null);
   const isStartingQuizRef = useRef(false);
+  /**
+   * 악기명 레이블용. 페이지(2~5악기)마다 드럼 세트가 따로 있고 각자 선택 악기를 들고 있어서,
+   * 하나로 합치면 페이지를 넘겨도 이전 페이지에서 고른 이름이 그대로 남는다.
+   * 페이지별로 담고 현재 보이는 페이지 것만 그린다. null = 아직 아무 악기도 안 고름.
+   */
+  const [instrumentByPage, setInstrumentByPage] = useState<(InstrumentType | null)[]>(
+    () => Array<InstrumentType | null>(ANIMATED_FLATLIST_PAGES).fill(null)
+  );
   /** 현재 보이는 페이지 = 악기 수 (설정에서 제거, 화면이 곧 선택) */
   const instrumentCount = currentDrumScrollIndex + 2;
+  /** 지금 보이는 페이지에서 고른 악기. 다른 페이지 선택은 이 화면에 뜨지 않는다 */
+  const labelInstrument = instrumentByPage[currentDrumScrollIndex] ?? null;
+  /**
+   * 레이블과 헤더 사이 간격. 고정 px로 두면 작은 폰에서 답답하고 태블릿에서 붕 뜬다.
+   * 화면 높이에 비례시키되 양 끝을 묶어 극단으로 가지 않게 한다.
+   */
+  const instrumentLabelGap = Math.min(24, Math.max(8, Math.round(windowHeight * 0.02)));
   const viewportAspectRatio = backgroundViewport.width > 0 && backgroundViewport.height > 0
     ? backgroundViewport.width / backgroundViewport.height
     : 0;
@@ -172,6 +187,16 @@ export default function Index() {
   // 드럼 스크롤 시 인덱스 반영
   const handleDrumScrollIndexChange = useCallback((index: number) => {
     setCurrentDrumScrollIndex(index);
+  }, []);
+
+  // 각 페이지의 선택 악기를 받아 그 페이지 자리에만 담는다 (레이블 표시용)
+  const handleInstrumentChange = useCallback((instrument: InstrumentType | null, pageIndex: number) => {
+    setInstrumentByPage((prev) => {
+      if (prev[pageIndex] === instrument) return prev; // 같은 값이면 리렌더 없이 통과
+      const next = [...prev];
+      next[pageIndex] = instrument;
+      return next;
+    });
   }, []);
 
 
@@ -427,7 +452,7 @@ export default function Index() {
                   onContainerLayout={setDrumContainerWidth}
                   onScrollIndexChange={handleDrumScrollIndexChange}
                   onInstrumentPlay={() => {}}
-                  onInstrumentChange={() => {}}
+                  onInstrumentChange={handleInstrumentChange}
                   isGameAudioPlaying={isQuizActive && gameState === 'playing'}
                   isGameMode={isQuizActive}
                   isQuizWaiting={isQuizActive && gameState === 'playing'}
@@ -435,12 +460,29 @@ export default function Index() {
                     lastAnsweredInstrumentRef.current = instrument;
                     handleAnswer(instrument);
                   }}
-                  hideCurrentInstrumentLabel={isQuizActive}
                   scrollEnabled={!isQuizActive}
                 />
               </View>
             </View>
           </ScrollView>
+
+          {/*
+            현재 악기 레이블 — ScrollView 밖에 둔다. 안에 두면 드럼 세트 위로 올릴 때
+            FlatList 셀에 잘려 뒤 배경이 드러난다. 세로 기준은 헤더 실측 높이(상단 인셋 포함).
+            퀴즈 중에는 정답을 알려주는 셈이라 숨긴다.
+          */}
+          {!isQuizActive && labelInstrument && (
+            <View
+              style={[styles.instrumentLabelFixed, { top: headerHeight + instrumentLabelGap }]}
+              pointerEvents="none"
+            >
+              <View style={styles.currentInstrumentDisplay}>
+                <Text style={styles.currentInstrumentText}>
+                  {DRUM_INSTRUMENTS[labelInstrument].name}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* 드럼 캐릭터+순환 버튼 오버레이 (결과창 떠 있을 때는 미표시) */}
           {!(isQuizActive && isGameOver) && (
@@ -701,6 +743,39 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 
+  /**
+   * 악기명 레이블 줄. 헤더 아래 가로 전체를 잡고 가운데 정렬만 한다 —
+   * 폭을 고정하고 translateX로 반쯤 밀던 이전 방식과 달리 글자 길이·화면 폭을 안 탄다.
+   * zIndex는 설정 드롭다운(500·501)보다 낮게: 드롭다운이 열리면 그쪽이 위다.
+   */
+  instrumentLabelFixed: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 300,
+  },
+  currentInstrumentDisplay: {
+    minWidth: 140,
+    minHeight: 50,
+    backgroundColor: 'rgba(252, 237, 204, 0.9)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  currentInstrumentText: {
+    color: '#555457',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    letterSpacing: 0,
+    lineHeight: 22,
+  },
   /** 드럼 오버레이를 contentWrapper 하단에 고정. zIndex로 탭 바 위에 그리기 */
   drumOverlayFixed: {
     position: 'absolute',
@@ -949,14 +1024,16 @@ function QuestionCountSelector({ value, onChange }: QuestionCountSelectorProps) 
 // 횡스크롤 드럼 섹션 컴포넌트
 interface HorizontalDrumScrollerProps {
   readonly onInstrumentPlay: (instrumentName: string) => void;
-  readonly onInstrumentChange: (instrument: InstrumentType | null) => void;
+  /**
+   * 페이지마다 InteractiveDrumSet이 따로 있고 각자 선택 악기를 들고 있다.
+   * 어느 페이지에서 온 알림인지 함께 넘겨야 부모가 현재 보이는 페이지 것만 그릴 수 있다.
+   */
+  readonly onInstrumentChange: (instrument: InstrumentType | null, pageIndex: number) => void;
   readonly isGameAudioPlaying: boolean;
   readonly isGameMode: boolean;
   /** 퀴즈 정답 대기 시 true → 악기 터치가 정답 제출로 전달됨 */
   readonly isQuizWaiting?: boolean;
   readonly onAnswerSubmit?: (instrument: InstrumentType) => void;
-  /** true면 현재 악기 이름 레이블 숨김 (퀴즈 중) */
-  readonly hideCurrentInstrumentLabel?: boolean;
   /** false면 가로 스크롤 비활성화 (퀴즈 중 고정) */
   readonly scrollEnabled?: boolean;
   /** 부모에서 스크롤 위치 동기화용 (오버레이를 ScrollView 밖에서 그릴 때 사용) */
@@ -980,7 +1057,7 @@ const AnimatedFlatList = RNAnimated.createAnimatedComponent(FlatList);
 
 const HorizontalDrumScroller = React.forwardRef<HorizontalDrumScrollerRef, Readonly<HorizontalDrumScrollerProps>>(
   function HorizontalDrumScroller(
-    { onInstrumentPlay, onInstrumentChange, isGameAudioPlaying, isGameMode, isQuizWaiting = false, onAnswerSubmit, hideCurrentInstrumentLabel = false, scrollEnabled = true, scrollX: scrollXRef, onContainerLayout, onScrollIndexChange },
+    { onInstrumentPlay, onInstrumentChange, isGameAudioPlaying, isGameMode, isQuizWaiting = false, onAnswerSubmit, scrollEnabled = true, scrollX: scrollXRef, onContainerLayout, onScrollIndexChange },
     ref
   ) {
     const flatListRef = useRef<FlatList>(null);
@@ -1106,11 +1183,10 @@ const HorizontalDrumScroller = React.forwardRef<HorizontalDrumScrollerRef, Reado
                   numInstruments={row.count as 2 | 3 | 4 | 5}
                   isGameAudioPlaying={isGameAudioPlaying}
                   onInstrumentPlay={(instrument) => onInstrumentPlay(instrument)}
-                  onInstrumentChange={(inst) => onInstrumentChange(inst)}
+                  onInstrumentChange={(inst) => onInstrumentChange(inst, index)}
                   isGameMode={isGameMode}
                   isQuizWaiting={isQuizWaiting}
                   onAnswerSubmit={onAnswerSubmit}
-                  hideCurrentInstrumentLabel={hideCurrentInstrumentLabel}
                   hideCycleButton
                 />
               </View>

@@ -74,8 +74,6 @@ interface InteractiveDrumSetProps {
   readonly isQuizWaiting?: boolean;
   /** 정답 제출 콜백 (퀴즈 모드) */
   readonly onAnswerSubmit?: (instrument: InstrumentType) => void;
-  /** true면 현재 악기 이름 레이블 숨김 (퀴즈 시작 후) */
-  readonly hideCurrentInstrumentLabel?: boolean;
   /** true면 캐릭터·순환 버튼 미렌더(상위에서 고정 오버레이로 표시) */
   readonly hideCharacterAndButtons?: boolean;
   /** true면 캐릭터만 표시하고 순환 버튼은 숨김(상위 고정 버튼 사용 시) */
@@ -91,7 +89,7 @@ export interface InteractiveDrumSetRef {
 }
 
 const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: React.Ref<InteractiveDrumSetRef>) => {
-  const { layout, numInstruments, onInstrumentPlay, onInstrumentChange, isGameAudioPlaying = false, isGameMode = false, isQuizWaiting = false, onAnswerSubmit, hideCurrentInstrumentLabel = false, hideCharacterAndButtons = false, hideCycleButton = false } = props;
+  const { layout, numInstruments, onInstrumentPlay, onInstrumentChange, isGameAudioPlaying = false, isGameMode = false, isQuizWaiting = false, onAnswerSubmit, hideCharacterAndButtons = false, hideCycleButton = false } = props;
   const activeLayout = layout ?? drumLayouts[String(numInstruments ?? 2) as keyof typeof drumLayouts] ?? LAYOUT_2_DRUMS;
   const audioManager = useAudioManager();
   const insets = useSafeAreaInsets();
@@ -99,15 +97,22 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
   const [characterPosition, setCharacterPosition] = useState({ x: 0, y: 0 });
   const [currentInstrument, setCurrentInstrument] = useState<InstrumentType | null>(null);
   const [currentInstrumentIndex, setCurrentInstrumentIndex] = useState<number>(-1); // 화살표 이동용 현재 인덱스
-  /** 사용자가 악기를 한 번이라도 선택(탭·스냅·순환)한 뒤에만 악기명 라벨 표시 */
-  const [instrumentLabelVisible, setInstrumentLabelVisible] = useState(false);
+
+  /**
+   * 콜백을 ref로 들고 있는 이유: 이 알림은 부모가 악기명 레이블을 그리는 데 쓰는데,
+   * 부모가 인라인 함수를 넘기면 매 렌더마다 함수 신원이 바뀐다. 그것을 의존성에 두면
+   * 악기가 그대로인데도 effect가 다시 돌아 부모 setState를 계속 두드린다.
+   * 알림은 currentInstrument가 실제로 바뀔 때만 나가야 한다.
+   */
+  const onInstrumentChangeRef = useRef(onInstrumentChange);
+  useEffect(() => {
+    onInstrumentChangeRef.current = onInstrumentChange;
+  });
 
   // currentInstrument 변경 시 부모 컴포넌트에 알림
   useEffect(() => {
-    if (onInstrumentChange) {
-      onInstrumentChange(currentInstrument);
-    }
-  }, [currentInstrument, onInstrumentChange]);
+    onInstrumentChangeRef.current?.(currentInstrument);
+  }, [currentInstrument]);
 
   // layout에서 악기 상세(좌표, 반지름 등) 추출
   const DRUM_DETAILS = activeLayout.details;
@@ -347,7 +352,6 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
 
     setCharacterPosition({ x: targetX, y: targetY });
     setCurrentInstrument(instrument);
-    setInstrumentLabelVisible(true);
 
     // 드래그로 선택된 악기의 순서 인덱스 업데이트
     const instrumentIndex = layoutOrder.indexOf(instrument);
@@ -700,7 +704,6 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
               ]}
               onPress={() => {
                 setCurrentInstrument(instrument as InstrumentType);
-                setInstrumentLabelVisible(true);
               }}
               activeOpacity={0.7}
             >
@@ -755,23 +758,12 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
         )}
       </View>
 
-      {/* 현재 악기 표시 - 퀴즈 중 숨김, 사운드 체크는 첫 상호작용 후에만 표시 */}
-      {currentInstrument && !hideCurrentInstrumentLabel && instrumentLabelVisible && (
-        <View style={[
-          styles.currentInstrumentDisplay,
-          {
-            width: Math.max(140, drumSetSize * 0.11),
-            height: 35,
-            minHeight: 50,
-            transform: [{ translateX: -Math.max(35, drumSetSize * 0.055) }],
-          }
-        ]}>
-          <Text style={styles.currentInstrumentText}>
-            {DRUM_INSTRUMENTS[currentInstrument].name}
-          </Text>
-        </View>
-      )}
-
+      {/*
+        악기명 레이블은 여기 없다. 이 컨테이너 높이가 사실상 드럼 세트 높이라
+        레이블을 그 위로 올리려면 음수 top이 되고, 그러면 FlatList 셀에 잘려
+        뒤 배경(drum_m.webp)이 드러난다. 그래서 부모가 ScrollView 밖에서 그린다.
+        (app/(tabs)/drum/index.tsx — onInstrumentChange로 악기를 받아 헤더 아래 고정)
+      */}
     </View>
   );
 }
@@ -782,9 +774,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    // 악기명 레이블(minHeight 50)이 부모 안에서 드럼 세트 위에 앉도록 확보. 음수 top은 잘림
-    paddingTop: 72,
-    overflow: 'visible',
   },
   drumSetContainer: {
     position: 'relative',
@@ -823,29 +812,6 @@ const styles = StyleSheet.create({
   characterImage: {
     width: '100%',
     height: '100%',
-  },
-  currentInstrumentDisplay: {
-    position: 'absolute',
-    top: 0,
-    left: '50%',
-    backgroundColor: 'rgba(252, 237, 204, 0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    elevation: 5,
-    zIndex: 20,
-    borderWidth: 2,
-    borderColor: '#FFD700',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  currentInstrumentText: {
-    color: '#555457',
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    letterSpacing: 0,
-    lineHeight: 22,
   },
   // 악기 순환 버튼 컨테이너 (반응형 절대값 배치)
   controlButtonsContainer: {
