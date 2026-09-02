@@ -4,6 +4,22 @@ import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView, Pressable,
 import { ClearContext } from '../context/ClearContext';
 import { StarContext } from '../context/StarContext';
 
+/**
+ * 아이콘 색 — **밝기가 아니라 색상으로** 세 단계를 가른다.
+ *
+ * 이 컴포넌트는 검은 배경(피아노 `#000` · 기타 `#1a120b`)과 흰 배경(게임 4화면
+ * `#ffffff`~`#f0f0f0`) **양쪽에** 올라간다. 밝기로만 구분하면 밝은 쪽이 흰 배경에서
+ * 사라진다 — 예전 은색 `#c0c0c0`이 회색 `#a0a0a0`과 구분되지 않던 이유다.
+ */
+const ICON_COLOR = {
+  /** 아무것도 못 얻음 */
+  none: '#a0a0a0',
+  /** 하나라도 별을 얻음. 동메달 → 금메달 순서라 뜻도 읽힌다 */
+  partial: '#CD7F32',
+  /** 전부 클리어 */
+  cleared: '#FFD700',
+} as const;
+
 // 컴포넌트가 받을 props의 타입을 정의합니다.
 interface MissionProgressIconProps {
   gameId: string;
@@ -13,6 +29,13 @@ interface MissionProgressIconProps {
   progressItems: { label: string; value: string | number }[];
   style?: any;
   onReset?: () => void;
+  /**
+   * 난이도별로 별·클리어가 갈리는 화면(피아노 5단계 · 기타 4단계)은 난이도 이름을 넘긴다.
+   * 저장 키가 `${gameId}_${난이도}` 꼴이기 때문이다.
+   *
+   * 안 넘기면 `gameId` 하나로 판정한다 (게임 화면들이 그렇다).
+   */
+  levelNames?: string[];
 }
 
 export default function MissionProgressIcon({
@@ -23,6 +46,7 @@ export default function MissionProgressIcon({
   progressItems,
   style,
   onReset,
+  levelNames,
 }: MissionProgressIconProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const starContext = useContext(StarContext);
@@ -60,18 +84,27 @@ export default function MissionProgressIcon({
     );
   };
 
-  let hasStar = !!starContext.starData[gameId];
-  let isCleared = !!clearContext.clearData[gameId];
+  // 난이도가 여럿인 화면은 난이도별 키를, 아니면 gameId 하나를 본다
+  const keys = levelNames?.length
+    ? levelNames.map(level => `${gameId}_${level}`)
+    : [gameId];
+  const starCount = keys.filter(key => starContext.starData[key]).length;
+  const clearCount = keys.filter(key => clearContext.clearData[key]).length;
 
-  // 피아노 미션인 경우 난이도별 데이터(1~5단계)를 모아서 최종 상태 판정
-  if (gameId === 'music') {
-    const levels = ['1단계', '2단계', '3단계', '4단계', '5단계'];
-    hasStar = levels.every(level => starContext.starData[`music_${level}`] === 1);
-    isCleared = levels.every(level => clearContext.clearData[`music_${level}`] === true);
-  }
-  
-  // 클리어 여부에 따라 아이콘 색상을 결정합니다.
-  const iconColor = isCleared ? '#FFD700' : hasStar ? '#c0c0c0' : '#a0a0a0';
+  // 모달의 별·체크 표시는 예전대로 **전부 달성**이 기준이다
+  const hasStar = starCount === keys.length;
+  const isCleared = clearCount === keys.length;
+
+  /**
+   * 아이콘 색은 **하나만 얻어도 바뀐다.**
+   * 전부 달성해야 바뀌면 피아노는 다섯 단계를 채우는 동안 아무 변화가 없어,
+   * 별을 얻었는지 모달을 열어야만 알 수 있었다.
+   */
+  const iconColor = isCleared
+    ? ICON_COLOR.cleared
+    : starCount > 0
+      ? ICON_COLOR.partial
+      : ICON_COLOR.none;
 
   return (
     <>

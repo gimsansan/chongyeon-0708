@@ -392,6 +392,7 @@ export default function Guitar() {
         title="기타 미션"
         missionText="난이도별 누적 3회 성공"
         clearText="최고 점수 5점 달성"
+        levelNames={GUITAR_LEVELS.map(({ name }) => name)}
         progressItems={GUITAR_LEVELS.map(({ name: d }) => ({
           label: `${d} (${starContext?.starData[`guitar_${d}`] ? '★' : '☆'})`,
           value: `누적 ${progress[d]?.cumulativeSuccesses || 0} / 최고 ${progress[d]?.highestScore || 0}`

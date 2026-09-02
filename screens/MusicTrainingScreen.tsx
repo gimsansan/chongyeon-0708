@@ -1146,6 +1146,7 @@ export function MusicTrainingScreen() {
         title="피아노 미션"
         missionText="각 난이도에서 정답 누적 3회"
         clearText="각 난이도에서 총점 5점 달성"
+        levelNames={difficultyLevels.map(level => level.name)}
         progressItems={progressItems}
         style={missionIconStyle}
         onReset={handleResetProgress}
@@ -1409,7 +1410,7 @@ export function MusicTrainingScreen() {
 
       {/* 미션 성공 오버레이 (터치 차단 포함) */}
       {showMissionSuccess && (
-        <View style={styles.missionOverlay}>
+        <View style={[styles.missionOverlay, { bottom: bottomPanelHeight }]}>
           <View style={styles.missionOverlayBox}>
             <Text style={styles.missionOverlayText}>★ 미션 성공! ★</Text>
             <Text style={styles.missionOverlaySubText}>자유롭게 계속 도전해보세요!</Text>
@@ -1418,7 +1419,7 @@ export function MusicTrainingScreen() {
       )}
 
       {isFallingNoteActive && previewCount !== null && (
-        <View style={styles.previewOverlay} pointerEvents="none">
+        <View style={[styles.previewOverlay, { bottom: bottomPanelHeight }]} pointerEvents="none">
           <Text style={styles.previewText}>{previewCount === 0 ? 'Start' : previewCount}</Text>
         </View>
       )}
@@ -1748,11 +1749,13 @@ const styles = StyleSheet.create({
     elevation: 99,
   },
   missionOverlay: {
+    // 하단 제어반을 제외한 피아노 영역 전체를 덮어 터치를 막는다.
+    // `bottom`은 렌더에서 `bottomPanelHeight`로 준다 — 제어반 높이가
+    // 모드마다 다르기 때문이다 (평소 110 · 낙하 76). 고정값으로 두면 어긋난다
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    bottom: 96, // 하단 제어반(96px)을 제외한 피아노 영역 전체를 커버하여 터치 차단
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1786,11 +1789,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   previewOverlay: {
+    // `bottom`은 `missionOverlay`와 같은 이유로 렌더에서 준다.
+    // 카운트다운 숫자가 연주 영역 한가운데에 오려면 제어반 높이를 알아야 한다
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    bottom: 96,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 95,
