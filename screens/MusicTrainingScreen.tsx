@@ -1075,7 +1075,7 @@ export function MusicTrainingScreen() {
   const usableWidth = Math.max(1, width - insets.left - insets.right);
   const usableHeight = Math.max(1, height - insets.top - insets.bottom);
   const PIANO_AREA_PADDING = 20;
-  const consoleInnerHeight = 110 - 16;
+  const consoleInnerHeight = CONTROL_BAR.standardHeight - CONTROL_BAR.paddingVertical * 2;
   const consoleWidth = Math.max(1, (usableWidth - 100) * (2.4 / 5.4));
   const consoleWellWidth = consoleWidth * 0.91;
   const consoleWellHeight = consoleInnerHeight * 0.62;
@@ -1621,14 +1621,14 @@ const styles = StyleSheet.create({
   octaveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007BFF',
+    backgroundColor: PIANO.accent,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 6,
   },
   octaveBtnHighlight: {
-    backgroundColor: '#00e5ff',
-    shadowColor: '#00e5ff',
+    backgroundColor: PIANO.highlight,
+    shadowColor: PIANO.highlight,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 10,
@@ -1676,8 +1676,8 @@ const styles = StyleSheet.create({
   },
   whiteKey: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: 'white',
+    borderColor: PIANO.keys.whiteBorder,
+    backgroundColor: PIANO.keys.white,
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingBottom: 15,
@@ -1691,7 +1691,7 @@ const styles = StyleSheet.create({
   },
   blackKey: {
     position: 'absolute',
-    backgroundColor: 'black',
+    backgroundColor: PIANO.keys.black,
     borderRadius: 4,
     zIndex: 1,
     justifyContent: 'flex-end',
@@ -1707,36 +1707,36 @@ const styles = StyleSheet.create({
   },
   keyTextLabel: {
     fontSize: 14,
-    color: '#555',
+    color: PIANO.keys.label,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   blackKeyTextLabel: {
     fontSize: 11,
-    color: '#bbb',
+    color: PIANO.keys.labelOnBlack,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   whiteKeyLabel: {
     fontSize: 11,
-    color: '#888',
+    color: PIANO.keys.labelSub,
     fontWeight: '600',
   },
   blackKeyLabel: {
     fontSize: 10,
-    color: '#888',
+    color: PIANO.keys.labelSub,
     fontWeight: '600',
   },
   whiteKeyDisabled: {
-    backgroundColor: '#666',
-    borderColor: '#444',
+    backgroundColor: PIANO.keys.whiteDisabled,
+    borderColor: PIANO.keys.whiteBorderDisabled,
     opacity: 0.25,
   },
   keyDisabled: {
     opacity: 0.25,
   },
   keyLabelDisabled: {
-    color: '#555',
+    color: PIANO.keys.labelDisabled,
   },
   rippleContainer: {
     position: 'absolute',
@@ -1764,16 +1764,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#00e5ff',
+    borderColor: PIANO.highlight,
     alignItems: 'center',
-    shadowColor: '#00e5ff',
+    shadowColor: PIANO.highlight,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 10,
     elevation: 10,
   },
   missionOverlayText: {
-    color: '#00e5ff',
+    color: PIANO.highlight,
     fontSize: 26,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -1796,10 +1796,10 @@ const styles = StyleSheet.create({
     zIndex: 95,
   },
   previewText: {
-    color: '#00e5ff',
+    color: PIANO.highlight,
     fontSize: 54,
     fontWeight: '900',
-    textShadowColor: '#00e5ff',
+    textShadowColor: PIANO.highlight,
     textShadowRadius: 14,
   },
 });

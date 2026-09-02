@@ -51,12 +51,45 @@ export const INSTRUMENT_ACCENT = {
     bar: 'rgba(34, 34, 34, 0.85)',
     accent: '#007BFF',
     idle: '#555555',
+    /**
+     * 미션 오버레이 · 미리듣기 카운트 · 옥타브 이동 강조.
+     *
+     * **피아노에만 있다.** 기타에는 대응하는 오버레이가 없어서 `SEMANTIC`으로
+     * 올리지 않았다 — 한 화면에만 있는 색을 공통으로 올리면 뜻이 없는 토큰이 된다.
+     */
+    highlight: '#00e5ff',
+    /** 건반. 기타 `fretboard`와 **합치지 말 것** — 악기가 구분돼야 한다 */
+    keys: {
+      white: 'white',
+      whiteBorder: '#ccc',
+      black: 'black',
+      /** 흰건반 음이름 */
+      label: '#555',
+      /** 검은건반 음이름 — 어두운 바탕이라 밝게 */
+      labelOnBlack: '#bbb',
+      /** 키보드 매핑 보조 라벨. 흑·백 공통 */
+      labelSub: '#888',
+      whiteDisabled: '#666',
+      whiteBorderDisabled: '#444',
+      labelDisabled: '#555',
+    },
   },
   guitar: {
     screen: '#1a120b',
     bar: 'rgba(60, 42, 33, 0.85)',
     accent: '#d4a373',
     idle: '#4f3422',
+    /** 프렛보드. 피아노 `keys`와 **합치지 말 것** */
+    fretboard: {
+      face: '#2d2016',
+      border: '#5f4339',
+      faceDisabled: '#221a14',
+      borderDisabled: '#332211',
+      /** 6줄 현 */
+      string: '#c5c5c5',
+      label: '#fff',
+      labelDisabled: '#444',
+    },
   },
 } as const;
 
