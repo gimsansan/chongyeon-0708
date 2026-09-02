@@ -75,16 +75,21 @@ export const FallingNoteTrack: React.FC<FallingNoteTrackProps> = ({
   const songEndFired = useRef(false);
   const scheduledKeyRef = useRef<string | null>(null);
 
-  const measureTrackOrigin = () => {
+  const measureTrackOrigin = (measuredWidth?: number, measuredHeight?: number) => {
+    const widthForLane = measuredWidth ?? trackWidth;
+    const heightForLine = measuredHeight ?? trackHeight;
+    if (heightForLine <= 0) return;
+    const judgmentLineY = Math.max(40, heightForLine - 24);
+
     trackRef.current?.measureInWindow((x, y) => {
       trackOriginX.value = x;
       trackOriginY.value = y;
       if (song) {
-        const laneWidth = dynamicWhiteKeyWidth ?? (trackWidth - LANE_MARGIN * 2) / song.palette.length;
+        const laneWidth = dynamicWhiteKeyWidth ?? (widthForLane - LANE_MARGIN * 2) / song.palette.length;
         onTrackMetrics?.({
           x,
           y,
-          judgmentLineY: JUDGMENT_LINE_Y,
+          judgmentLineY,
           laneWidth,
           laneStartX,
         });
@@ -192,7 +197,7 @@ export const FallingNoteTrack: React.FC<FallingNoteTrackProps> = ({
       onLayout={(event) => {
         const { width: nextWidth, height: nextHeight } = event.nativeEvent.layout;
         setTrackSize({ width: nextWidth, height: nextHeight });
-        measureTrackOrigin();
+        measureTrackOrigin(nextWidth, nextHeight);
       }}
     >
       <Canvas style={{ flex: 1 }}>

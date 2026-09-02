@@ -326,7 +326,7 @@ export default function Guitar() {
     <SafeAreaView style={styles.container}>
       <View style={styles.sidebar}>
         <LandscapeBackButton color="#e5e5e5" style={styles.landscapeBackButton} />
-        <Text style={styles.scoreText}>SCORE: {score}</Text>
+        <Text style={styles.scoreText}>점수: {score}</Text>
         <TouchableOpacity style={styles.mainBtn} onPress={isTraining ? stopTraining : startTraining}>
           <Text style={styles.btnText}>{isTraining ? '종료' : '훈련 시작'}</Text>
         </TouchableOpacity>

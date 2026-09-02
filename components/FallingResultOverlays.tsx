@@ -21,7 +21,7 @@ export function FallingReplayPrompt({
         <Text style={styles.replayTitle}>{result.title}</Text>
         <Text style={styles.replaySubText}>한 번 더 연습할까요?</Text>
         <TouchableOpacity style={styles.replayIconButton} onPress={onReplay}>
-          <Ionicons name="refresh-circle" size={64} color="#00e5ff" />
+          <Ionicons name="refresh-circle" size={64} color="#E6A800" />
           <Text style={styles.replayIconText}>리플레이</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.resultCloseButton} onPress={onShowResult}>
@@ -50,17 +50,37 @@ export function FallingResultOverlay({
   return (
     <View style={styles.resultOverlay}>
       <View style={styles.resultBox}>
-        <Text style={styles.resultTitle}>
+        <Text
+          style={[
+            styles.resultTitle,
+            result.cleared ? styles.resultTitleCleared : styles.resultTitleRetry,
+          ]}
+        >
           {result.cleared ? '클리어!' : '연습 필요'}
         </Text>
         <Text style={styles.resultLine}>
           정확도 {accuracy}% · {hits}/{result.totalNotes} 맞춤
         </Text>
-        <View style={styles.resultBadgeRow}>
-          <Text style={[styles.resultBadge, styles.resultBadgePerfect]}>완벽 {result.perfect}</Text>
-          <Text style={[styles.resultBadge, styles.resultBadgeGreat]}>훌륭 {result.great}</Text>
-          <Text style={[styles.resultBadge, styles.resultBadgeGood]}>양호 {result.good}</Text>
-          <Text style={[styles.resultBadge, styles.resultBadgeMiss]}>놓침 {misses}</Text>
+        <View style={styles.resultStatRow}>
+          <View style={styles.resultStat}>
+            <Text style={[styles.resultStatValue, styles.resultStatPerfect]}>{result.perfect}</Text>
+            <Text style={styles.resultStatLabel}>완벽</Text>
+          </View>
+          <View style={styles.resultStatDivider} />
+          <View style={styles.resultStat}>
+            <Text style={[styles.resultStatValue, styles.resultStatGreat]}>{result.great}</Text>
+            <Text style={styles.resultStatLabel}>훌륭</Text>
+          </View>
+          <View style={styles.resultStatDivider} />
+          <View style={styles.resultStat}>
+            <Text style={[styles.resultStatValue, styles.resultStatGood]}>{result.good}</Text>
+            <Text style={styles.resultStatLabel}>양호</Text>
+          </View>
+          <View style={styles.resultStatDivider} />
+          <View style={styles.resultStat}>
+            <Text style={[styles.resultStatValue, styles.resultStatMiss]}>{misses}</Text>
+            <Text style={styles.resultStatLabel}>놓침</Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.resultCloseButton} onPress={onClose}>
           <Text style={styles.buttonText}>확인</Text>
@@ -77,28 +97,29 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 96,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 100,
   },
   replayBox: {
-    minWidth: 300,
-    backgroundColor: 'rgba(18, 18, 22, 0.96)',
+    width: '86%',
+    maxWidth: 440,
+    backgroundColor: '#F4F7FB',
     borderRadius: 18,
     borderWidth: 1.5,
-    borderColor: '#00e5ff',
+    borderColor: '#E6A800',
     paddingVertical: 18,
     paddingHorizontal: 26,
     alignItems: 'center',
   },
   replayTitle: {
-    color: '#fff',
+    color: '#334155',
     fontSize: 18,
     fontWeight: '900',
   },
   replaySubText: {
-    color: 'rgba(255, 255, 255, 0.78)',
+    color: '#64748B',
     fontSize: 14,
     fontWeight: '700',
     marginTop: 6,
@@ -111,7 +132,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   replayIconText: {
-    color: '#00e5ff',
+    color: '#E6A800',
     fontSize: 14,
     fontWeight: '900',
     marginTop: -4,
@@ -122,68 +143,74 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 96,
-    backgroundColor: 'rgba(0, 0, 0, 0.58)',
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 100,
   },
   resultBox: {
-    minWidth: 360,
-    backgroundColor: 'rgba(18, 18, 22, 0.96)',
+    width: '86%',
+    maxWidth: 440,
+    backgroundColor: '#F4F7FB',
     borderRadius: 18,
     borderWidth: 1.5,
-    borderColor: '#00e5ff',
-    paddingVertical: 18,
-    paddingHorizontal: 28,
+    borderColor: '#E6A800',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
     alignItems: 'center',
   },
   resultTitle: {
-    color: '#00e5ff',
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '900',
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+  resultTitleCleared: {
+    color: '#1A7A6D',
+  },
+  resultTitleRetry: {
+    color: '#C45C2A',
   },
   resultLine: {
-    color: 'rgba(255, 255, 255, 0.86)',
-    fontSize: 20,
-    fontWeight: '800',
-    marginTop: 8,
-  },
-  resultBadgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  resultBadge: {
-    color: '#fff',
+    color: '#334155',
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '800',
+  },
+  resultStatRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    width: '100%',
+    marginTop: 16,
+  },
+  resultStat: {
+    flex: 1,
+    alignItems: 'center',
     paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    overflow: 'hidden',
   },
-  resultBadgePerfect: {
-    backgroundColor: 'rgba(255, 213, 79, 0.22)',
-    borderColor: '#ffd54f',
-    borderWidth: 1,
+  resultStatDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: '#D7E3F0',
   },
-  resultBadgeGreat: {
-    backgroundColor: 'rgba(0, 229, 255, 0.18)',
-    borderColor: '#00e5ff',
-    borderWidth: 1,
+  resultStatValue: {
+    fontSize: 22,
+    fontWeight: '900',
   },
-  resultBadgeGood: {
-    backgroundColor: 'rgba(93, 230, 196, 0.18)',
-    borderColor: '#5de6c4',
-    borderWidth: 1,
+  resultStatLabel: {
+    marginTop: 2,
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '700',
   },
-  resultBadgeMiss: {
-    backgroundColor: 'rgba(255, 82, 82, 0.2)',
-    borderColor: '#ff5252',
-    borderWidth: 1,
+  resultStatPerfect: {
+    color: '#E6A800',
+  },
+  resultStatGreat: {
+    color: '#0F8A9A',
+  },
+  resultStatGood: {
+    color: '#2A9A7A',
+  },
+  resultStatMiss: {
+    color: '#C63B3B',
   },
   resultCloseButton: {
     backgroundColor: '#007BFF',
