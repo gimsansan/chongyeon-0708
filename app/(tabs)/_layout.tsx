@@ -170,6 +170,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="guitar-acoustic" size={24} color={color} />
           ),
+          tabBarStyle: { display: 'none' },
         }}
       />
 

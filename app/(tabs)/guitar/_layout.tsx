@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   ActivityIndicator
 } from 'react-native';
+import { LandscapeBackButton } from '../../../components/LandscapeBackButton';
 import MissionProgressIcon from '../../../components/MissionProgressIcon';
 import { useStopAudioOnBlur } from '../../../hooks/useStopAudioOnBlur';
 import { ClearContext } from '../../../context/ClearContext';
@@ -269,7 +270,9 @@ export default function Guitar() {
           highestScore: Math.max(currentProgress.highestScore, newScore),
         }
       });
-      starContext?.addStar(`guitar_${difficulty}`);
+      if (newCumulativeSuccesses >= 3) {
+        starContext?.addStar(`guitar_${difficulty}`);
+      }
       if (newScore >= 5) clearContext?.markAsCleared(`guitar_${difficulty}`);
       setFeedback('정답입니다! 🎸');
       setTimeout(playNextQuestion, 1200);
@@ -322,6 +325,7 @@ export default function Guitar() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.sidebar}>
+        <LandscapeBackButton color="#e5e5e5" style={styles.landscapeBackButton} />
         <Text style={styles.scoreText}>SCORE: {score}</Text>
         <TouchableOpacity style={styles.mainBtn} onPress={isTraining ? stopTraining : startTraining}>
           <Text style={styles.btnText}>{isTraining ? '종료' : '훈련 시작'}</Text>
@@ -362,6 +366,7 @@ export default function Guitar() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1a120b', flexDirection: 'row' },
   sidebar: { width: 170, backgroundColor: '#3c2a21', padding: 15, alignItems: 'center', borderRightWidth: 2, borderRightColor: '#d4a373' },
+  landscapeBackButton: { alignSelf: 'flex-start', marginBottom: 4 },
   scoreText: { fontSize: 22, fontWeight: 'bold', color: '#e5e5e5', marginBottom: 15 },
   mainBtn: { backgroundColor: '#d4a373', padding: 12, borderRadius: 8, width: '100%', alignItems: 'center', marginBottom: 8 },
   repeatBtn: { backgroundColor: '#8b5e3c', padding: 10, borderRadius: 8, width: '100%', alignItems: 'center', marginBottom: 8 },

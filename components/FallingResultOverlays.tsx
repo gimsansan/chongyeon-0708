@@ -54,7 +54,7 @@ export function FallingResultOverlay({
           {result.cleared ? '클리어!' : '연습 필요'}
         </Text>
         <Text style={styles.resultLine}>
-          정확도 {accuracy}% · {hits}/{result.totalNotes} 히트
+          정확도 {accuracy}% · {hits}/{result.totalNotes} 맞춤
         </Text>
         <View style={styles.resultBadgeRow}>
           <Text style={[styles.resultBadge, styles.resultBadgePerfect]}>완벽 {result.perfect}</Text>
