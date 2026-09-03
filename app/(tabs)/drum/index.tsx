@@ -430,7 +430,7 @@ export default function Index() {
             >
               <View style={[styles.headerCenterBadge, isQuizActive ? styles.headerCenterBadgeQuiz : styles.headerCenterBadgeListen]}>
                 <Text style={[styles.headerCenterText, isQuizActive ? styles.headerCenterTextQuiz : styles.headerCenterTextListen]}>
-                  {isQuizActive ? '퀴즈모드' : '듣기모드'}
+                  {isQuizActive ? '퀴즈모드' : '연주모드'}
                 </Text>
               </View>
             </View>
