@@ -84,3 +84,12 @@ learn의 결과 화면을 드럼과 같은 전체 오버레이(검은 스크림 
 - `MusicTrainingScreen`의 `shadowOpacity` 공유값(reanimated)은 죽은 코드였다. 값·핸들러까지 지웠다
 - `app/_layout.tsx:132`는 통째로 주석 처리된 옛 스타일 안이라 두었다
 - `Platform.OS === 'ios'` 분기, `app.json`의 iOS 설정, `ios/` 디렉터리는 애초에 없다
+
+## 6. 사용자
+
+인계문 작성해
+
+## 6. Claude
+
+`doc/handoff3.md`에 세션 34를 마무리해 적었다. 커밋 표를 네 개 전부로 채우고,
+주의사항에 「화면 방향을 `app.json`으로 판단하지 말 것」을 더했다.
