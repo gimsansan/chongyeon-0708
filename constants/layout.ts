@@ -195,6 +195,8 @@ export const LAYOUT = {
   playAllButtonFontSize: scaleInCardH(16, 13, 18),
   playAllButtonBorderRadius: 28,
   playAllButtonElevation: 4,
+  /** 「전체 듣기」 앞 스피커 아이콘. 글자(`playAllButtonFontSize`)보다 한 단계 크다 */
+  playAllButtonIconSize: scaleInCardH(20, 16, 22),
   wordsRowMarginBottom: scaleInCardH(10, 6, 14),
   wordColumnContainerGap: scaleInCardH(10, 6, 12),
   playButtonPadding: scaleInCardH(10, 4, 12),
@@ -214,10 +216,18 @@ export const LAYOUT = {
   sectionTitleFontSize: isTablet ? 30 : 24,
   sectionSubtitleFontSize: isTablet ? 20 : 16,
   completedBadgeTextFontSize: isTablet ? 22 : 16,
+  /**
+   * 제목·배지·완료화면의 아이콘 치수. 이모지를 벡터 아이콘으로 바꾸며 생겼다.
+   * 옆 글자 크기의 0.85~0.9로 둔다 — 같은 px면 획이 굵어 글자보다 커 보인다.
+   */
+  headerTitleIconSize: isTablet ? 26 : 21,
+  completedBadgeIconSize: isTablet ? 20 : 15,
   totalCountFontSize: isTablet ? 17 : 14,
   hintTextFontSize: isTablet ? 17 : 14,
   completedTitleFontSize: isTablet ? 22 : 18,
   completionTextFontSize: isTablet ? 30 : 24,
+  /** 완료화면 맨 위 트로피. 글자 위에 따로 서므로 제목보다 크다 */
+  completionIconSize: isTablet ? 56 : 44,
   completionSubTextFontSize: isTablet ? 20 : 16,
   buttonTextFontSize: isTablet ? 18 : 16,
   smallButtonTextFontSize: isTablet ? 15 : 12,
@@ -264,10 +274,25 @@ export const LAYOUT = {
   modalBodyPaddingH: isTablet ? 20 : 16,
   modalBodyPaddingV: 16,
   modalBodyPaddingBottom: 24,
+  /** 익힘모달 시트 손잡이 — 아래서 올라오는 판이라는 표시 */
+  modalHandleWidth: isTablet ? 56 : 44,
+  modalHandleHeight: 5,
   completedCardItemPadding: 14,
   completedCardItemBorderRadius: 16,
   completedCardItemElevation: 2,
+  /**
+   * 완료 항목의 폭. 전에는 minWidth: '45%'라 단어 길이에 따라 항목이 늘어나
+   * **줄마다 폭이 달랐다.** 폭을 고정하고 컨테이너의 space-between이 사이를 벌린다.
+   * 48×2 = 96%라 남는 4%가 두 열 사이 간격이 된다 (411dp에서 15px).
+   */
+  completedCardItemWidthPercent: '48%' as const,
   completedCardTextFontSize: isTablet ? 22 : 18,
+  /** 완료 항목의 「되돌리기」 표시 */
+  completedCardChipIconSize: isTablet ? 16 : 14,
+  completedCardChipFontSize: isTablet ? 13 : 11,
+  /** 「전체 다시 하기」(익힘모달)와 「처음부터」(완료화면)가 함께 쓴다 */
+  restartButtonIconSize: isTablet ? 20 : 18,
+  modalResetButtonBorderWidth: 1.5,
   completionRestartButtonBorderRadius: 25,
   completionRestartButtonMarginTop: 24,
   completionRestartButtonMarginBottom: 36,

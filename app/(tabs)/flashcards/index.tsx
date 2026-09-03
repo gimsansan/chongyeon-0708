@@ -22,7 +22,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Text, View, StyleSheet, ScrollView, Animated, TouchableOpacity, Image } from 'react-native';
+import { Text, View, StyleSheet, ScrollView, Animated, TouchableOpacity, Image, Modal } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -327,8 +327,17 @@ export default function HomeScreen() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* ✅ 완료 카드 복원 모달 */}
-      {showCompletedModal && (
+      {/* ✅ 익힘모달 (완료 카드 복원)
+          `Modal`로 감싼다 — 전에는 조건부 View + zIndex: 1000이라
+          **안드로이드 뒤로가기로 닫히지 않았다.** 미션모달(`components/MissionProgressIcon.tsx`)이
+          쓰는 방식과 같다. `animationType="slide"`라 시트가 아래서 올라온다(전에는 즉시 튀어나왔다). */}
+      <Modal
+        visible={showCompletedModal}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setShowCompletedModal(false)}
+      >
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => setShowCompletedModal(false)}
@@ -337,8 +346,11 @@ export default function HomeScreen() {
           <TouchableOpacity
             activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
-            style={styles.modalContent}
+            style={[styles.modalContent, { paddingBottom: insets.bottom }]}
           >
+            {/* 시트 손잡이. 바닥에서 올라온 판이라는 표시다 */}
+            <View style={styles.modalHandle} />
+
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>학습 완료된 카드 ({completedCards.size})</Text>
               <TouchableOpacity
@@ -352,7 +364,12 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            {/* padding은 `contentContainerStyle`에 준다. `style`에 주면 스크롤 뷰포트만
+                줄고 **마지막 항목 아래 여백이 생기지 않는다** */}
+            <ScrollView
+              style={styles.modalBodyScroll}
+              contentContainerStyle={styles.modalBody}
+            >
               <View style={styles.completedCardsGrid}>
                 {ALL_PAIRS
                   .filter(pair => completedCards.has(pair.id))
@@ -391,29 +408,41 @@ export default function HomeScreen() {
                         <Text style={[styles.completedCardText, { marginHorizontal: 6 }]}>/</Text>
                         <Text style={styles.completedCardText}>{pair.word2}</Text>
                       </View>
-                      <View style={styles.replayIconWrap}>
-                        <Ionicons name="arrow-undo-outline" size={LAYOUT.headerSmallIconSize} color={COLORS.textLight} />
+                      {/* 되돌리기 표시. 전에는 `textLight`(#999) 아이콘만 오른쪽 아래에 떠 있어
+                          흰 카드 위에서 2.8:1이었고, 무엇을 하는 항목인지 읽히지 않았다 */}
+                      <View style={styles.replayChip}>
+                        <Ionicons
+                          name="arrow-undo"
+                          size={LAYOUT.completedCardChipIconSize}
+                          color={COLORS.successOnWhite}
+                        />
+                        <Text style={styles.replayChipText}>되돌리기</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
               </View>
-              {/* 모달 하단 "전체 다시 하기" 버튼 */}
+              {/* 익힘 기록을 **전부 지우는** 동작이다. 「전체 듣기」와 같은 채운 초록이면
+                  같은 무게로 읽혀 실수로 눌린다 — 테두리만 있는 버튼으로 내린다.
+                  완료화면의 「🔄 처음부터」는 그 화면의 **유일한 다음 걸음**이라 채운 초록 그대로다.
+                  (`handleResetAllCards`가 모달을 닫으므로 여기서 또 닫지 않는다) */}
               <TouchableOpacity
-                style={styles.completionRestartButton}
-                onPress={() => {
-                  handleResetAllCards();
-                  setShowCompletedModal(false);
-                }}
-                activeOpacity={0.8}
+                style={styles.modalResetButton}
+                onPress={handleResetAllCards}
+                activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="완료한 카드를 모두 되돌려 처음부터 다시 하기"
               >
-                <Text style={styles.completionRestartButtonText}>전체 다시 하기</Text>
+                <Ionicons
+                  name="refresh"
+                  size={LAYOUT.restartButtonIconSize}
+                  color={COLORS.textSecondary}
+                />
+                <Text style={styles.modalResetButtonText}>전체 다시 하기</Text>
               </TouchableOpacity>
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
-      )}
+      </Modal>
 
       <View style={styles.container}>
         {/* 고정 배경 이미지 */}
@@ -440,7 +469,16 @@ export default function HomeScreen() {
                   {/* 제목은 배경 이미지 바로 위에 얹힌다. 이미지에 따라 대비가 흔들리므로
                       옅은 흰 pill로 받친다 — learn 탭 제목과 같은 처리 */}
                   <View style={styles.headerTitlePill}>
-                    <Text style={styles.headerPanelTitle}>📖  단어 카 드</Text>
+                    {/* 장식이다 — 스크린리더는 「단어 카드」만 읽으면 된다.
+                        이모지 📖는 색을 못 바꾸고(흰 pill 안에서 혼자 컬러였다) 기기마다 모양이 달랐다.
+                        뒤에 붙어 있던 공백 둘도 이모지의 어긋난 기준선을 손으로 맞춘 것이라 함께 지운다 */}
+                    <Ionicons
+                      name="albums"
+                      size={LAYOUT.headerTitleIconSize}
+                      color={COLORS.primary}
+                      importantForAccessibility="no"
+                    />
+                    <Text style={styles.headerPanelTitle}>단어 카드</Text>
                   </View>
                 </View>
                 <Animated.View
@@ -463,7 +501,13 @@ export default function HomeScreen() {
                     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
                       <CompletedBadgeBg width="100%" height="100%" />
                     </View>
-                    <Text style={styles.completedBadgeText}>✅ {completedCards.size} 개 익힘</Text>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={LAYOUT.completedBadgeIconSize}
+                      color={COLORS.white}
+                      importantForAccessibility="no"
+                    />
+                    <Text style={styles.completedBadgeText}>{completedCards.size} 개 익힘</Text>
                   </TouchableOpacity>
                 </Animated.View>
               </View>
@@ -565,7 +609,15 @@ export default function HomeScreen() {
   
                       {filteredPairs.length === 0 ? (
                         <View style={styles.completionContainer}>
-                          <Text style={styles.completionText}>🎉 학습을 완료하였습니다!</Text>
+                          {/* 🎉는 글자와 한 줄에 있어 기준선이 어긋났다. 아이콘은 위에 따로 세운다 */}
+                          <Ionicons
+                            name="trophy"
+                            size={LAYOUT.completionIconSize}
+                            color={COLORS.primary}
+                            importantForAccessibility="no"
+                            style={styles.completionIcon}
+                          />
+                          <Text style={styles.completionText}>학습을 완료하였습니다!</Text>
                           <Text style={styles.completionSubText}>모든 카드를 성공적으로 학습했습니다.</Text>
                           <TouchableOpacity
                             style={styles.completionRestartButton}
@@ -574,7 +626,12 @@ export default function HomeScreen() {
                             accessibilityRole="button"
                             accessibilityLabel="처음부터 다시 학습하기"
                           >
-                            <Text style={styles.completionRestartButtonText}>🔄 처음부터</Text>
+                            <Ionicons
+                              name="refresh"
+                              size={LAYOUT.restartButtonIconSize}
+                              color={COLORS.white}
+                            />
+                            <Text style={styles.completionRestartButtonText}>처음부터</Text>
                           </TouchableOpacity>
                         </View>
                       ) : (
@@ -716,6 +773,9 @@ const styles = StyleSheet.create({
    * 그림자는 elevation으로만 낸다 (규칙 4 — 안드로이드 전용).
    */
   headerTitlePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: LAYOUT.spacingSM,
     paddingHorizontal: LAYOUT.spacingMD,
     // 세로 패딩은 spacingSM이 아니라 XS다. 제목 글자가 배지 글자보다 커서, SM을 주면
     // pill이 배지보다 10px 높아지고 헤더 줄이 그만큼 두꺼워져 아래 전부가 내려간다
@@ -753,6 +813,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: LAYOUT.headerSideButtonPaddingH,
     paddingVertical: LAYOUT.headerSideButtonPaddingV,
     borderRadius: LAYOUT.headerSideButtonBorderRadius,
+    /* 아이콘과 글자를 한 줄에 세운다. 뒤에 깔린 SVG는 절대배치라 이 흐름 밖이다 */
+    flexDirection: 'row',
+    gap: LAYOUT.spacingXS,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -887,19 +950,30 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     backgroundColor: COLORS.cardWarmOverlay,
   },
+  /**
+   * 완료 항목 2열. 열 사이 간격은 `columnGap`이 아니라 **space-between**이 만든다 —
+   * 마지막 줄에 항목이 하나만 남아도 왼쪽에 붙는다(늘어나지 않는다).
+   */
   completedCardsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: LAYOUT.spacingSM,
-    justifyContent: 'flex-start',
+    rowGap: LAYOUT.spacingSM,
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  /**
+   * 폭을 고정한다. 전에는 `minWidth: '45%'`라 단어가 길면 항목이 늘어나
+   * 줄마다 폭이 달라 2열이 어긋났다.
+   * 바탕도 `backgroundLight`(#f0f0f0)에서 흰색으로 올렸다 — 시트가 `backgroundStar`(#FFF9E6)라
+   * 회색 카드는 바탕과 구분이 약했다.
+   */
   completedCardItem: {
-    minWidth: '45%',
-    backgroundColor: COLORS.backgroundLight,
+    width: LAYOUT.completedCardItemWidthPercent,
+    backgroundColor: COLORS.white,
     padding: LAYOUT.completedCardItemPadding,
     borderRadius: LAYOUT.completedCardItemBorderRadius,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: LAYOUT.completedCardItemElevation,
@@ -910,22 +984,38 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
-  replayIconWrap: {
-    alignSelf: 'flex-end',
-    marginTop: LAYOUT.spacingXS,
+  /** 「↺ 되돌리기」. 아이콘만 있던 자리에 글자를 붙여 무엇을 하는 항목인지 드러낸다 */
+  replayChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: LAYOUT.spacingXS,
+    marginTop: LAYOUT.spacingSM,
+    paddingHorizontal: LAYOUT.spacingSM,
+    paddingVertical: LAYOUT.spacingXS,
+    borderRadius: 999,
+    backgroundColor: COLORS.backgroundSuccess,
+  },
+  replayChipText: {
+    fontSize: LAYOUT.completedCardChipFontSize,
+    fontWeight: '600',
+    color: COLORS.successOnWhite,
   },
 
-  // ✅ 모달 스타일
+  // ✅ 익힘모달 스타일 (미션모달과 이름만 같다 — StyleSheet가 파일마다 따로다)
+  /**
+   * `Modal` 안이라 절대배치·zIndex가 필요 없다. 전에는 화면 위에 얹는 View라
+   * `position: 'absolute'` + `zIndex: 1000`이었다.
+   */
   modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: COLORS.overlayModal,
     justifyContent: 'flex-end',
-    zIndex: 1000,
   },
+  /**
+   * 바닥 인셋은 `paddingBottom`으로 렌더에서 더한다 — 제스처바에 「전체 다시 하기」가 물렸다.
+   * 여기 `paddingBottom`을 두면 렌더의 인라인 값에 덮인다.
+   */
   modalContent: {
     backgroundColor: COLORS.backgroundStar,
     borderTopLeftRadius: LAYOUT.modalContentBorderRadius,
@@ -933,6 +1023,14 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     paddingTop: LAYOUT.spacingSM,
     elevation: 10,
+  },
+  modalHandle: {
+    width: LAYOUT.modalHandleWidth,
+    height: LAYOUT.modalHandleHeight,
+    borderRadius: LAYOUT.modalHandleHeight / 2,
+    backgroundColor: COLORS.borderGray,
+    alignSelf: 'center',
+    marginBottom: LAYOUT.spacingSM,
   },
   modalCloseBtn: {
     width: LAYOUT.modalCloseBtnSize,
@@ -942,10 +1040,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  /**
+   * 스크롤 상자 자체. 시트가 `maxHeight: '80%'`라 **이 상자가 줄어들 수 있어야**
+   * 안에서 스크롤이 된다. `flexShrink`가 0(기본값)이면 내용 높이 그대로 잡혀
+   * 시트 밖으로 넘친 만큼이 잘리기만 한다 — 완료 카드가 많을 때 아래가 안 보였다.
+   */
+  modalBodyScroll: {
+    flexShrink: 1,
+  },
+  /** 내용쪽 padding. `style`이 아니라 `contentContainerStyle`에 준다 */
   modalBody: {
     paddingHorizontal: LAYOUT.modalBodyPaddingH,
-    paddingVertical: LAYOUT.modalBodyPaddingV,
+    paddingTop: LAYOUT.modalBodyPaddingV,
     paddingBottom: LAYOUT.modalBodyPaddingBottom,
+  },
+  /**
+   * 익힘모달의 「전체 다시 하기」. 완료 기록을 **전부 지우는** 동작이라
+   * 채운 초록(`completionRestartButton`)과 나눈다 — 같은 색이면 「전체 듣기」와
+   * 같은 무게로 읽혀 실수로 눌린다.
+   */
+  modalResetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: LAYOUT.spacingSM,
+    alignSelf: 'center',
+    marginTop: LAYOUT.completionRestartButtonMarginTop,
+    marginBottom: LAYOUT.spacingMD,
+    paddingHorizontal: LAYOUT.completionRestartButtonPaddingH,
+    paddingVertical: LAYOUT.completeButtonPaddingV,
+    borderRadius: LAYOUT.completionRestartButtonBorderRadius,
+    borderWidth: LAYOUT.modalResetButtonBorderWidth,
+    borderColor: COLORS.borderGray,
+    backgroundColor: 'transparent',
+  },
+  modalResetButtonText: {
+    fontSize: LAYOUT.buttonTextFontSize,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
 
   // 🔘 하단 네비게이션 스타일 (scrollContainer의 zIndex:1 위에 올리기 위해 zIndex 필요)
@@ -1015,6 +1147,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
+  completionIcon: {
+    marginBottom: LAYOUT.spacingSM,
+  },
   completionText: {
     fontSize: LAYOUT.completionTextFontSize,
     fontWeight: 'bold',
@@ -1029,6 +1164,10 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   completionRestartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: LAYOUT.spacingSM,
     marginTop: LAYOUT.completionRestartButtonMarginTop,
     marginBottom: LAYOUT.completionRestartButtonMarginBottom,
     backgroundColor: COLORS.success,

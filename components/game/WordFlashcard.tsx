@@ -204,8 +204,17 @@ export function WordFlashcard({
           onPress={handlePlayAll}
           disabled={isPlayingAll}
           activeOpacity={0.88}
+          accessibilityRole="button"
+          accessibilityLabel={isPlayingAll ? '두 단어를 이어서 재생 중입니다' : '두 단어를 이어서 듣기'}
+          accessibilityState={{ disabled: isPlayingAll, busy: isPlayingAll }}
         >
-          <Text style={styles.playAllButtonText}>
+          {/* 아이콘이 글자 앞에 선다. 전에는 자식이 글자 하나뿐이라 style의 gap 8이 죽은 값이었다 */}
+          <Ionicons
+            name={isPlayingAll ? 'musical-notes' : 'volume-high'}
+            size={LAYOUT.playAllButtonIconSize}
+            color={isPlayingAll ? COLORS.textSecondary : COLORS.white}
+          />
+          <Text style={[styles.playAllButtonText, isPlayingAll && styles.playAllButtonTextDisabled]}>
             {isPlayingAll ? '재생 중...' : '전체 듣기'}
           </Text>
         </TouchableOpacity>
@@ -239,14 +248,22 @@ const styles = StyleSheet.create({
     elevation: LAYOUT.playAllButtonElevation,
     gap: 8,
   },
+  /**
+   * 재생 중(비활성). 화살표·학습완료 버튼과 같은 처리다 (`navigationArrowButtonDisabled`).
+   * 전에는 `borderGray`(#BDBDBD)에 `opacity: 0.6`을 덮고 글자가 흰색이라
+   * 「재생 중...」이 1.5:1로 사라졌다 — 정작 상태를 알려야 할 때 안 읽혔다.
+   */
   playAllButtonDisabled: {
-    backgroundColor: COLORS.borderGray,
-    opacity: 0.6,
+    backgroundColor: COLORS.grayLight,
+    elevation: 0,
   },
   playAllButtonText: {
     fontSize: LAYOUT.playAllButtonFontSize,
     fontWeight: 'bold',
-    color: 'white',
+    color: COLORS.white,
+  },
+  playAllButtonTextDisabled: {
+    color: COLORS.textSecondary,
   },
   wordsBlock: {
     flex: 1,
