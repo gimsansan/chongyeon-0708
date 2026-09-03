@@ -14,11 +14,11 @@
  * │ 3. 메모이제이션 (React.memo)                             │
  * │    - StackCard: ID 기반 비교로 불필요한 리렌더링 방지    │
  * │    - WordFlashcard: key prop으로 내부 상태 초기화        │
- * ├─────────────────────────────────────────────────────────┤
- * │ 4. 제스처 최적화 (Animated.Value.setValue)               │
- * │    - 드래그 중 리렌더링 없이 직접 값 변경 (고성능)       │
- * │    - 60fps 부드러운 터치 반응                            │
  * └─────────────────────────────────────────────────────────┘
+ *
+ * ⚠️ 스와이프 제스처는 없다. 카드는 **카드네비(◀ 학습완료 ▶)로만** 넘긴다.
+ *    `panX`/`panY`/`scale`/`opacity`/`rotation`은 그 넘김 연출과
+ *    「학습완료 → 익힘배지로 날아가기」가 쓴다 — 제스처의 잔재가 아니다.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -26,12 +26,11 @@ import { Text, View, StyleSheet, ScrollView, Animated, TouchableOpacity, Image }
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-// @ts-ignore
-import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EASY_WORD_PAIRS, NORMAL_WORD_PAIRS } from '../../../constants/wordSounds';
-import { LAYOUT } from '../../../constants/layout';
+import { LAYOUT, getProgressTickSize } from '../../../constants/layout';
 import { COLORS } from '../../../constants/colors';
 import { WordFlashcard } from '../../../components/game/WordFlashcard';
 import CompletedBadgeBg from '../../../assets/icons/completed_badge_bg.svg';
@@ -45,15 +44,11 @@ export default function HomeScreen() {
   const [completedCards, setCompletedCards] = useState<Set<string>>(new Set());
   const [filteredPairs, setFilteredPairs] = useState([...ALL_PAIRS]);
 
-  // ✅ 완료 메시지 Bounce 애니메이션용 ref
-  const [completionMessage, setCompletionMessage] = useState<string>('');
-  const completionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 익힘배지를 눌렀을 때의 bounce 값 */
   const completionScale = useRef(new Animated.Value(1)).current;
 
   // ✅ 완료 카드 복원 모달 상태
   const [showCompletedModal, setShowCompletedModal] = useState(false);
-
-  const undoStackRef = useRef<string[]>([]);
 
   // ✅ AsyncStorage에서 완료 카드 로드
   const loadCompletedCards = useCallback(async () => {
@@ -74,15 +69,6 @@ export default function HomeScreen() {
   useEffect(() => {
     loadCompletedCards();
   }, [loadCompletedCards]);
-
-  // ✅ 컴포넌트 언마운트 시 타이머 정리 (메모리 누수 방지)
-  useEffect(() => {
-    return () => {
-      if (completionTimeoutRef.current) {
-        clearTimeout(completionTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // ✅ AsyncStorage에 완료 카드 저장
   const saveCompletedCards = async (completed: Set<string>) => {
@@ -139,12 +125,16 @@ export default function HomeScreen() {
   const isFirstCard = currentIndex === 0;
   const isLastCard = currentIndex >= filteredPairs.length - 1;
 
-  // 제스처 이벤트 핸들러: 드래그 중 실시간으로 카드 위치 업데이트
-  // Animated.Value.setValue()는 리렌더링을 발생시키지 않고 직접 애니메이션 값만 변경 (고성능)
-  const handleGestureEvent = ({ nativeEvent }: any) => {
-    panX.setValue(nativeEvent.translationX);
-    panY.setValue(nativeEvent.translationY);
-  };
+  /**
+   * 진행바 기하. 마커·눈금·채움이 **한 식**을 쓴다 — 셋이 각자 기준을 쓰면 서로 어긋난다.
+   * 레일은 래퍼 폭의 90%가 가운데 정렬이라 5%에서 시작한다 (`constants/layout.ts` 참고).
+   */
+  const cardCount = filteredPairs.length;
+  const progress = cardCount <= 1 ? 0 : Math.min(1, Math.max(0, currentIndex / (cardCount - 1)));
+  const railPercent = (ratio: number) =>
+    LAYOUT.progressRailStartPercent + ratio * LAYOUT.progressRailSpanPercent;
+  /** 눈금은 카드 한 장씩이라 개수가 카드 수를 따라간다. 많으면 붙으므로 크기를 줄인다 */
+  const tickSize = getProgressTickSize(cardCount);
 
   // 애니메이션 초기화: 모든 애니메이션 값을 초기 상태로 리셋
   // 기존 resetAnimation은 값을 바로 세팅만 하므로 리렌더와 애니메이션이 없음
@@ -299,162 +289,40 @@ export default function HomeScreen() {
     setShowCompletedModal(false);
   };
 
-  // 스와이프 애니메이션: 하이브리드 최적화 전략
+  // 카드 넘김 애니메이션: 하이브리드 최적화 전략
   // ✅ 자연스러움: 모든 애니메이션을 JS 스레드에서 실행하여 일관성 유지
   // ✅ 에러 방지: setValue()와 useNativeDriver 충돌 해결
-  const animateSwipe = (direction: 'left' | 'right' | 'down', onComplete?: () => void) => {
-    if (direction === 'down') {
-      // 하단으로 사라지는 애니메이션
-      Animated.parallel([
-        Animated.timing(panY, {
-          toValue: LAYOUT.screenHeight,
-          duration: 400,
-          useNativeDriver: false,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: false,
-        }),
-        Animated.timing(scale, {
-          toValue: 0.5,
-          duration: 400,
-          useNativeDriver: false,
-        }),
-      ]).start(() => {
-        requestAnimationFrame(() => {
-          onComplete?.();
-        });
+  //
+  // 방향은 카드네비 ◀▶가 쓰는 'right'(이전)·'left'(다음) 둘뿐이다.
+  // 아래로 떨어뜨리던 'down'은 스와이프 학습완료 전용이라 제스처와 함께 지웠다 —
+  // 지금 학습완료는 `handleCompleteCard`의 「익힘배지로 날아가기」가 따로 한다.
+  const animateSwipe = (direction: 'left' | 'right', onComplete?: () => void) => {
+    Animated.parallel([
+      Animated.timing(panX, {
+        toValue: direction === 'right' ? LAYOUT.screenWidth : -LAYOUT.screenWidth,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(rotation, {
+        toValue: direction === 'right' ? 25 : -25,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(scale, {
+        toValue: 0.85,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      requestAnimationFrame(() => {
+        onComplete?.();
       });
-    } else {
-      // 기존 좌우 애니메이션
-      Animated.parallel([
-        Animated.timing(panX, {
-          toValue: direction === 'right' ? LAYOUT.screenWidth : -LAYOUT.screenWidth,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(rotation, {
-          toValue: direction === 'right' ? 25 : -25,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(scale, {
-          toValue: 0.85,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ]).start(() => {
-        requestAnimationFrame(() => {
-          onComplete?.();
-        });
-      });
-    }
-  };
-
-  // 스와이프 완료 핸들러: 제스처 종료 시점에 호출됨
-  // translationX: 총 이동 거리, velocityX: 스와이프 속도
-  const handleSwipe = ({ nativeEvent }: any) => {
-    const { translationX, velocityX, translationY } = nativeEvent;
-    const DROP_ZONE_THRESHOLD = LAYOUT.dropZoneThreshold;
-
-    // 하단 드롭존 감지 (학습 완료)
-    if (translationY > DROP_ZONE_THRESHOLD && currentPair) {
-      // ✅ 학습 완료 처리
-      const cardId = currentPair.id;
-      const newCompleted = new Set(completedCards);
-      newCompleted.add(cardId);
-
-      // ✅ 상태 업데이트
-      setCompletedCards(newCompleted);
-      saveCompletedCards(newCompleted);
-      undoStackRef.current.push(cardId);
-
-      // ✅ 필터된 배열에서 현재 카드 제거
-      const newFiltered = filteredPairs.filter(p => p.id !== cardId);
-      setFilteredPairs(newFiltered);
-
-      // 다음 카드로 이동
-      if (currentIndex < newFiltered.length) {
-        animateSwipe('down', () => {
-          setCurrentIndex(currentIndex); // 같은 인덱스 (다음 카드가 자동으로 올라옴)
-          resetAnimation();
-        });
-      } else {
-        // 모든 카드 완료
-        resetAnimation();
-      }
-      return;
-    }
-
-    // ✅ 좌측 스와이프: "다시 학습" (Undo)
-    else if (translationX < -50 || velocityX < -500) {
-      if (undoStackRef.current.length > 0) {
-        // 최근 완료 카드 복귀
-        const lastCardId = undoStackRef.current.pop();
-        if (lastCardId) {
-          const newCompleted = new Set(completedCards);
-          newCompleted.delete(lastCardId);
-
-          setCompletedCards(newCompleted);
-          saveCompletedCards(newCompleted);
-
-          // 복귀할 카드 찾아서 filteredPairs에 추가 (중복 방지, 함수형 업데이트)
-          const cardToRestore = ALL_PAIRS.find(p => p.id === lastCardId);
-          if (cardToRestore) {
-            setFilteredPairs(prev => {
-              // 이미 존재하면 아무 변경도 하지 않음
-              if (prev.some(p => p.id === cardToRestore.id)) {
-                if (__DEV__) {
-                  console.warn('⚠️ 복원 시도한 카드가 이미 filteredPairs에 존재:', cardToRestore.id);
-                }
-                return prev;
-              }
-
-              // ✅ 원래 순서대로 정렬 (ALL_PAIRS 기준)
-              const newFiltered = [...prev, cardToRestore].sort((a, b) => {
-                return ALL_PAIRS.indexOf(a) - ALL_PAIRS.indexOf(b);
-              });
-
-              // ✅ 복원된 카드의 새 인덱스 찾기 및 마커 위치 업데이트
-              const restoredIndex = newFiltered.findIndex(p => p.id === cardToRestore.id);
-              setCurrentIndex(restoredIndex);
-
-              return newFiltered;
-            });
-
-            animateSwipe('left', () => {
-              resetAnimation();
-            });
-          }
-        }
-      } else if (currentIndex > 0) {
-        // undo 스택이 비어있으면 이전 카드로 이동 (기존 동작)
-        animateSwipe('left', () => {
-          setCurrentIndex(currentIndex - 1);
-          resetAnimation();
-        });
-      }
-    }
-
-    // 우측 스와이프 감지 (다음 카드로 이동)
-    else if (translationX > 50 || velocityX > 500) {
-      if (currentIndex < filteredPairs.length - 1) {
-        animateSwipe('right', () => {
-          setCurrentIndex(currentIndex + 1);
-          resetAnimation();
-        });
-      }
-    }
-    // 스와이프 임계값 미달 → 원위치로 복귀
-    else {
-      resetAnimation();
-    }
+    });
   };
 
   return (
@@ -600,43 +468,61 @@ export default function HomeScreen() {
                 </Animated.View>
               </View>
 
-              {/* 진행도 표시 */}
-              <View style={styles.progressContainer}>
-                <View style={styles.progressLineWrapper}>
-                  <View style={styles.progressLine} />
-                  <View style={styles.progressTicksContainer}>
-                    {[0, 1, 2, 3, 4, 5].map((tick) => (
-                      <View key={tick} style={styles.progressTick} />
-                    ))}
-                  </View>
-                  <View
-                    style={[
-                      styles.progressMarker,
-                      {
-                        left: (() => {
-                          const progress = filteredPairs.length <= 1 ? 0 : currentIndex / (filteredPairs.length - 1);
-                          const position = Math.min(90, Math.max(0, progress * 90));
-                          return `${position}%`;
-                        })()
-                      }
-                    ]}
-                  >
-                    <Image
-                      source={require('../../../assets/icons/mk.png')}
-                      style={{ width: LAYOUT.progressMarkerIconSize, height: LAYOUT.progressMarkerIconSize }}
+              {/* 진행바 + 진행숫자. 남은 카드가 없으면 가리킬 진행이 없다 (완료화면) */}
+              {cardCount > 0 && (
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressLineWrapper}>
+                    <View style={styles.progressLine} />
+                    {/* 지나온 만큼 채운다. 눈금만으로는 어디까지 왔는지 읽기 어렵다 */}
+                    <View
+                      style={[
+                        styles.progressLineFill,
+                        { left: `${LAYOUT.progressRailStartPercent}%`, width: `${progress * LAYOUT.progressRailSpanPercent}%` },
+                      ]}
                     />
+                    {/* 눈금 하나가 카드 한 장이다. 전에는 카드 수와 무관하게 늘 6개였다.
+                        지나온 눈금은 초록 채움 위에 놓이므로 색을 뒤집어야 보인다 */}
+                    {Array.from({ length: cardCount }, (_, i) => {
+                      // 채움에 **덮인** 눈금만 흰색이다. 현재 위치의 눈금(i === currentIndex)은
+                      // 채움의 끝 경계에 걸쳐 있고 어차피 마커가 덮으므로 초록 쪽에 둔다.
+                      // (`i <= currentIndex`로 하면 첫 카드에서 채움이 0인데 눈금이 흰색이 되어 사라진다)
+                      const passed = i < currentIndex;
+                      return (
+                        <View
+                          key={`tick-${i}`}
+                          style={[
+                            styles.progressTick,
+                            {
+                              width: tickSize,
+                              height: tickSize,
+                              borderRadius: tickSize / 2,
+                              marginLeft: -tickSize / 2,
+                              marginTop: -tickSize / 2,
+                              left: `${railPercent(cardCount <= 1 ? 0 : i / (cardCount - 1))}%`,
+                              backgroundColor: passed ? COLORS.white : COLORS.successOnWhite,
+                            },
+                          ]}
+                        />
+                      );
+                    })}
+                    <View style={[styles.progressMarker, { left: `${railPercent(progress)}%` }]}>
+                      <Image
+                        source={require('../../../assets/icons/mk.png')}
+                        style={{ width: LAYOUT.progressMarkerIconSize, height: LAYOUT.progressMarkerIconSize }}
+                      />
+                    </View>
+                  </View>
+                  {/* 진행도 숫자도 배경 이미지 위에 얹힌다. 제목과 같은 pill로 받친다 */}
+                  <View style={styles.progressTextPill}>
+                    <Text
+                      style={styles.progressText}
+                      accessibilityLabel={`전체 ${cardCount}장 중 ${currentIndex + 1}번째 카드`}
+                    >
+                      {currentIndex + 1} / {cardCount}
+                    </Text>
                   </View>
                 </View>
-                {/* 진행도 숫자도 배경 이미지 위에 얹힌다. 제목과 같은 pill로 받친다 */}
-                <View style={styles.progressTextPill}>
-                  <Text
-                    style={styles.progressText}
-                    accessibilityLabel={`전체 ${filteredPairs.length}장 중 ${currentIndex + 1}번째 카드`}
-                  >
-                    {currentIndex + 1} / {filteredPairs.length}
-                  </Text>
-                </View>
-              </View>
+              )}
 
 
               {/* Card Stack Swiper 영역 */}
@@ -648,69 +534,60 @@ export default function HomeScreen() {
 
                   {/* 뒤 카드 미표시: 메인 카드만 표시 */}
 
-                  {/* 메인 카드 - 스와이프 제스처 활성화 */}
-                  {/* @ts-ignore - PanGestureHandler는 deprecated이지만 기능상 문제 없음 */}
-                  <PanGestureHandler
-                    enabled={false}
-                    onGestureEvent={handleGestureEvent} /* 드래그 중 실시간 호출 */
-                    onHandlerStateChange={handleSwipe}  /* 제스처 종료 시 호출 */
+                  {/* 메인 카드. 넘김은 카드네비가 하고, 여기 값들은 그 연출을 받는다 */}
+                  <Animated.View
+                    style={[
+                      styles.topCard,
+                      {
+                        transform: [
+                          { translateX: panX },        // X축 이동 (좌우)
+                          { translateY: panY },        // Y축 이동 (상하)
+                          {
+                            rotateZ: rotation.interpolate({
+                              inputRange: [-30, 0, 30],
+                              outputRange: ['-30deg', '0deg', '30deg']
+                            })
+                          },                            // Z축 회전
+                          { scale },                   // 크기 조절
+                        ],
+                        opacity,                       // 불투명도
+                      },
+                    ]}
                   >
-
-                    <Animated.View
-                      style={[
-                        styles.topCard,
-                        {
-                          transform: [
-                            { translateX: panX },        // X축 이동 (좌우)
-                            { translateY: panY },        // Y축 이동 (상하)
-                            {
-                              rotateZ: rotation.interpolate({
-                                inputRange: [-30, 0, 30],
-                                outputRange: ['-30deg', '0deg', '30deg']
-                              })
-                            },                            // Z축 회전
-                            { scale },                   // 크기 조절
-                          ],
-                          opacity,                       // 불투명도
-                        },
-                      ]}
-                    >
-                      <View style={styles.topCardBackground}>
-                        <Image
-                          source={require('../../../assets/bg/iroawa.png')}
-                          style={StyleSheet.absoluteFill}
-                          resizeMode="cover"
-                        />
-                        {/* 반투명 베이지 오버레이 (첨부 이미지 스타일) */}
-                        <View style={styles.cardOverlay} />
-
-                        {filteredPairs.length === 0 ? (
-                          <View style={styles.completionContainer}>
-                            <Text style={styles.completionText}>🎉 학습을 완료하였습니다!</Text>
-                            <Text style={styles.completionSubText}>모든 카드를 성공적으로 학습했습니다.</Text>
-                            <TouchableOpacity
-                              style={styles.completionRestartButton}
-                              onPress={handleResetAllCards}
-                              activeOpacity={0.8}
-                              accessibilityRole="button"
-                              accessibilityLabel="처음부터 다시 학습하기"
-                            >
-                              <Text style={styles.completionRestartButtonText}>🔄 처음부터</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          currentPair && (
-                            <WordFlashcard
-
-                              key={currentPair.id}
-                              wordPair={currentPair}
-                            />
-                          )
-                        )}
-                      </View>
-                    </Animated.View>
-                    {/* @ts-ignore */}
-                  </PanGestureHandler>
+                    <View style={styles.topCardBackground}>
+                      <Image
+                        source={require('../../../assets/bg/iroawa.png')}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                      {/* 반투명 베이지 오버레이 (첨부 이미지 스타일) */}
+                      <View style={styles.cardOverlay} />
+  
+                      {filteredPairs.length === 0 ? (
+                        <View style={styles.completionContainer}>
+                          <Text style={styles.completionText}>🎉 학습을 완료하였습니다!</Text>
+                          <Text style={styles.completionSubText}>모든 카드를 성공적으로 학습했습니다.</Text>
+                          <TouchableOpacity
+                            style={styles.completionRestartButton}
+                            onPress={handleResetAllCards}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel="처음부터 다시 학습하기"
+                          >
+                            <Text style={styles.completionRestartButtonText}>🔄 처음부터</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        currentPair && (
+                          <WordFlashcard
+  
+                            key={currentPair.id}
+                            wordPair={currentPair}
+                          />
+                        )
+                      )}
+                    </View>
+                  </Animated.View>
                 </View>
               </View>
             </View>
@@ -745,15 +622,21 @@ export default function HomeScreen() {
               />
             </TouchableOpacity>
 
-            {/* 중앙 학습완료 버튼 */}
+            {/* 중앙 학습완료 버튼.
+                완료화면에서는 표시할 카드가 없어 눌러도 아무 일도 일어나지 않는다.
+                화살표와 같이 `disabled`로 막아야 눌리는 시각 반응도 나지 않는다 */}
             <TouchableOpacity
               onPress={handleCompleteCard}
-              style={styles.completeButton}
+              disabled={cardCount === 0}
+              style={[styles.completeButton, cardCount === 0 && styles.completeButtonDisabled]}
               activeOpacity={0.88}
               accessibilityRole="button"
               accessibilityLabel="이 카드를 학습 완료로 표시"
+              accessibilityState={{ disabled: cardCount === 0 }}
             >
-              <Text style={styles.completeButtonText}>학습완료</Text>
+              <Text style={[styles.completeButtonText, cardCount === 0 && styles.completeButtonTextDisabled]}>
+                학습완료
+              </Text>
             </TouchableOpacity>
 
             {/* 우측 화살표 */}
@@ -902,6 +785,7 @@ const styles = StyleSheet.create({
    * 전에는 레일 `successLight`(#C8E6C9) · 눈금 `success`(#7cbd7e)였는데, 둘 다 밝은 배경
    * **사진 위**에 놓여 거의 보이지 않았다 (브랜드 초록은 흰 바탕에서도 2.2:1이다).
    * 눈금은 레일(3px)보다 커서 사진 위로 삐져나오므로 글자와 같은 `successOnWhite`를 쓴다.
+   * 지나온 눈금만 흰색으로 뒤집는다 — 그 자리는 초록 채움 위라 초록끼리 묻는다.
    */
   progressLine: {
     position: 'absolute',
@@ -913,21 +797,24 @@ const styles = StyleSheet.create({
     marginTop: -LAYOUT.progressLineHeight / 2,
   },
 
-  progressTicksContainer: {
+  /** 지나온 구간. 레일과 같은 자리에 겹쳐 깔린다 (폭만 진행도를 따라간다) */
+  progressLineFill: {
     position: 'absolute',
-    width: LAYOUT.progressLineWidthPercent,
-    height: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 0,
+    height: LAYOUT.progressLineHeight,
+    backgroundColor: COLORS.successOnWhite,
+    borderRadius: LAYOUT.progressLineBorderRadius,
+    top: '50%',
+    marginTop: -LAYOUT.progressLineHeight / 2,
   },
 
+  /**
+   * 눈금 하나가 카드 한 장이다. 개수·크기·색은 렌더에서 정하고(카드 수에 따라 달라진다),
+   * 여기서는 **자리 잡는 방식**만 둔다 — 마커와 같은 식으로 절대배치해야 둘이 어긋나지 않는다.
+   * (전에는 `space-between` 컨테이너라 마커와 기준이 달랐다)
+   */
   progressTick: {
-    width: LAYOUT.progressTickSize,
-    height: LAYOUT.progressTickSize,
-    backgroundColor: COLORS.successOnWhite,
-    borderRadius: LAYOUT.progressTickSize / 2,
+    position: 'absolute',
+    top: '50%',
   },
 
   progressMarker: {
@@ -938,7 +825,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: LAYOUT.progressMarkerMarginLeft,
     zIndex: 10,
-    overflow: 'hidden',
     marginTop: LAYOUT.progressMarkerMarginTop,
   },
 
@@ -1107,11 +993,20 @@ const styles = StyleSheet.create({
     elevation: LAYOUT.completeButtonElevation,
     minHeight: LAYOUT.navArrowButtonSize,
   },
+  /** 화살표 비활성과 같은 처리 (`navigationArrowButtonDisabled`) */
+  completeButtonDisabled: {
+    backgroundColor: COLORS.grayLight,
+    elevation: 0,
+  },
   completeButtonText: {
     color: COLORS.white,
     fontSize: LAYOUT.buttonTextFontSize,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  /** 회색 바탕 위 흰 글자는 1.5:1이라 읽히지 않는다. 비활성 화살표와 같은 #666을 쓴다 */
+  completeButtonTextDisabled: {
+    color: COLORS.textSecondary,
   },
 
   completionContainer: {

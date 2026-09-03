@@ -100,6 +100,23 @@ const FLASHCARD_WORD_CARD_PADDING = Math.max(
   Math.min(isTablet ? 26 : 20, Math.round(FLASHCARD_WORD_CARD_WIDTH * (20 / 120)))
 );
 
+/**
+ * 진행바 레일의 기하.
+ *
+ * 레일(`progressLine`)은 래퍼 폭의 90%가 **가운데 정렬**이라 래퍼 기준 5%에서 시작해
+ * 95%에서 끝난다. 마커·눈금·채움이 **한 식**(`시작 + 비율 × 폭`)을 쓰게 여기서 숫자로 둔다.
+ * 전에는 마커만 `left: 비율 × 90%` + `marginLeft: -1`이라 레일보다 4px 왼쪽에 놓였고,
+ * 눈금은 `space-between`이라 또 다른 기준이었다 — 셋이 서로 어긋나 있었다.
+ */
+const SECTION_MARGIN_H = 15;
+const PROGRESS_RAIL_RATIO = 0.9;
+const PROGRESS_RAIL_SPAN_PERCENT = PROGRESS_RAIL_RATIO * 100;
+const PROGRESS_RAIL_START_PERCENT = (100 - PROGRESS_RAIL_SPAN_PERCENT) / 2;
+/** 레일 실제 폭(px). 눈금을 카드 수에 맞춰 줄일 때 쓴다 */
+const PROGRESS_RAIL_WIDTH = (SCREEN_WIDTH - SECTION_MARGIN_H * 2) * PROGRESS_RAIL_RATIO;
+const PROGRESS_MARKER_SIZE = isTablet ? 44 : 32;
+const PROGRESS_TICK_BASE_SIZE = isTablet ? 12 : 10;
+
 /** UI 레이아웃 상수 (반응형·동적 상수) */
 export const LAYOUT = {
   /** 화면 크기 */
@@ -116,13 +133,17 @@ export const LAYOUT = {
   /** 카드 양쪽 여백. left/right 각 10% → 카드 폭은 화면의 80%다 */
   cardWidthInsetPercent: '10%' as const,
 
-  /** 진행도 바 */
-  progressLineWidthPercent: '90%',
-  progressMarkerSize: isTablet ? 44 : 32,
+  /** 진행도 바 — 기하의 근거는 위 `PROGRESS_RAIL_*` 주석 참고 */
+  progressLineWidthPercent: `${PROGRESS_RAIL_SPAN_PERCENT}%` as `${number}%`,
+  /** 마커·눈금·채움이 함께 쓰는 한 식: `시작 + 비율 × 폭` (래퍼 기준 %) */
+  progressRailStartPercent: PROGRESS_RAIL_START_PERCENT,
+  progressRailSpanPercent: PROGRESS_RAIL_SPAN_PERCENT,
+  progressMarkerSize: PROGRESS_MARKER_SIZE,
   progressMarkerIconSize: isTablet ? 48 : 36,
-  progressMarkerMarginLeft: -1,
+  /** 마커는 **가운데**가 레일 위 지점을 가리켜야 한다. 전에는 -1이라 4px 왼쪽이었다 */
+  progressMarkerMarginLeft: -PROGRESS_MARKER_SIZE / 2,
   progressMarkerMarginTop: isTablet ? -36 : -30,
-  progressTickSize: isTablet ? 12 : 10,
+  progressTickSize: PROGRESS_TICK_BASE_SIZE,
   progressLineWrapperHeight: isTablet ? 24 : 20,
   progressLineHeight: isTablet ? 4 : 3,
   progressLineBorderRadius: 2,
@@ -135,7 +156,7 @@ export const LAYOUT = {
 
 
   /** 섹션·컨테이너 */
-  sectionMarginH: 15,
+  sectionMarginH: SECTION_MARGIN_H,
   sectionMarginV: 10,
   cardStackMarginTop: FLASHCARD_CARD_STACK_MARGIN_TOP,
   /** 카드(절대배치)를 스택 안에서 더 내리는 양. 위 상수 주석 참고 */
@@ -258,12 +279,6 @@ export const LAYOUT = {
   bottomNavPaddingV: isTablet ? 24 : 20,
   bottomNavPaddingH: isTablet ? 24 : 20,
   bottomNavGap: isTablet ? 48 : 40,
-
-  /** 스와이프·드롭존 */
-  dropZoneThresholdRatio: 0.4,
-  get dropZoneThreshold() {
-    return SCREEN_HEIGHT * this.dropZoneThresholdRatio;
-  },
 
   /** Refri (refri-test) — 냉장고 퀴즈 */
   refriRiveWidth: isTablet ? 800 : 600,
@@ -498,3 +513,19 @@ export function getMatchGameGridMetrics(): MatchGameGridMetrics {
 }
 
 
+
+/**
+ * 진행바 눈금 하나의 크기.
+ *
+ * 눈금은 **카드 한 장**을 뜻하므로 개수가 카드 수를 따라간다. 그래서 카드가 많으면
+ * 기본 크기(폰 10 · 태블릿 12)로는 서로 붙는다. 레일을 카드 수로 나눈 한 칸의 **절반**을
+ * 넘지 않게 줄이되, 눈금이 보이지 않을 만큼 작아지지는 않게 하한을 둔다.
+ *
+ * 레일이 넓으면 줄일 일이 없다 — 실기기(411dp, 레일 343)에서는 카드 20장이어도 10 그대로고,
+ * 320dp(레일 261)에서 15장을 넘길 때부터 줄어든다.
+ */
+export function getProgressTickSize(cardCount: number): number {
+  if (cardCount <= 1) return PROGRESS_TICK_BASE_SIZE;
+  const slot = PROGRESS_RAIL_WIDTH / (cardCount - 1);
+  return Math.round(Math.max(4, Math.min(PROGRESS_TICK_BASE_SIZE, slot * 0.55)));
+}

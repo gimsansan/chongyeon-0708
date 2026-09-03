@@ -31,6 +31,14 @@ export function WordFlashcard({
   // ✅ SSOT: 파형 데이터도 playingWord에서 파생
   const waveformData = getImmutableWaveformData(playingWord || ''); //waveformData는 playingWord에서 파생
 
+  /**
+   * 지금 소리 나는 단어카드. 전체듣기는 단어1 → 단어2로 **혼자 넘어가므로**,
+   * 어느 쪽이 울리고 있는지 화면에 표시가 없으면 파형만 바뀌고 이유를 알 수 없다.
+   * 전에는 전체듣기 중 두 장을 똑같이 흐리게만 했다.
+   */
+  const isWord1Playing = playingWord === wordPair.word1;
+  const isWord2Playing = playingWord === wordPair.word2;
+
   /** '전체 듣기'에서 단어1 → 단어2로 넘어가는 대기 타이머 (탭을 떠날 때 취소해야 한다) */
   const playAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -114,14 +122,25 @@ export function WordFlashcard({
           {/* 단어 1 */}
           <View style={styles.wordColumnContainer}>
             <TouchableOpacity
-              style={[styles.wordCard, isPlayingAll && styles.wordCardDisabled]}
+              style={[
+                styles.wordCard,
+                isWord1Playing && styles.wordCardPlaying,
+                isPlayingAll && !isWord1Playing && styles.wordCardDimmed,
+              ]}
               onPress={handlePlayWord1}
               disabled={isPlayingAll}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${wordPair.word1} 듣기`}
+              accessibilityState={{ disabled: isPlayingAll, busy: isWord1Playing }}
             >
               <Text style={styles.wordText}>{wordPair.word1}</Text>
               <View style={styles.playButton}>
-                <Ionicons name="volume-high" size={LAYOUT.wordPlayIconSize} color={COLORS.success} />
+                <Ionicons
+                  name={isWord1Playing ? 'volume-high' : 'volume-medium-outline'}
+                  size={LAYOUT.wordPlayIconSize}
+                  color={isWord1Playing ? COLORS.successOnWhite : COLORS.success}
+                />
               </View>
             </TouchableOpacity>
           </View>
@@ -137,22 +156,35 @@ export function WordFlashcard({
           {/* 단어 2 */}
           <View style={styles.wordColumnContainer}>
             <TouchableOpacity
-              style={[styles.wordCard, isPlayingAll && styles.wordCardDisabled]}
+              style={[
+                styles.wordCard,
+                isWord2Playing && styles.wordCardPlaying,
+                isPlayingAll && !isWord2Playing && styles.wordCardDimmed,
+              ]}
               onPress={handlePlayWord2}
               disabled={isPlayingAll}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${wordPair.word2} 듣기`}
+              accessibilityState={{ disabled: isPlayingAll, busy: isWord2Playing }}
             >
               <Text style={styles.wordText}>{wordPair.word2}</Text>
               <View style={styles.playButton}>
-                <Ionicons name="volume-high" size={LAYOUT.wordPlayIconSize} color={COLORS.success} />
+                <Ionicons
+                  name={isWord2Playing ? 'volume-high' : 'volume-medium-outline'}
+                  size={LAYOUT.wordPlayIconSize}
+                  color={isWord2Playing ? COLORS.successOnWhite : COLORS.success}
+                />
               </View>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* 파형 표시 영역 - 고정 공간 */}
+        {/* 파형 표시 영역 - 고정 공간.
+            전체듣기 중에도 그린다. 전에는 `!isPlayingAll`로 막혀 있어서, 정작 소리가
+            이어서 나는 동안 파형 자리가 빈 채로 남았다 (자리는 늘 차지하고 있었다) */}
         <View style={styles.waveformContainer}>
-        {showWaveform && !isPlayingAll && (
+        {showWaveform && (
             <Waveform
               data={waveformData}
               isPlaying={audioPlayer.isPlaying}
@@ -239,8 +271,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: LAYOUT.wordCardMinWidth,
     elevation: 4,
+    // 테두리는 늘 자리를 차지하되 평소에는 보이지 않는다.
+    // 재생 중에만 색을 넣으면 카드 크기가 그대로라 글자가 흔들리지 않는다
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  wordCardDisabled: {
+  /** 지금 소리 나는 카드 */
+  wordCardPlaying: {
+    borderColor: COLORS.success,
+    backgroundColor: COLORS.backgroundSuccess,
+    elevation: 8,
+  },
+  /** 전체듣기 중 지금 울리지 않는 쪽 */
+  wordCardDimmed: {
     opacity: 0.5,
   },
   wordText: {
