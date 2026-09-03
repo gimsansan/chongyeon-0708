@@ -21,6 +21,8 @@ export const COLORS = {
   backgroundError: '#fef2f2',
   backgroundWarning: '#fef3c7',
   backgroundStar: '#FFF9E6',
+  /** learn 탭 바탕 (배경 이미지 뒤에 깔리는 색) */
+  backgroundSoft: '#F0F2F5',
 
   /** 액센트 / 버튼 */
   primary: '#f59e0b',
@@ -29,6 +31,12 @@ export const COLORS = {
   green: '#10b981',
   greenBright: '#50C878',
   success: '#7cbd7e',
+  /**
+   * 흰 배경 위 초록 **글자**용. 브랜드 초록(`success`)은 흰 배경에서 2.2:1이라
+   * 큰 글씨 기준(3:1)에 못 미친다. 배경·테두리에는 `success`를 그대로 쓰고,
+   * 글자로 쓸 때만 이 값을 쓴다 (세션 34).
+   */
+  successOnWhite: '#4E9A51',
   purple: '#9C27B0',
 
   /** 상태 */

@@ -5,6 +5,35 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 /** 세로 전용 앱 기준, 600px 이상을 태블릿으로 구분 */
 const isTablet = SCREEN_WIDTH >= 600;
 
+/**
+ * Learn 탭 난이도 버튼(연습·도전) 치수.
+ *
+ * 140/160 **고정**이던 값이다. 버튼 두 개가 쓸 수 있는 폭은
+ * 「화면폭 − 섹션 좌우 마진 − gameSection 좌우 패딩 − 버튼 사이 gap」인데,
+ * 360dp 기기에서 이 값이 255라 「140×2 + 15」가 40px 넘쳐 안쪽 여백을 잠식했다.
+ * 그래서 **폭에서 역산한 상한**을 함께 건다.
+ *
+ * 폰 상한은 140 그대로다 — 390dp 이상에서는 지금 화면이 바뀌지 않는다.
+ * 좁은 기기에서만 줄고, 태블릿에서만 커진다.
+ */
+const LEARN_SECTION_MARGIN_H = 20;
+const LEARN_GAME_SECTION_PADDING = isTablet ? 30 : 25;
+const LEARN_DIFFICULTY_BUTTONS_GAP = 15;
+const LEARN_DIFFICULTY_ROW_WIDTH =
+  SCREEN_WIDTH - LEARN_SECTION_MARGIN_H * 2 - LEARN_GAME_SECTION_PADDING * 2 - LEARN_DIFFICULTY_BUTTONS_GAP;
+const LEARN_DIFFICULTY_BUTTON_SIZE = Math.max(
+  96,
+  Math.min(isTablet ? 180 : 140, Math.floor(LEARN_DIFFICULTY_ROW_WIDTH / 2))
+);
+
+/**
+ * 버튼 **안**의 치수는 버튼 크기를 따라간다 — 버튼만 줄면 별·이름이 넘친다.
+ * 인자는 버튼이 140(기존 폰 값)일 때의 치수이고, 지금 버튼 크기로 환산해 돌려준다.
+ */
+const LEARN_BUTTON_REFERENCE_SIZE = 140;
+const scaleFromPhoneButton = (valueAt140: number) =>
+  Math.round(LEARN_DIFFICULTY_BUTTON_SIZE * (valueAt140 / LEARN_BUTTON_REFERENCE_SIZE));
+
 /** UI 레이아웃 상수 (반응형·동적 상수) */
 export const LAYOUT = {
   /** 화면 크기 */
@@ -223,21 +252,23 @@ export const LAYOUT = {
   tabBarHeight: 64,
   /** Flashcards 하단 네비 미세 위치 보정값 (안드로이드 기준) */
   flashcardsBottomOffset: isTablet ? 26 : 40,
-  learnSectionMarginH: 20,
+  learnSectionMarginH: LEARN_SECTION_MARGIN_H,
   learnSectionMarginTop: 10,
   learnSectionTitleFontSize: isTablet ? 28 : 24,
-  learnDifficultyButtonSize: isTablet ? 160 : 140,
+  learnDifficultyButtonSize: LEARN_DIFFICULTY_BUTTON_SIZE,
   learnDifficultyButtonBorderRadius: 20,
-  learnDifficultyButtonPadding: 20,
-  learnDifficultyButtonsGap: 15,
+  learnDifficultyButtonPadding: scaleFromPhoneButton(20),
+  learnDifficultyButtonsGap: LEARN_DIFFICULTY_BUTTONS_GAP,
   learnDifficultyContainerMarginBottom: 30,
-  learnGameSectionPadding: isTablet ? 30 : 25,
-  learnGameContentMarginTop: 50,
-  learnStarIconSize: isTablet ? 68 : 60,
-  learnMultiStarIconWidth: isTablet ? 36 : 32,
-  learnMultiStarIconHeight: isTablet ? 48 : 44,
-  learnStarsRowContainerHeight: isTablet ? 58 : 55,
-  learnDifficultyNameFontSize: isTablet ? 20 : 18,
+  learnGameSectionPadding: LEARN_GAME_SECTION_PADDING,
+  /** 게임 영역을 아래로 미는 값. 세로가 짧은 기기에서 선택지·다시 듣기가 밀려나지 않게
+   *  높이 비례로 둔다. 상한 50은 기존 고정값이라 보통 폰에서는 그대로다 */
+  learnGameContentMarginTop: Math.round(Math.max(24, Math.min(50, SCREEN_HEIGHT * 0.06))),
+  learnStarIconSize: scaleFromPhoneButton(60),
+  learnMultiStarIconWidth: scaleFromPhoneButton(32),
+  learnMultiStarIconHeight: scaleFromPhoneButton(44),
+  learnStarsRowContainerHeight: scaleFromPhoneButton(55),
+  learnDifficultyNameFontSize: scaleFromPhoneButton(18),
 
   /** OrderGame — 소리 순서 맞추기 */
   orderGameCardSize: Math.min(isTablet ? 120 : 100, Math.round(SCREEN_WIDTH * 0.22)),
@@ -307,6 +338,7 @@ export type WordGameMetrics = {
   choiceVerticalPadding: number;
   choiceTextSize: number;
   replayOffsetY: number;
+  startOffsetY: number;
 };
 
 /**
@@ -335,6 +367,11 @@ export function getWordGameMetrics(width: number, height: number): WordGameMetri
   const replayOffsetY = Math.round(
     Math.max(isTabletWidth ? 6 : 4, Math.min(isTabletWidth ? 14 : 10, height * 0.012))
   );
+  // 「시작하기」를 바닥에서 살짝 띄우는 양. 아래 여백(contentBottomPadding)이 8px뿐이라
+  // 버튼이 화면 끝에 붙어 보였다. 고정 px로 올리면 세로가 짧은 기기에서 과해지므로 높이 비례로 둔다.
+  const startOffsetY = Math.round(
+    Math.max(12, Math.min(isTabletWidth ? 28 : 22, height * 0.022))
+  );
 
   return {
     contentTopPadding,
@@ -343,6 +380,7 @@ export function getWordGameMetrics(width: number, height: number): WordGameMetri
     choiceVerticalPadding,
     choiceTextSize,
     replayOffsetY,
+    startOffsetY,
   };
 }
 

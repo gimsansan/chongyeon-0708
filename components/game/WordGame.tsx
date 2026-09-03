@@ -199,7 +199,7 @@ export function WordGame({ difficulty = 'easy', onGameComplete, onAnswerShown }:
             style={[
               styles.readyContainer,
               {
-                paddingTop: metrics.contentTopPadding,
+                paddingTop: Math.round(metrics.contentTopPadding * 0.4),
                 paddingBottom: metrics.contentBottomPadding,
                 minHeight: metrics.contentMinHeight,
               },
@@ -207,7 +207,8 @@ export function WordGame({ difficulty = 'easy', onGameComplete, onAnswerShown }:
           >
             <Text style={styles.readyTitle}>준비되셨나요?</Text>
 
-            <View style={styles.readyActionWrapper}>
+            {/* marginTop: 'auto'로 바닥에 붙는다. marginBottom으로 그만큼 위로 올린다 */}
+            <View style={[styles.readyActionWrapper, { marginBottom: metrics.startOffsetY }]}>
               <AnimatedTapButton
                 onPress={handleStartGame}
                 style={styles.startButton}
@@ -331,7 +332,7 @@ const styles = StyleSheet.create({
   },
   readyActionWrapper: {
     marginTop: 'auto',
-    marginBottom: 0,
+    // marginBottom은 렌더에서 metrics.startOffsetY로 준다
   },
 
 

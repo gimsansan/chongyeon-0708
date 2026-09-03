@@ -12,6 +12,7 @@ import { WordGame } from '../../../components/game/WordGame';
 import DrumGameOverScreen from '../../../screens/DrumGameOverScreen';
 import { WordDifficultyType } from '../../../constants/wordSounds';
 import { LAYOUT } from '../../../constants/layout';
+import { COLORS } from '../../../constants/colors';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -105,12 +106,16 @@ export default function Index() {
         >
           <View style={styles.contentInner}>
             <View style={styles.section}>
-              {/* 타이틀은 카드 밖 상단에 배치 */}
+              {/* 타이틀은 카드 밖 상단에 배치.
+                  배경 이미지 위에 글자가 바로 얹히므로 옅은 흰 pill로 받친다 */}
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>🎧 소리 구별 퀴즈</Text>
+                <View style={styles.sectionTitlePill}>
+                  <Text style={styles.sectionTitle}>🎧 소리 구별 퀴즈</Text>
+                </View>
               </View>
 
-              {/* 모든 콘텐츠를 하나의 흰색 카드(gameSection) 안에 통합 */}
+              {/* 난이도 선택 + 게임을 담는 영역.
+                  배경 이미지를 살리려고 배경색은 주지 않는다 — 카드가 아니다 */}
               <View style={styles.gameSection}>
                 {!isGameOver && (
                   <View style={styles.difficultyContainer}>
@@ -123,13 +128,23 @@ export default function Index() {
                             currentDifficulty === 'easy' && styles.difficultyButtonActive,
                           ]}
                           onPress={() => handleDifficultyPress('easy')}
+                          accessibilityRole="button"
+                          accessibilityLabel="연습 난이도"
+                          accessibilityState={{ selected: currentDifficulty === 'easy' }}
                         >
                           <Image
                             source={require('../../../assets/images/hoshi1.webp')}
                             style={styles.starIcon}
                             resizeMode="contain"
                           />
-                          <Text style={styles.difficultyName}>연습</Text>
+                          <Text
+                            style={[
+                              styles.difficultyName,
+                              currentDifficulty === 'easy' && styles.difficultyNameActive,
+                            ]}
+                          >
+                            연습
+                          </Text>
                         </TouchableOpacity>
                       </Animated.View>
 
@@ -140,6 +155,9 @@ export default function Index() {
                             currentDifficulty === 'normal' && styles.difficultyButtonActive,
                           ]}
                           onPress={() => handleDifficultyPress('normal')}
+                          accessibilityRole="button"
+                          accessibilityLabel="도전 난이도"
+                          accessibilityState={{ selected: currentDifficulty === 'normal' }}
                         >
                           <View style={styles.starsRowContainer}>
                             <View style={styles.starCellFirst}>
@@ -164,7 +182,14 @@ export default function Index() {
                               />
                             </View>
                           </View>
-                          <Text style={styles.difficultyName}>도전</Text>
+                          <Text
+                            style={[
+                              styles.difficultyName,
+                              currentDifficulty === 'normal' && styles.difficultyNameActive,
+                            ]}
+                          >
+                            도전
+                          </Text>
                         </TouchableOpacity>
                       </Animated.View>
                     </View>
@@ -205,7 +230,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F2F5',
+    backgroundColor: COLORS.backgroundSoft,
   },
   backgroundImageWrapper: {
     zIndex: 0,
@@ -233,10 +258,23 @@ const styles = StyleSheet.create({
     marginBottom: LAYOUT.spacingMD,
     alignItems: 'center',
   },
+  /**
+   * 제목 받침. 제목은 카드 밖, 배경 이미지 바로 위에 놓여서 이미지에 따라 대비가 흔들린다.
+   * 그림자는 elevation으로만 낸다 (규칙 4 — 안드로이드 전용 앱).
+   */
+  sectionTitlePill: {
+    paddingHorizontal: LAYOUT.spacingMD,
+    paddingVertical: LAYOUT.spacingSM,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    elevation: 2,
+  },
   sectionTitle: {
     fontSize: LAYOUT.learnSectionTitleFontSize,
     fontWeight: '800',
-    color: '#333',
+    color: COLORS.textPrimary,
   },
   gameSection: {
     flex: 1,
@@ -251,19 +289,27 @@ const styles = StyleSheet.create({
     gap: LAYOUT.learnDifficultyButtonsGap,
   },
   difficultyButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: LAYOUT.learnDifficultyButtonBorderRadius,
     padding: LAYOUT.learnDifficultyButtonPadding,
     width: LAYOUT.learnDifficultyButtonSize,
     height: LAYOUT.learnDifficultyButtonSize,
     alignItems: 'center',
     justifyContent: 'center',
+    // 흰 버튼이 밝은 배경(이미지 + 흰 오버레이 22%) 위에 놓인다. 경계가 서게
+    // elevation과 옅은 테두리를 함께 준다 — 결과 화면 카드와 같은 처리 (규칙 4)
     borderWidth: 2,
-    borderColor: '#F0F0F0',
+    borderColor: COLORS.border,
+    elevation: 3,
   },
+  /**
+   * 선택된 난이도. 전에는 테두리 색과 거의 흰색인 배경(#F9FFF9)뿐이라 구분이 약했다.
+   * 배경을 한 단계 올리고 떠오르게 해서, 색 하나에만 기대지 않게 한다.
+   */
   difficultyButtonActive: {
-    borderColor: '#7cbd7e',
-    backgroundColor: '#F9FFF9',
+    borderColor: COLORS.success,
+    backgroundColor: COLORS.backgroundSuccess,
+    elevation: 6,
   },
   starIcon: {
     width: LAYOUT.learnStarIconSize,
@@ -296,7 +342,11 @@ const styles = StyleSheet.create({
   difficultyName: {
     fontSize: LAYOUT.learnDifficultyNameFontSize,
     fontWeight: 'bold',
-    color: '#444',
+    color: COLORS.textPrimary,
+  },
+  /** 선택 표시를 글자에도 준다. 흰 배경 위 초록 글자는 successOnWhite다 (브랜드 초록은 2.2:1) */
+  difficultyNameActive: {
+    color: COLORS.successOnWhite,
   },
   gameContentInner: {
     flex: 1,

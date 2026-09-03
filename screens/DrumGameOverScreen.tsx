@@ -12,9 +12,6 @@ interface DrumGameOverScreenProps {
   onGoHome: () => void;
 }
 
-/** 흰 배경 위 초록 글자용. 브랜드 초록(#7cbd7e)은 흰 배경에서 2.2:1이라 글자로는 흐리다. */
-const GREEN_ON_WHITE = "#4E9A51";
-
 /**
  * 결과 등급. 메시지와 색을 **한 표에** 둔다 — 따로 두면 한쪽만 고쳐져 어긋난다.
  *
@@ -24,7 +21,7 @@ const GREEN_ON_WHITE = "#4E9A51";
  */
 const RESULT_TIERS = {
   perfect: { message: "완벽해요!", color: "#B8860B" },
-  good: { message: "잘했어요!", color: GREEN_ON_WHITE },
+  good: { message: "잘했어요!", color: COLORS.successOnWhite },
   tryAgain: { message: "아쉬워요!", color: "#6B7280" },
 } as const;
 
@@ -265,7 +262,7 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   secondaryButtonText: {
-    color: GREEN_ON_WHITE,
+    color: COLORS.successOnWhite,
   },
   pressedButton: {
     transform: [{ scale: 0.98 }],
