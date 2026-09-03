@@ -128,8 +128,7 @@
 //     width: "100%",
 //     height: "100%",
 //     resizeMode: "contain",
-//     elevation: 0,
-//     shadowOpacity: 0,
+//     elevation: 0,  
 //     backgroundColor: "transparent",
 //   },
 // });
