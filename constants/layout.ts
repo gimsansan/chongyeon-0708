@@ -228,6 +228,12 @@ export const LAYOUT = {
   completionTextFontSize: isTablet ? 30 : 24,
   /** 완료화면 맨 위 트로피. 글자 위에 따로 서므로 제목보다 크다 */
   completionIconSize: isTablet ? 56 : 44,
+  /**
+   * 완료화면 안쪽 여백. 완료화면은 화면이 아니라 **카드박스 안**에 들어가므로
+   * 카드 폭을 따라간다 — `40` 고정이면 320dp에서 안쪽 폭 256 중 **80을 먹는다.**
+   * 411dp(실기기)에서는 계산값이 그대로 40이라 종전과 같다.
+   */
+  completionContainerPadding: scaleInCardW(40, 20, 48),
   completionSubTextFontSize: isTablet ? 20 : 16,
   buttonTextFontSize: isTablet ? 18 : 16,
   smallButtonTextFontSize: isTablet ? 15 : 12,

@@ -110,6 +110,15 @@ export default function HomeScreen() {
   const badgeRef = useRef<any>(null);
   const cardStackRef = useRef<any>(null);
 
+  /**
+   * 카드가 움직이는 동안 걸어두는 빗장.
+   * 학습완료 연출은 **600ms**인데 그 사이 다시 누르면 `measure` 콜백이 겹쳐
+   * **두 장이 완료되거나 인덱스가 꼬인다.** ◀▶(300ms)도 같은 빗장을 쓴다 —
+   * 셋 다 **같은 카드 하나**를 움직이므로 빗장도 하나여야 한다.
+   * 상태가 아니라 ref인 이유: 리렌더를 기다리면 그 사이 두 번째 탭이 통과한다.
+   */
+  const isCardTransitioningRef = useRef(false);
+
   useFocusEffect(
     React.useCallback(() => {
       return () => {
@@ -124,6 +133,18 @@ export default function HomeScreen() {
   // 한 곳만 고쳐져 어긋난다
   const isFirstCard = currentIndex === 0;
   const isLastCard = currentIndex >= filteredPairs.length - 1;
+
+  /**
+   * 스크롤 내용이 **하단 네비에 가리지 않게** 비워 두는 높이.
+   * 네비는 높이 `tabBarHeight`짜리 절대 배치이고 `bottom: insets.bottom - flashcardsBottomOffset`에
+   * 놓이므로, **가리는 높이가 그 둘에서 나온다.** 전에는 `100` 고정이라 인셋이 달라도 그대로였다.
+   * 인셋이 보정값보다 작으면 네비가 화면 아래로 내려가므로 음수는 0으로 자른다.
+   * (learn 탭이 `insets.bottom + tabBarHeight`를 쓰는 것과 같은 방식이다)
+   */
+  const scrollBottomPadding =
+    Math.max(0, insets.bottom - LAYOUT.flashcardsBottomOffset) +
+    LAYOUT.tabBarHeight +
+    LAYOUT.spacingLG;
 
   /**
    * 진행바 기하. 마커·눈금·채움이 **한 식**을 쓴다 — 셋이 각자 기준을 쓰면 서로 어긋난다.
@@ -149,20 +170,26 @@ export default function HomeScreen() {
 
   // 🔘 이전 카드 (좌측 화살표)
   const handlePrevCard = () => {
+    if (isCardTransitioningRef.current) return;
     if (currentIndex > 0) {
+      isCardTransitioningRef.current = true;
       animateSwipe('right', () => {
         setCurrentIndex(currentIndex - 1);
         resetAnimation();
+        isCardTransitioningRef.current = false;
       });
     }
   };
 
   // 🔘 다음 카드 (우측 화살표)
   const handleNextCard = () => {
+    if (isCardTransitioningRef.current) return;
     if (currentIndex < filteredPairs.length - 1) {
+      isCardTransitioningRef.current = true;
       animateSwipe('left', () => {
         setCurrentIndex(currentIndex + 1);
         resetAnimation();
+        isCardTransitioningRef.current = false;
       });
     }
   };
@@ -171,7 +198,10 @@ export default function HomeScreen() {
   // 네, 여기서는 일반 함수 선언이 아니라, 함수 표현식을 const 변수에 할당한 "화살표 함수(arrow function)" 형태입니다.
   // 이렇게 하면 handleCompleteCard는 클릭 등에서 즉시 실행할 수 있는 함수 객체로 만들어집니다.
   const handleCompleteCard = () => {
+    // 연출이 도는 동안은 받지 않는다 (위 `isCardTransitioningRef` 설명)
+    if (isCardTransitioningRef.current) return;
     if (currentIndex >= filteredPairs.length) return;
+    isCardTransitioningRef.current = true;
     //한장을 보고 있음 커렌인댁 1 렝스1  
     // 네, currentPair는 currentIndex나 filteredPairs가 바뀔 때마다 새로 할당됩니다.
     const currentPair = filteredPairs[currentIndex];   // 현재 카드 가져오기
@@ -255,6 +285,7 @@ export default function HomeScreen() {
 
               // 다음 카드로 애니메이션 준비
               resetAnimation();
+              isCardTransitioningRef.current = false;
             });
           });
         });
@@ -277,6 +308,8 @@ export default function HomeScreen() {
           setCurrentIndex(newFiltered.length - 1);
         }
       }
+
+      isCardTransitioningRef.current = false;
     }
   };
 
@@ -343,11 +376,10 @@ export default function HomeScreen() {
           onPress={() => setShowCompletedModal(false)}
           style={styles.modalOverlay}
         >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-            style={[styles.modalContent, { paddingBottom: insets.bottom }]}
-          >
+          {/* 시트는 누르는 것이 아니라 담는 판이다. 전에는 `TouchableOpacity` +
+              `e.stopPropagation()`이었는데, **RN 터치는 애초에 위로 전파되지 않아**
+              하는 일이 없었다 — 시트 전체가 눌리는 것처럼 보이기만 했다 */}
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             {/* 시트 손잡이. 바닥에서 올라온 판이라는 표시다 */}
             <View style={styles.modalHandle} />
 
@@ -380,32 +412,38 @@ export default function HomeScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={`${pair.word1}, ${pair.word2}. 다시 학습 목록으로 되돌립니다`}
                       onPress={() => {
-                        // 복원 처리 (중복 방지)
+                        // 중복 확인은 updater 밖에서 한다. updater(`prev => ...`)는 **순수해야 하고**
+                        // React 18에서 두 번 불릴 수 있다 — 전에는 그 안에서 `setCurrentIndex`와
+                        // `console.warn`을 불렀다. 지금 도는 것은 운이었다
+                        if (filteredPairs.some(p => p.id === pair.id)) {
+                          if (__DEV__) {
+                            console.warn('⚠️ 모달 복원 시도한 카드가 이미 filteredPairs에 존재:', pair.id);
+                          }
+                          return;
+                        }
+
                         const newCompleted = new Set(completedCards);
                         newCompleted.delete(pair.id);
                         setCompletedCards(newCompleted);
                         saveCompletedCards(newCompleted);
 
-                        // 함수형 업데이트로 중복 체크
-                        setFilteredPairs(prev => {
-                          if (prev.some(p => p.id === pair.id)) {
-                            if (__DEV__) {
-                              console.warn('⚠️ 모달 복원 시도한 카드가 이미 filteredPairs에 존재:', pair.id);
-                            }
-                            return prev;
-                          }
-                          const newFiltered = [...prev, pair];
-                          setCurrentIndex(Math.max(0, newFiltered.length - 1));
-                          return newFiltered;
-                        });
-
-
+                        // 되돌린 카드는 **맨 뒤에 붙는다.** `currentIndex`를 건드리지 않으므로
+                        // 보고 있던 카드가 그대로 남는다 — 앞쪽 인덱스는 그대로이기 때문이다.
+                        // (전에는 되돌린 카드로 점프해서 보던 자리를 잃었다)
+                        setFilteredPairs(prev => [...prev, pair]);
                       }}
                     >
 
                       <View style={styles.completedCardImage}>
                         <Text style={styles.completedCardText}>{pair.word1}</Text>
-                        <Text style={[styles.completedCardText, { marginHorizontal: 6 }]}>/</Text>
+                        {/* 두 단어를 가르는 표시일 뿐이다. 항목 전체의 `accessibilityLabel`이
+                            「고기, 머리」로 읽어 주므로 이건 빼야 「슬래시」가 끼지 않는다 */}
+                        <Text
+                          style={[styles.completedCardText, { marginHorizontal: 6 }]}
+                          importantForAccessibility="no"
+                        >
+                          /
+                        </Text>
                         <Text style={styles.completedCardText}>{pair.word2}</Text>
                       </View>
                       {/* 되돌리기 표시. 전에는 `textLight`(#999) 아이콘만 오른쪽 아래에 떠 있어
@@ -440,7 +478,7 @@ export default function HomeScreen() {
                 <Text style={styles.modalResetButtonText}>전체 다시 하기</Text>
               </TouchableOpacity>
             </ScrollView>
-          </TouchableOpacity>
+          </View>
         </TouchableOpacity>
       </Modal>
 
@@ -453,11 +491,12 @@ export default function HomeScreen() {
             { width: LAYOUT.screenWidth, height: LAYOUT.screenHeight },
           ]}
           resizeMode='contain'
+          importantForAccessibility="no"
         />
         <View style={[styles.contentOverlay, { paddingTop: insets.top }]}>
           <ScrollView
             style={styles.scrollContainer}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPadding }]}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.section}>
@@ -553,6 +592,7 @@ export default function HomeScreen() {
                       <Image
                         source={require('../../../assets/icons/mk.png')}
                         style={{ width: LAYOUT.progressMarkerIconSize, height: LAYOUT.progressMarkerIconSize }}
+                        importantForAccessibility="no"
                       />
                     </View>
                   </View>
@@ -603,6 +643,7 @@ export default function HomeScreen() {
                         source={require('../../../assets/bg/iroawa.png')}
                         style={StyleSheet.absoluteFill}
                         resizeMode="cover"
+                        importantForAccessibility="no"
                       />
                       {/* 반투명 베이지 오버레이 (첨부 이미지 스타일) */}
                       <View style={styles.cardOverlay} />
@@ -758,7 +799,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100,
+    // paddingBottom은 렌더에서 인라인으로 더한다 (`scrollBottomPadding`) —
+    // 하단 네비 위치가 `insets`에 걸려 있어 스타일 시트에서는 알 수 없다
   },
 
   // 섹션 스타일 (나무/종이 패널 느낌)
@@ -1145,7 +1187,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    padding: LAYOUT.completionContainerPadding,
   },
   completionIcon: {
     marginBottom: LAYOUT.spacingSM,
@@ -1153,7 +1195,9 @@ const styles = StyleSheet.create({
   completionText: {
     fontSize: LAYOUT.completionTextFontSize,
     fontWeight: 'bold',
-    color: COLORS.success,
+    // 글자에 `success`(#7cbd7e)를 쓰면 흰 배경에서 2.2:1이라 큰 글씨 기준 3:1에 못 미친다.
+    // `constants/colors.ts`가 이미 적어 둔 규칙이다 — 글자는 `successOnWhite`
+    color: COLORS.successOnWhite,
     textAlign: 'center',
     marginBottom: 10,
   },
