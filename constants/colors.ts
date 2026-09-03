@@ -23,6 +23,14 @@ export const COLORS = {
   backgroundStar: '#FFF9E6',
   /** learn 탭 바탕 (배경 이미지 뒤에 깔리는 색) */
   backgroundSoft: '#F0F2F5',
+  /**
+   * 배경 **이미지 위**에 글자를 받치는 반투명 흰 판.
+   * 사진 위에 글자가 맨몸으로 얹히면 이미지에 따라 대비가 흔들린다.
+   * learn 제목 pill · flashcards 제목/진행도 pill이 함께 쓴다.
+   */
+  surfaceOnImage: 'rgba(255, 255, 255, 0.88)',
+  /** 아주 옅은 회색 판 (모달 닫기 버튼 바탕) */
+  backgroundSubtle: 'rgba(0, 0, 0, 0.06)',
 
   /** 액센트 / 버튼 */
   primary: '#f59e0b',
@@ -56,6 +64,10 @@ export const COLORS = {
 
   /** 오버레이 */
   overlay: 'rgba(0, 0, 0, 0.4)',
+  /** 모달 뒤 스크림 */
+  overlayModal: 'rgba(0, 0, 0, 0.5)',
+  /** 학습 카드 위에 덮는 따뜻한 반투명 판 (사진이 비쳐 글자가 읽히도록) */
+  cardWarmOverlay: 'rgba(255, 250, 240, 0.55)',
 
   /** 기타 */
   activityIndicator: '#007bff',

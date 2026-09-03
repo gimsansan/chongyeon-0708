@@ -34,6 +34,25 @@ const LEARN_BUTTON_REFERENCE_SIZE = 140;
 const scaleFromPhoneButton = (valueAt140: number) =>
   Math.round(LEARN_DIFFICULTY_BUTTON_SIZE * (valueAt140 / LEARN_BUTTON_REFERENCE_SIZE));
 
+/**
+ * 학습 카드(flashcards) 세로 배치.
+ *
+ * 카드 높이는 `cardStackHeight`(= min(400, 화면높이 × 0.4))로 반응형인데,
+ * 카드를 **밀어내는** 값만 `cardStackMarginTop: 150` + `topCard.marginTop: 70` = **220 고정**이었다.
+ * 640dp 높이 폰에서 화면의 34%를 무조건 먹어 카드 하단이 하단 네비 밑으로 들어갔다.
+ * (868dp 기기에서는 여유가 있어 드러나지 않는다 — learn 난이도 버튼과 같은 구조의 문제다)
+ *
+ * 높이 비례로 두되 **상한을 지금 값(220)에 맞춘다** — 868dp에서는 150/70 그대로다.
+ * 둘의 비(150 : 70)도 유지한다. 역할이 다르기 때문이다:
+ * `cardStackMarginTop`은 흐름 안에서 자리를 차지하고(스크롤 길이에 반영),
+ * `topCardMarginTop`은 절대배치된 카드만 그만큼 더 내린다(자리를 차지하지 않는다).
+ */
+const FLASHCARD_CARD_TOP_TOTAL = Math.round(
+  Math.max(120, Math.min(220, SCREEN_HEIGHT * 0.2535))
+);
+const FLASHCARD_CARD_STACK_MARGIN_TOP = Math.round(FLASHCARD_CARD_TOP_TOTAL * (150 / 220));
+const FLASHCARD_TOP_CARD_MARGIN_TOP = FLASHCARD_CARD_TOP_TOTAL - FLASHCARD_CARD_STACK_MARGIN_TOP;
+
 /** UI 레이아웃 상수 (반응형·동적 상수) */
 export const LAYOUT = {
   /** 화면 크기 */
@@ -47,7 +66,7 @@ export const LAYOUT = {
   cardStackHeight: Math.min(isTablet ? 560 : 400, SCREEN_HEIGHT * 0.4),
   cardStackMinHeight: Math.min(isTablet ? 560 : 400, SCREEN_HEIGHT * 0.4),
 
-  /** 카드 양쪽 여백 (98% 폭 → 좌우 각 1%. left/right로 중앙 정렬) */
+  /** 카드 양쪽 여백. left/right 각 10% → 카드 폭은 화면의 80%다 */
   cardWidthInsetPercent: '10%' as const,
 
   /** 진행도 바 */
@@ -71,7 +90,14 @@ export const LAYOUT = {
   /** 섹션·컨테이너 */
   sectionMarginH: 15,
   sectionMarginV: 10,
-  cardStackMarginTop: 150,
+  cardStackMarginTop: FLASHCARD_CARD_STACK_MARGIN_TOP,
+  /** 카드(절대배치)를 스택 안에서 더 내리는 양. 위 상수 주석 참고 */
+  flashcardsTopCardMarginTop: FLASHCARD_TOP_CARD_MARGIN_TOP,
+  /**
+   * 진행도 바의 세로 위치(섹션 기준). 화면 높이 비례이던 값에 **상한만** 걸었다 —
+   * 태블릿(1280dp)에서 256까지 내려가 카드와 붙었다. 868dp 폰에서는 174로 종전과 같다.
+   */
+  flashcardsProgressTop: Math.round(Math.min(isTablet ? 190 : 176, SCREEN_HEIGHT * 0.2)),
   scrollPaddingBottom: 30,
 
   /** WordFlashcard */

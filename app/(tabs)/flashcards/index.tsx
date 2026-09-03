@@ -132,7 +132,12 @@ export default function HomeScreen() {
     }, [])
   );
 
-  const currentPair = filteredPairs[currentIndex]; // 필터된 배열에서 현재 카드 가져오기 
+  const currentPair = filteredPairs[currentIndex]; // 필터된 배열에서 현재 카드 가져오기
+
+  // 하단 화살표의 활성 여부. 판정이 버튼 세 군데(onPress·스타일·아이콘 색)에 흩어져 있으면
+  // 한 곳만 고쳐져 어긋난다
+  const isFirstCard = currentIndex === 0;
+  const isLastCard = currentIndex >= filteredPairs.length - 1;
 
   // 제스처 이벤트 핸들러: 드래그 중 실시간으로 카드 위치 업데이트
   // Animated.Value.setValue()는 리렌더링을 발생시키지 않고 직접 애니메이션 값만 변경 (고성능)
@@ -189,9 +194,12 @@ export default function HomeScreen() {
           const badgeCenterX = bPageX + bWidth / 2;
           const badgeCenterY = bPageY + bHeight / 2;
 
-          // 카드 중앙 위치
+          // 카드 중앙 위치.
+          // 재는 대상은 카드가 아니라 **스택 래퍼**(cardStackRef)다. 카드는 그 안에서
+          // `flashcardsTopCardMarginTop`만큼 더 내려가 있으므로 그만큼 더해야 실제 카드 중앙이다.
+          // (빼먹으면 카드가 배지보다 그 값만큼 아래에 가서 멈춘다. 이 값은 기기마다 다르다)
           const cardCenterX = cPageX + cWidth / 2;
-          const cardCenterY = cPageY + cHeight / 2;
+          const cardCenterY = cPageY + cHeight / 2 + LAYOUT.flashcardsTopCardMarginTop;
 
           // 이동 거리 계산
           const moveX = badgeCenterX - cardCenterX;
@@ -469,6 +477,8 @@ export default function HomeScreen() {
                 onPress={() => setShowCompletedModal(false)}
                 style={styles.modalCloseBtn}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityRole="button"
+                accessibilityLabel="닫기"
               >
                 <Ionicons name="close" size={LAYOUT.modalCloseIconSize} color={COLORS.textSecondary} />
               </TouchableOpacity>
@@ -482,6 +492,8 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       key={pair.id}
                       style={styles.completedCardItem}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${pair.word1}, ${pair.word2}. 다시 학습 목록으로 되돌립니다`}
                       onPress={() => {
                         // 복원 처리 (중복 방지)
                         const newCompleted = new Set(completedCards);
@@ -525,6 +537,8 @@ export default function HomeScreen() {
                   setShowCompletedModal(false);
                 }}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="완료한 카드를 모두 되돌려 처음부터 다시 하기"
               >
                 <Text style={styles.completionRestartButtonText}>전체 다시 하기</Text>
               </TouchableOpacity>
@@ -555,7 +569,11 @@ export default function HomeScreen() {
               <View style={styles.headerTopRow}>
                 <View style={{ minWidth: LAYOUT.headerSideButtonMinWidth }} />
                 <View style={styles.headerTitleCenter}>
-                  <Text style={styles.headerPanelTitle}>📖  단어 카 드</Text>
+                  {/* 제목은 배경 이미지 바로 위에 얹힌다. 이미지에 따라 대비가 흔들리므로
+                      옅은 흰 pill로 받친다 — learn 탭 제목과 같은 처리 */}
+                  <View style={styles.headerTitlePill}>
+                    <Text style={styles.headerPanelTitle}>📖  단어 카 드</Text>
+                  </View>
                 </View>
                 <Animated.View
                   ref={badgeRef}
@@ -563,13 +581,16 @@ export default function HomeScreen() {
                   pointerEvents={completedCards.size > 0 ? 'auto' : 'none'}
                 >
                   <TouchableOpacity
-                    style={[styles.completedBadge, { backgroundColor: 'transparent', borderWidth: 0, elevation: 0 }]}
+                    style={styles.completedBadge}
                     onPress={() => {
                       if (completedCards.size === 0) return;
                       showBadgeAnimation();
                       setShowCompletedModal(true);
                     }}
                     disabled={completedCards.size === 0}
+                    accessibilityRole="button"
+                    accessibilityLabel={`학습 완료한 카드 ${completedCards.size}개. 눌러서 목록을 엽니다`}
+                    accessibilityState={{ disabled: completedCards.size === 0 }}
                   >
                     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
                       <CompletedBadgeBg width="100%" height="100%" />
@@ -606,9 +627,15 @@ export default function HomeScreen() {
                     />
                   </View>
                 </View>
-                <Text style={styles.progressText}>
-                  {currentIndex + 1} / {filteredPairs.length}
-                </Text>
+                {/* 진행도 숫자도 배경 이미지 위에 얹힌다. 제목과 같은 pill로 받친다 */}
+                <View style={styles.progressTextPill}>
+                  <Text
+                    style={styles.progressText}
+                    accessibilityLabel={`전체 ${filteredPairs.length}장 중 ${currentIndex + 1}번째 카드`}
+                  >
+                    {currentIndex + 1} / {filteredPairs.length}
+                  </Text>
+                </View>
               </View>
 
 
@@ -665,6 +692,8 @@ export default function HomeScreen() {
                               style={styles.completionRestartButton}
                               onPress={handleResetAllCards}
                               activeOpacity={0.8}
+                              accessibilityRole="button"
+                              accessibilityLabel="처음부터 다시 학습하기"
                             >
                               <Text style={styles.completionRestartButtonText}>🔄 처음부터</Text>
                             </TouchableOpacity>
@@ -694,19 +723,25 @@ export default function HomeScreen() {
               { bottom: insets.bottom - LAYOUT.flashcardsBottomOffset },
             ]}
           >
-            {/* 좌측 화살표 */}
+            {/* 좌측 화살표.
+                `onPress={undefined}`로 막으면 눌리는 시각 반응은 그대로 나고 보조기기도 알 수 없다.
+                `disabled`로 막아야 상태가 함께 전달된다 */}
             <TouchableOpacity
-              onPress={currentIndex > 0 ? handlePrevCard : undefined}
+              onPress={handlePrevCard}
+              disabled={isFirstCard}
               style={[
                 styles.navigationArrowButton,
-                currentIndex === 0 && styles.navigationArrowButtonDisabled
+                isFirstCard && styles.navigationArrowButtonDisabled
               ]}
               activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel="이전 카드"
+              accessibilityState={{ disabled: isFirstCard }}
             >
               <Ionicons
                 name="chevron-back"
                 size={LAYOUT.navArrowIconSize}
-                color={currentIndex === 0 ? COLORS.borderGray : COLORS.textPrimary}
+                color={isFirstCard ? COLORS.textSecondary : COLORS.textPrimary}
               />
             </TouchableOpacity>
 
@@ -715,23 +750,29 @@ export default function HomeScreen() {
               onPress={handleCompleteCard}
               style={styles.completeButton}
               activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel="이 카드를 학습 완료로 표시"
             >
               <Text style={styles.completeButtonText}>학습완료</Text>
             </TouchableOpacity>
 
             {/* 우측 화살표 */}
             <TouchableOpacity
-              onPress={currentIndex < filteredPairs.length - 1 ? handleNextCard : undefined}
+              onPress={handleNextCard}
+              disabled={isLastCard}
               style={[
                 styles.navigationArrowButton,
-                currentIndex >= filteredPairs.length - 1 && styles.navigationArrowButtonDisabled
+                isLastCard && styles.navigationArrowButtonDisabled
               ]}
               activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel="다음 카드"
+              accessibilityState={{ disabled: isLastCard }}
             >
               <Ionicons
                 name="chevron-forward"
                 size={LAYOUT.navArrowIconSize}
-                color={currentIndex >= filteredPairs.length - 1 ? COLORS.borderGray : COLORS.textPrimary}
+                color={isLastCard ? COLORS.textSecondary : COLORS.textPrimary}
               />
             </TouchableOpacity>
           </View>
@@ -757,12 +798,6 @@ const styles = StyleSheet.create({
   contentOverlay: {
     flex: 1,
   },
-  // ✅ 모달 스타일 추가
-  modalContainer: {
-    flex: 1,
-    backgroundColor: COLORS.backgroundGray,
-    paddingTop: 0,
-  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -777,28 +812,6 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     flex: 1,
   },
-  modalCloseButton: {
-    padding: LAYOUT.spacingXS,
-  },
-  // 헤더 좌측: 냉장고 버튼 (우측 완료 배지와 대칭)
-  riveTestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: LAYOUT.headerSideButtonMinWidth,
-    backgroundColor: COLORS.purple,
-    paddingHorizontal: LAYOUT.headerSideButtonPaddingH,
-    paddingVertical: LAYOUT.headerSideButtonPaddingV,
-    borderRadius: LAYOUT.headerSideButtonBorderRadius,
-    gap: 6,
-    elevation: 3,
-  },
-  riveTestButtonText: {
-    fontSize: LAYOUT.smallButtonTextFontSize,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-
   scrollContainer: {
     flex: 1,
     zIndex: 1,
@@ -814,12 +827,21 @@ const styles = StyleSheet.create({
     marginVertical: LAYOUT.sectionMarginV,
     position: 'relative',
   },
-  sectionTitle: {
-    fontSize: LAYOUT.sectionTitleFontSize,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: LAYOUT.spacingSM,
-    color: COLORS.textPrimary,
+  /**
+   * 제목 받침. 제목은 카드 밖, 배경 이미지 바로 위에 놓여서 이미지에 따라 대비가 흔들린다.
+   * flashcards는 learn과 달리 흰 오버레이도 깔려 있지 않아 조건이 더 나쁘다.
+   * 그림자는 elevation으로만 낸다 (규칙 4 — 안드로이드 전용).
+   */
+  headerTitlePill: {
+    paddingHorizontal: LAYOUT.spacingMD,
+    // 세로 패딩은 spacingSM이 아니라 XS다. 제목 글자가 배지 글자보다 커서, SM을 주면
+    // pill이 배지보다 10px 높아지고 헤더 줄이 그만큼 두꺼워져 아래 전부가 내려간다
+    paddingVertical: LAYOUT.spacingXS,
+    borderRadius: 999,
+    backgroundColor: COLORS.surfaceOnImage,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    elevation: 2,
   },
 
   headerPanelTitle: {
@@ -839,44 +861,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  /**
+   * 배경·테두리·그림자를 주지 않는다 — 뒤에 깔린 SVG(`CompletedBadgeBg`)가 그 셋을 대신한다.
+   * 예전에는 여기에 초록 배경과 elevation이 있었지만 렌더에서 인라인으로 전부 덮여 죽은 값이었다.
+   */
   completedBadge: {
     minWidth: LAYOUT.headerSideButtonMinWidth,
-    backgroundColor: COLORS.success,
     paddingHorizontal: LAYOUT.headerSideButtonPaddingH,
     paddingVertical: LAYOUT.headerSideButtonPaddingV,
     borderRadius: LAYOUT.headerSideButtonBorderRadius,
-    elevation: 3,
     justifyContent: 'center',
     alignItems: 'center',
-
   },
   completedBadgeText: {
     fontSize: LAYOUT.completedBadgeTextFontSize,
     fontWeight: 'bold',
     color: COLORS.white,
   },
-  sectionSubtitle: {
-    fontSize: LAYOUT.sectionSubtitleFontSize,
-    textAlign: 'center',
-    color: COLORS.textSecondary,
-    marginBottom: LAYOUT.spacingSM,
-    lineHeight: 22,
-  },
-  totalCount: {
-    fontSize: LAYOUT.totalCountFontSize,
-    fontWeight: '600',
-    textAlign: 'center',
-    color: COLORS.success,
-    backgroundColor: 'rgba(135, 206, 235, 0.1)',
-    paddingHorizontal: LAYOUT.spacingMD,
-    paddingVertical: LAYOUT.spacingXS,
-    borderRadius: LAYOUT.completedSectionBorderRadius,
-    marginTop: LAYOUT.spacingSM,
-  },
-
   progressContainer: {
     position: 'absolute',
-    top: LAYOUT.screenHeight * 0.2,  // 화면 높이의 20% 지점
+    top: LAYOUT.flashcardsProgressTop,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -893,11 +897,17 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
 
+  /**
+   * 레일은 흰색, 눈금은 진한 초록이다.
+   * 전에는 레일 `successLight`(#C8E6C9) · 눈금 `success`(#7cbd7e)였는데, 둘 다 밝은 배경
+   * **사진 위**에 놓여 거의 보이지 않았다 (브랜드 초록은 흰 바탕에서도 2.2:1이다).
+   * 눈금은 레일(3px)보다 커서 사진 위로 삐져나오므로 글자와 같은 `successOnWhite`를 쓴다.
+   */
   progressLine: {
     position: 'absolute',
     width: LAYOUT.progressLineWidthPercent,
     height: LAYOUT.progressLineHeight,
-    backgroundColor: COLORS.successLight,
+    backgroundColor: COLORS.surfaceOnImage,
     borderRadius: LAYOUT.progressLineBorderRadius,
     top: '50%',
     marginTop: -LAYOUT.progressLineHeight / 2,
@@ -916,7 +926,7 @@ const styles = StyleSheet.create({
   progressTick: {
     width: LAYOUT.progressTickSize,
     height: LAYOUT.progressTickSize,
-    backgroundColor: COLORS.success,
+    backgroundColor: COLORS.successOnWhite,
     borderRadius: LAYOUT.progressTickSize / 2,
   },
 
@@ -932,11 +942,21 @@ const styles = StyleSheet.create({
     marginTop: LAYOUT.progressMarkerMarginTop,
   },
 
+  /** 진행도 숫자 받침. 제목 pill과 같은 처리이되 세로로 얇게 (숫자 한 줄이다) */
+  progressTextPill: {
+    marginTop: LAYOUT.progressTextMarginTop,
+    paddingHorizontal: LAYOUT.spacingMD,
+    paddingVertical: LAYOUT.spacingXS,
+    borderRadius: 999,
+    backgroundColor: COLORS.surfaceOnImage,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    elevation: 2,
+  },
   progressText: {
     fontSize: LAYOUT.progressTextFontSize,
     fontWeight: '700',
     color: COLORS.textPrimary,
-    marginTop: LAYOUT.progressTextMarginTop,
     letterSpacing: 0.5,
   },
 
@@ -954,42 +974,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  centerCardArea: {
-    marginBottom: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-
-
-
-  playButton: {
-    padding: 8,
-  },
-
-
-
-  // 힌트
-  hintContainer: {
-    marginTop: 10,
-    backgroundColor: COLORS.backgroundWarning,
-    padding: 12,
-    borderRadius: 10,
-  },
-  hintText: {
-    fontSize: LAYOUT.hintTextFontSize,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  stackedCard: {
-    position: 'absolute',
-    left: LAYOUT.cardWidthInsetPercent,
-    right: LAYOUT.cardWidthInsetPercent,
-    height: '100%',
-    borderRadius: LAYOUT.cardBorderRadius,
-    elevation: 2,
-    justifyContent: 'center',
-  },
   topCard: {
     position: 'absolute',
     left: LAYOUT.cardWidthInsetPercent,
@@ -1000,7 +984,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 100,
     overflow: 'hidden',
-    marginTop: 70,
+    // 70 고정이던 값. 화면 높이에 비례한다 — 카드는 반응형인데 밀어내기만 고정이었다
+    marginTop: LAYOUT.flashcardsTopCardMarginTop,
   },
   topCardBackground: {
     width: '100%',
@@ -1014,32 +999,7 @@ const styles = StyleSheet.create({
   },
   cardOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(255, 250, 240, 0.55)',
-  },
-  singleCard: {
-    height: '100%',
-    backgroundColor: COLORS.white,
-    borderRadius: LAYOUT.cardBorderRadius,
-    padding: LAYOUT.spacingMD,
-    elevation: 6,
-    justifyContent: 'center',
-    alignSelf: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  completedSection: {
-    backgroundColor: 'rgba(76, 175, 80, 0.05)',
-    padding: LAYOUT.completedSectionPadding,
-    borderRadius: LAYOUT.completedSectionBorderRadius,
-    marginTop: LAYOUT.completedSectionMarginTop,
-    borderWidth: 1,
-    borderColor: COLORS.success,
-  },
-  completedTitle: {
-    fontSize: LAYOUT.completedTitleFontSize,
-    fontWeight: 'bold',
-    color: COLORS.success,
-    marginBottom: LAYOUT.spacingMD,
+    backgroundColor: COLORS.cardWarmOverlay,
   },
   completedCardsGrid: {
     flexDirection: 'row',
@@ -1064,12 +1024,6 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textAlign: 'center',
   },
-  completedCardItemContainer: {
-    width: '100%',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   replayIconWrap: {
     alignSelf: 'flex-end',
     marginTop: LAYOUT.spacingXS,
@@ -1082,7 +1036,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: COLORS.overlayModal,
     justifyContent: 'flex-end',
     zIndex: 1000,
   },
@@ -1094,21 +1048,11 @@ const styles = StyleSheet.create({
     paddingTop: LAYOUT.spacingSM,
     elevation: 10,
   },
-  modalHeaderButtons: {
-    flexDirection: 'row',
-    gap: LAYOUT.spacingSM,
-    alignItems: 'center',
-  },
-  modalHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: LAYOUT.spacingSM,
-  },
   modalCloseBtn: {
     width: LAYOUT.modalCloseBtnSize,
     height: LAYOUT.modalCloseBtnSize,
     borderRadius: LAYOUT.modalCloseBtnSize / 2,
-    backgroundColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: COLORS.backgroundSubtle,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1143,6 +1087,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: LAYOUT.navArrowButtonElevation,
   },
+  /**
+   * 비활성 화살표. 아이콘 색은 렌더에서 `textSecondary`(#666)로 준다 —
+   * 전에는 `borderGray`(#BDBDBD)라 이 배경(#E0E0E0) 위에서 1.2:1이라 아이콘이 사라졌다.
+   * 활성(#333)과는 여전히 색이 다르고, elevation이 0이라 떠 있지도 않다.
+   */
   navigationArrowButtonDisabled: {
     backgroundColor: COLORS.grayLight,
     elevation: 0,
@@ -1204,14 +1153,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-  },
-  stackedCardBackground: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stackedCardBackgroundImage: {
-    resizeMode: 'cover',
   },
 });

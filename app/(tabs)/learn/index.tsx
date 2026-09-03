@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: LAYOUT.spacingMD,
     paddingVertical: LAYOUT.spacingSM,
     borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    backgroundColor: COLORS.surfaceOnImage,
     borderWidth: 1,
     borderColor: COLORS.border,
     elevation: 2,
