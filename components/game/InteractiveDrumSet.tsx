@@ -171,8 +171,19 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
       currentDrumSetSize - currentCharacterSize,
       Math.max(0, currentDrumSetSize - rightOffset + 8)
     );
-    // 버튼과 세로 중앙 맞춤 (버튼 bottom: 50, height: 60)
-    const bottomY = currentDrumSetSize - 50 - 60 + 30 - currentCharacterSize / 2;
+    /**
+     * 버튼과 세로 중앙 맞춤 (버튼 bottom: 50, height: 60).
+     *
+     * 여기서 바닥선 보정(bottomAlignOffset)을 도로 빼는 이유: 이 세로 위치의 기준은
+     * 드럼 그림이 아니라 순환 버튼이고, 실제로 화면에 보이는 그 버튼은 부모가 화면 하단에
+     * 고정으로 그리는 것이라 세트와 함께 내려가지 않는다. 보정을 그대로 두면 캐릭터만
+     * 세트를 따라 내려가 버튼 줄에서 벗어난다. 여백이 가장 큰 2악기에서 가장 크게 티가 났다.
+     *
+     * 반대로 악기로 스냅할 때의 좌표(details·neutralOffsets)는 그림 기준이므로 보정을 빼지
+     * 않는다. 컨테이너가 통째로 내려간 만큼 캐릭터도 같이 내려가야 드럼 위에 앉는다.
+     */
+    const currentBottomAlignShift = currentDrumSetSize * (activeLayout.bottomAlignOffset ?? 0);
+    const bottomY = currentDrumSetSize - 50 - 60 + 30 - currentCharacterSize / 2 - currentBottomAlignShift;
 
     translateX.setValue(centerX);
     translateY.setValue(bottomY);
@@ -280,6 +291,20 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
   const maxContainerHeight = availableHeight * 0.6; // Safe Area 내 가용 높이의 60%
   const drumSetSize = Math.min(maxContainerWidth, maxContainerHeight / DRUM_IMAGE_ASPECT_RATIO);
   const characterSize = Math.max(40, drumSetSize * 0.15);
+
+  /**
+   * 3악기 세트의 바닥선에 맞추려고 세트를 내리는 양 (근거는 drumLayouts.ts의 bottomAlignOffset).
+   *
+   * 레이아웃이 아니라 transform으로 주는 이유: 이 컨테이너는 ScrollView 안에 있고
+   * 그 콘텐츠는 화면에 들어갈 때는 가운데 정렬, 넘칠 때는 위 정렬이 된다. padding·margin으로
+   * 내리면 콘텐츠 높이가 같이 늘어 정렬 기준이 흔들리고, 실제로 내려가는 양이 기기 높이에 따라
+   * 달라진다(작은 폰과 태블릿이 서로 다르게 움직인다). transform은 그리기만 옮기므로
+   * 어느 기기에서든 정확히 이 값만큼 내려간다.
+   *
+   * 이미지·하이라이트 14장·마커·캐릭터가 모두 drumSetContainer 안에 있어 한 덩어리로 움직인다.
+   * 컨테이너 안의 좌표계는 그대로라 details 좌표도 히트 판정도 건드릴 것이 없다.
+   */
+  const bottomAlignShift = drumSetSize * (activeLayout.bottomAlignOffset ?? 0);
 
   // 거리 계산 함수
   const calculateDistance = (pos1: { x: number; y: number }, pos2: { x: number; y: number }) => {
@@ -601,7 +626,12 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
   return (
     <View style={styles.container}>
 
-      <View style={[styles.drumSetContainer, { width: drumSetSize, height: drumSetSize }]}>
+      <View
+        style={[
+          styles.drumSetContainer,
+          { width: drumSetSize, height: drumSetSize, transform: [{ translateY: bottomAlignShift }] },
+        ]}
+      >
    
         <Image
           source={activeLayout.image}
