@@ -428,10 +428,6 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
         overflow: 'hidden',
         elevation: 4,
-        shadowColor: '#000',
-        shadowOpacity: 0.18,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 5 },
     },
     gameEmoji: {
         fontSize: 38,

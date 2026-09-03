@@ -161,12 +161,10 @@ const PianoKey = React.memo(({
   keyboardLabel?: string;
 }) => {
   const translateY = useSharedValue(0);
-  const shadowOpacity = useSharedValue(isBlack ? 0.35 : 0.15);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateY: translateY.value }],
-      shadowOpacity: shadowOpacity.value,
       backgroundColor: isBlack
         ? (translateY.value > 0 ? '#2a2a2a' : '#111111')
         : (translateY.value > 0 ? '#ececec' : '#ffffff'),
@@ -178,7 +176,6 @@ const PianoKey = React.memo(({
 
     // Y축으로 즉시 눌림 작동 (백건 18px, 흑건 14px)
     translateY.value = isBlack ? 9 : 12;
-    shadowOpacity.value = 0.06; // 눌리면 입체 그림자가 사라지듯 옅어짐
 
     onPressIn(note, event);
   };
@@ -188,7 +185,6 @@ const PianoKey = React.memo(({
 
     // 부드럽게 원위치로 복구
     translateY.value = withTiming(0, { duration: 80 });
-    shadowOpacity.value = withTiming(isBlack ? 0.35 : 0.15, { duration: 80 });
 
     onPressOut(note);
   };
@@ -1643,10 +1639,6 @@ const styles = StyleSheet.create({
   },
   octaveBtnHighlight: {
     backgroundColor: PIANO.highlight,
-    shadowColor: PIANO.highlight,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
     elevation: 10,
   },
   octaveBtnDisabled: {
@@ -1697,9 +1689,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 15,
     // 2.5D 입체감 그림자
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 4,
     elevation: 10,
     borderBottomLeftRadius: 4,
     borderBottomRightRadius: 4,
@@ -1713,9 +1702,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 12,
     // 2.5D 입체감 그림자
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 5,
     elevation: 15,
     borderBottomLeftRadius: 4,
     borderBottomRightRadius: 4,
@@ -1780,10 +1766,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: PIANO.highlight,
     alignItems: 'center',
-    shadowColor: PIANO.highlight,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
     elevation: 10,
   },
   missionOverlayText: {

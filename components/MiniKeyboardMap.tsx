@@ -176,10 +176,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 229, 255, 0.15)',
     borderRadius: 2,
     zIndex: 3,
-    shadowColor: '#00e5ff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 5,
     elevation: 3,
   },
   targetGuideDot: {
@@ -190,10 +186,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#ff453a',
     zIndex: 4,
-    shadowColor: '#ff453a',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
     elevation: 5,
   },
 });

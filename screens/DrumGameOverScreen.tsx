@@ -203,13 +203,10 @@ const styles = StyleSheet.create({
     maxWidth: CARD_MAX_WIDTH,
     alignSelf: "center",
     alignItems: "center",
-    // elevation은 안드로이드 전용이라 iOS에서는 그림자가 아예 없었다.
-    // learn 탭은 배경이 밝아(#F0F2F5) 그림자가 없으면 흰 카드가 배경에 묻는다.
+    // 그림자는 elevation으로만 낸다 (규칙 4 — 안드로이드 전용 앱).
+    // learn 탭은 배경이 밝아(#F0F2F5) 그림자가 없으면 흰 카드가 배경에 묻으므로
+    // 옅은 테두리를 함께 둔다.
     elevation: 4,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 20,

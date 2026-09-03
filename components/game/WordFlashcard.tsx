@@ -232,10 +232,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: LAYOUT.wordCardMinWidth,
     elevation: 4,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
   },
   wordCardDisabled: {
     opacity: 0.5,

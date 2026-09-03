@@ -1057,10 +1057,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: LAYOUT.completedCardItemElevation,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
   },
   completedCardText: {
     fontSize: LAYOUT.completedCardTextFontSize,
