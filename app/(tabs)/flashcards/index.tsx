@@ -995,7 +995,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: LAYOUT.topCardBackgroundBorderRadius,
     borderWidth: 2,
-    borderColor: COLORS.borderGray,
+    borderColor: COLORS.successOnWhite,
   },
   cardOverlay: {
     ...StyleSheet.absoluteFill,

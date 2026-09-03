@@ -53,6 +53,53 @@ const FLASHCARD_CARD_TOP_TOTAL = Math.round(
 const FLASHCARD_CARD_STACK_MARGIN_TOP = Math.round(FLASHCARD_CARD_TOP_TOTAL * (150 / 220));
 const FLASHCARD_TOP_CARD_MARGIN_TOP = FLASHCARD_CARD_TOP_TOTAL - FLASHCARD_CARD_STACK_MARGIN_TOP;
 
+/**
+ * 학습 카드 **안**(WordFlashcard)의 치수.
+ *
+ * 카드 자체는 반응형인데(`cardStackHeight` · 폭 80%) **안쪽 치수는 전부 고정**이었다.
+ * 그래서 세로로 312px, 가로로 290px이 늘 필요했고 —
+ * - 320×640 폰: 카드가 256×256이라 **세로 56px · 가로 70px 넘쳐** 「전체 듣기」가 잘렸다
+ * - 태블릿(800×1280): 카드가 640×512로 커져도 내용은 그대로라 **남는 200px이 전부
+ *   버튼 위에 쌓였다** — 단어 카드는 위에, 버튼은 바닥에 떨어져 균형이 깨진다
+ *
+ * 그래서 **화면이 아니라 카드에서** 역산한다. 기준은 지금 확인된 실기기(411×868)의
+ * 카드 크기 `329×347`이고, 그 크기에서는 **모든 값이 종전과 같다.**
+ * 작은 폰에서만 줄고 태블릿에서만 커진다 (세션 34~35의 「폰 값은 그대로」 원칙).
+ */
+const FLASHCARD_CARD_WIDTH = SCREEN_WIDTH * 0.8; // topCard가 left/right 10%
+const FLASHCARD_CARD_HEIGHT = Math.min(isTablet ? 560 : 400, SCREEN_HEIGHT * 0.4);
+const FLASHCARD_REF_CARD_WIDTH = 329;
+const FLASHCARD_REF_CARD_HEIGHT = 347;
+
+const scaleInCardH = (valueAtRef: number, min: number, max: number) =>
+  Math.round(
+    Math.max(min, Math.min(max, FLASHCARD_CARD_HEIGHT * (valueAtRef / FLASHCARD_REF_CARD_HEIGHT)))
+  );
+const scaleInCardW = (valueAtRef: number, min: number, max: number) =>
+  Math.round(
+    Math.max(min, Math.min(max, FLASHCARD_CARD_WIDTH * (valueAtRef / FLASHCARD_REF_CARD_WIDTH)))
+  );
+
+/**
+ * 가로는 **두 단어 카드가 VS를 사이에 두고 한 줄에 들어가야** 한다.
+ * 카드 폭에서 테두리(2×2)와 좌우 패딩, VS 칸을 뺀 나머지를 반으로 나눈 값이
+ * 단어 카드 하나의 폭이다. 폰 상한 120은 **기존 값**이라 411dp에서는 그대로다.
+ */
+const FLASHCARD_CONTAINER_PADDING_H = scaleInCardW(16, 10, 20);
+const FLASHCARD_VS_PADDING_H = scaleInCardW(15, 8, 18);
+const FLASHCARD_VS_WIDTH = FLASHCARD_VS_PADDING_H * 2 + 20; // 'VS' 글자폭(16px 2자) 어림
+const FLASHCARD_CARD_INNER_WIDTH =
+  FLASHCARD_CARD_WIDTH - 4 - FLASHCARD_CONTAINER_PADDING_H * 2;
+const FLASHCARD_WORD_CARD_WIDTH = Math.max(
+  84,
+  Math.min(isTablet ? 180 : 120, Math.floor((FLASHCARD_CARD_INNER_WIDTH - FLASHCARD_VS_WIDTH) / 2))
+);
+/** 단어 카드 안쪽 패딩도 카드 폭을 따라간다 — 카드만 줄면 글자가 넘친다 */
+const FLASHCARD_WORD_CARD_PADDING = Math.max(
+  10,
+  Math.min(isTablet ? 26 : 20, Math.round(FLASHCARD_WORD_CARD_WIDTH * (20 / 120)))
+);
+
 /** UI 레이아웃 상수 (반응형·동적 상수) */
 export const LAYOUT = {
   /** 화면 크기 */
@@ -100,33 +147,42 @@ export const LAYOUT = {
   flashcardsProgressTop: Math.round(Math.min(isTablet ? 190 : 176, SCREEN_HEIGHT * 0.2)),
   scrollPaddingBottom: 30,
 
-  /** WordFlashcard */
-  waveformWidth: Math.min(isTablet ? 400 : 280, SCREEN_WIDTH * 0.75),
-  waveformHeight: 60,
-  wordCardMinWidth: 120,
-  vsSpacerMinWidth: 44,
-  containerPaddingV: 20,
-  containerPaddingH: 16,
-  wordCardPadding: 20,
-  wordTextFontSize: isTablet ? 40 : 32,
-  wordTextMarginBottom: 15,
+  /** WordFlashcard — 값의 근거는 위 `FLASHCARD_CARD_*` 주석 참고. 411×868에서는 전부 종전값이다 */
+  /** 파형 폭은 화면이 아니라 **카드 안쪽 폭**을 넘지 않아야 한다 (320dp에서 12px 삐져나왔다) */
+  waveformWidth: Math.min(isTablet ? 400 : 280, Math.floor(FLASHCARD_CARD_INNER_WIDTH)),
+  waveformHeight: scaleInCardH(60, 36, 72),
+  wordCardMinWidth: FLASHCARD_WORD_CARD_WIDTH,
+  vsSpacerMinWidth: scaleInCardW(44, 30, 56),
+  containerPaddingV: scaleInCardH(20, 10, 24),
+  containerPaddingH: FLASHCARD_CONTAINER_PADDING_H,
+  wordCardPadding: FLASHCARD_WORD_CARD_PADDING,
+  wordTextFontSize: scaleInCardH(32, 22, isTablet ? 40 : 32),
+  wordTextMarginBottom: scaleInCardH(15, 8, 18),
   wordCardBorderRadius: 15,
   wordCardElevation: 2,
-  playAllButtonPaddingH: 24,
-  playAllButtonPaddingV: 14,
-  playAllButtonMarginBottom: 16,
-  playAllButtonFontSize: 16,
+  /** 단어 카드 안 스피커 아이콘. 글자와 같이 줄어야 카드가 넘치지 않는다 */
+  wordPlayIconSize: scaleInCardH(40, 28, isTablet ? 48 : 40),
+  playAllButtonPaddingH: scaleInCardH(24, 16, 28),
+  playAllButtonPaddingV: scaleInCardH(14, 10, 16),
+  /**
+   * 「전체 듣기」와 파형 사이의 **최소** 간격.
+   * 남는 공간은 단어 카드 쪽과 나눠 갖되(`wordsBlock`이 가운데 정렬),
+   * 공간이 빠듯한 기기에서도 버튼이 파형에 붙지 않게 이만큼은 늘 띄운다.
+   */
+  playAllButtonMarginTop: scaleInCardH(12, 8, 20),
+  playAllButtonMarginBottom: scaleInCardH(16, 6, 20),
+  playAllButtonFontSize: scaleInCardH(16, 13, 18),
   playAllButtonBorderRadius: 28,
   playAllButtonElevation: 4,
-  wordsRowMarginBottom: 10,
-  wordColumnContainerGap: 10,
-  playButtonPadding: 10,
-  vsPaddingH: 15,
-  vsPaddingV: 8,
+  wordsRowMarginBottom: scaleInCardH(10, 6, 14),
+  wordColumnContainerGap: scaleInCardH(10, 6, 12),
+  playButtonPadding: scaleInCardH(10, 4, 12),
+  vsPaddingH: FLASHCARD_VS_PADDING_H,
+  vsPaddingV: scaleInCardH(8, 5, 10),
   vsFontSize: 16,
   vsBorderRadius: 20,
-  waveformContainerHeight: Math.min(52, Math.max(32, Math.round(SCREEN_HEIGHT * 0.045))),
-  waveformContainerPaddingV: 10,
+  waveformContainerHeight: scaleInCardH(39, 26, 52),
+  waveformContainerPaddingV: scaleInCardH(10, 6, 12),
   waveformContainerElevation: 2,
 
   /** 진행도 텍스트 */

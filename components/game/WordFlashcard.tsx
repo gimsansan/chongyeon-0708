@@ -108,24 +108,8 @@ export function WordFlashcard({
 
   return (
     <View style={styles.container}>
-      {!minimal && (
-        <>
-          {/* 전체 듣기 버튼 */}
-          <TouchableOpacity 
-            style={[styles.playAllButton, isPlayingAll && styles.playAllButtonDisabled]}
-            onPress={handlePlayAll}
-            disabled={isPlayingAll}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.playAllButtonText}>
-              {isPlayingAll ? '재생 중...' : '전체 듣기'}
-            </Text>
-          </TouchableOpacity>
-        </>
-      )}
-
-      {/* 단어 쌍 카드 */}
-      <View>
+      {/* 단어 쌍 카드 + 파형. 남는 세로 공간을 이 블록이 위아래로 나눠 갖는다 */}
+      <View style={styles.wordsBlock}>
         <View style={styles.wordsRow}>
           {/* 단어 1 */}
           <View style={styles.wordColumnContainer}>
@@ -137,7 +121,7 @@ export function WordFlashcard({
             >
               <Text style={styles.wordText}>{wordPair.word1}</Text>
               <View style={styles.playButton}>
-                <Ionicons name="volume-high" size={40} color={COLORS.success} />
+                <Ionicons name="volume-high" size={LAYOUT.wordPlayIconSize} color={COLORS.success} />
               </View>
             </TouchableOpacity>
           </View>
@@ -160,7 +144,7 @@ export function WordFlashcard({
             >
               <Text style={styles.wordText}>{wordPair.word2}</Text>
               <View style={styles.playButton}>
-                <Ionicons name="volume-high" size={40} color={COLORS.success} />
+                <Ionicons name="volume-high" size={LAYOUT.wordPlayIconSize} color={COLORS.success} />
               </View>
             </TouchableOpacity>
           </View>
@@ -181,6 +165,19 @@ export function WordFlashcard({
           </View>
           
       </View>
+
+      {!minimal && (
+        <TouchableOpacity
+          style={[styles.playAllButton, isPlayingAll && styles.playAllButtonDisabled]}
+          onPress={handlePlayAll}
+          disabled={isPlayingAll}
+          activeOpacity={0.88}
+        >
+          <Text style={styles.playAllButtonText}>
+            {isPlayingAll ? '재생 중...' : '전체 듣기'}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -188,11 +185,11 @@ export function WordFlashcard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
     alignItems: 'center',
     backgroundColor: 'transparent',
     paddingVertical: LAYOUT.containerPaddingV,
     paddingHorizontal: LAYOUT.containerPaddingH,
-    
   },
   playAllButton: {
     flexDirection: 'row',
@@ -202,6 +199,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: LAYOUT.playAllButtonPaddingH,
     paddingVertical: LAYOUT.playAllButtonPaddingV,
     borderRadius: LAYOUT.playAllButtonBorderRadius,
+    // `marginTop: 'auto'`는 남는 공간을 **전부** 버튼 위에 몰아넣는다.
+    // 태블릿처럼 카드가 커지면 단어 카드는 위에 붙고 버튼만 바닥에 떨어져 균형이 깨진다.
+    // 지금은 `wordsBlock`(flex: 1, 가운데 정렬)이 여유를 나눠 갖고, 여기서는 최소 간격만 준다.
+    marginTop: LAYOUT.playAllButtonMarginTop,
     marginBottom: LAYOUT.playAllButtonMarginBottom,
     elevation: LAYOUT.playAllButtonElevation,
     gap: 8,
@@ -214,6 +215,12 @@ const styles = StyleSheet.create({
     fontSize: LAYOUT.playAllButtonFontSize,
     fontWeight: 'bold',
     color: 'white',
+  },
+  wordsBlock: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   wordsRow: {
     flexDirection: 'row',
