@@ -74,9 +74,6 @@ export function WordGame({ difficulty = 'easy', onGameComplete, onAnswerShown }:
   const gameLogic = useWordGameLogic({ difficulty, onGameComplete });
   const audioPlayer = useWordAudioPlayer();
   const isMountedRef = useRef(true);
-  const replayProgressStyle = useAnimatedStyle(() => ({
-    width: `${Math.max(6, Math.round(audioPlayer.progress.value * 100))}%`,
-  }));
 
   const {
     currentWordPair,
@@ -294,11 +291,6 @@ export function WordGame({ difficulty = 'easy', onGameComplete, onAnswerShown }:
                   {audioPlayer.isPlaying ? '재생 중...' : '다시 듣기'}
                 </Text>
               </AnimatedTapButton>
-              {audioPlayer.isPlaying && (
-                <View style={styles.playingIndicatorTrack}>
-                  <Animated.View style={[styles.playingIndicatorFill, replayProgressStyle]} />
-                </View>
-              )}
             </View>
           </View>
         )}
@@ -394,18 +386,6 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
     marginBottom: 0,
     alignItems: 'center',
-  },
-  playingIndicatorTrack: {
-    marginTop: 8,
-    width: 148,
-    height: 6,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.45)',
-    overflow: 'hidden',
-  },
-  playingIndicatorFill: {
-    height: '100%',
-    backgroundColor: '#2E7D32',
   },
   choiceButton: {
     flex: 1,
