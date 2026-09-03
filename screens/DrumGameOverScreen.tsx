@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from "react";
-import { View, StyleSheet, Text, Pressable } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, StyleSheet, Text, Pressable, LayoutChangeEvent } from "react-native";
 import Rive from "rive-react-native";
+import { COLORS } from "../constants/colors";
+import { LAYOUT } from "../constants/layout";
 
 
 interface DrumGameOverScreenProps {
@@ -10,24 +12,69 @@ interface DrumGameOverScreenProps {
   onGoHome: () => void;
 }
 
+/** 흰 배경 위 초록 글자용. 브랜드 초록(#7cbd7e)은 흰 배경에서 2.2:1이라 글자로는 흐리다. */
+const GREEN_ON_WHITE = "#4E9A51";
+
+/**
+ * 결과 등급. 메시지와 색을 **한 표에** 둔다 — 따로 두면 한쪽만 고쳐져 어긋난다.
+ *
+ * 색은 밝기가 아니라 **색상(hue)으로** 가른다 (세션 28에 미션 아이콘에서 세운 원칙).
+ * 셋 다 **흰 카드 위**에 올라가므로 원색 그대로는 흐리다 — 금 `#FFD700`은 흰 배경에서 2.2:1,
+ * 초록 `#7cbd7e`도 2.2:1이라 큰 글씨 기준(3:1)에 못 미친다. 그래서 한 톤씩 내린 값이다.
+ */
+const RESULT_TIERS = {
+  perfect: { message: "완벽해요!", color: "#B8860B" },
+  good: { message: "잘했어요!", color: GREEN_ON_WHITE },
+  tryAgain: { message: "아쉬워요!", color: "#6B7280" },
+} as const;
+
+/**
+ * 카드·게이지 치수.
+ * 카드가 `width: '100%'`뿐이라 태블릿에서는 카드만 넓어지고 게이지는 220px로 남았다.
+ * 카드에 상한을 주고, 게이지는 **실측한 카드 폭**을 따라가게 한다.
+ */
+const CARD_MAX_WIDTH = LAYOUT.isTablet ? 520 : 400;
+const CARD_PADDING = LAYOUT.isTablet ? 24 : 20;
+const GAUGE_MAX_WIDTH = LAYOUT.isTablet ? 340 : 240;
+const GAUGE_MIN_WIDTH = 160;
+/** 원본 Rive 아트보드 비율(220 × 40). 폭이 바뀌어도 이 비율을 지킨다. */
+const GAUGE_ASPECT = 220 / 40;
+
 function DrumGameOverScreen({
   score,
   maxScore,
   onRestart,
   onGoHome,
 }: DrumGameOverScreenProps) {
-  // 점수에 따른 메시지 결정
-  const getScoreMessage = () => {
-    if (score === maxScore) return " 완벽해요!";
-    if (score >= maxScore * 0.7) return " 잘했어요!";
-    return "아쉬워요!";
+  // 점수에 따른 등급(메시지 + 색)
+  const clampedMaxScore = Math.max(maxScore, 1);
+  const tier =
+    score === maxScore
+      ? RESULT_TIERS.perfect
+      : score >= clampedMaxScore * 0.7
+        ? RESULT_TIERS.good
+        : RESULT_TIERS.tryAgain;
+
+  // 카드 폭 실측. 이 컴포넌트는 드럼(전체 화면 오버레이)과 learn(페이지 안)에서 함께 쓰는데
+  // 두 호스트의 폭이 달라 화면 폭만으로는 못 맞춘다.
+  // 소수점 끝자리가 흔들리면 onLayout → 리렌더 → onLayout이 도니 반올림한다 (세션 32).
+  const [measuredCardWidth, setMeasuredCardWidth] = useState(0);
+  const handleCardLayout = (event: LayoutChangeEvent) => {
+    const width = Math.round(event.nativeEvent.layout.width);
+    setMeasuredCardWidth(prev => (prev === width ? prev : width));
   };
+
+  // 실측 전 첫 프레임은 **하한**으로 그린다. 큰 값으로 어림잡으면 폭이 좁은 호스트(learn)에서
+  // 한 프레임 동안 게이지가 카드 밖으로 삐져나온다. 작게 시작해 실측 후 커지는 편이 안전하다.
+  const gaugeWidth = measuredCardWidth
+    ? Math.max(GAUGE_MIN_WIDTH, Math.round(Math.min(measuredCardWidth - CARD_PADDING * 2, GAUGE_MAX_WIDTH)))
+    : GAUGE_MIN_WIDTH;
+  const gaugeHeight = Math.round(gaugeWidth / GAUGE_ASPECT);
 
   // Rive 진행 게이지 컨트롤용 ref
   const riveRef = useRef<any>(null);
 
   // 점수 비율(0~1) → 0~100 구간 값으로 변환
-  const clampedMaxScore = Math.max(maxScore, 1);
   const targetGaugeValue = (score / clampedMaxScore) * 100;
 
   // 결과 화면이 열릴 때 게이지가 0 → targetGaugeValue 까지 짧게 차오르게 함
@@ -73,7 +120,7 @@ function DrumGameOverScreen({
 
 
           {/* 점수 카드 */}
-          <View style={styles.scoreCard}>
+          <View style={styles.scoreCard} onLayout={handleCardLayout}>
             {/* 점수와 진행 바를 함께 배치 */}
             <View style={styles.scoreContainer}>
 
@@ -84,12 +131,12 @@ function DrumGameOverScreen({
                   ref={riveRef}
                   resourceName="pro_box33"
                   stateMachineName="State Machine 1"
-                  style={{ width: 220, height: 40 }}
+                  style={{ width: gaugeWidth, height: gaugeHeight }}
                   autoplay
                 />
               </View>
-              <Text style={styles.scoreMessage}>{getScoreMessage()}</Text>
-              <Text style={styles.scoreCombined}>
+              <Text style={styles.scoreMessage}>{tier.message}</Text>
+              <Text style={[styles.scoreCombined, { color: tier.color }]}>
                 {score}/{maxScore}
               </Text>
             </View>
@@ -97,10 +144,12 @@ function DrumGameOverScreen({
 
           </View>
 
-          {/* 버튼 */}
+          {/* 버튼 — 주 동작(다시 하기)만 채우고, 결과를 닫는 나가기는 아웃라인으로 구분한다 */}
           <View style={styles.buttonContainer}>
             <Pressable
               onPress={onRestart}
+              accessibilityRole="button"
+              accessibilityLabel="다시 하기"
               style={({ pressed }) => [
                 styles.actionButton,
                 pressed && styles.pressedButton,
@@ -111,12 +160,15 @@ function DrumGameOverScreen({
 
             <Pressable
               onPress={onGoHome}
+              accessibilityRole="button"
+              accessibilityLabel="나가기"
               style={({ pressed }) => [
                 styles.actionButton,
+                styles.secondaryButton,
                 pressed && styles.pressedButton,
               ]}
             >
-              <Text style={styles.buttonText}>나가기</Text>
+              <Text style={[styles.buttonText, styles.secondaryButtonText]}>나가기</Text>
             </Pressable>
           </View>
         </View>
@@ -144,35 +196,38 @@ const styles = StyleSheet.create({
   },
 
   scoreCard: {
-    backgroundColor: "white",
+    backgroundColor: COLORS.white,
     borderRadius: 16,
-    padding: 20,
+    padding: CARD_PADDING,
     width: "100%",
+    maxWidth: CARD_MAX_WIDTH,
+    alignSelf: "center",
     alignItems: "center",
+    // elevation은 안드로이드 전용이라 iOS에서는 그림자가 아예 없었다.
+    // learn 탭은 배경이 밝아(#F0F2F5) 그림자가 없으면 흰 카드가 배경에 묻는다.
     elevation: 4,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     marginBottom: 20,
   },
   scoreCombined: {
     marginTop: 16,
-    fontSize: 28,
+    fontSize: LAYOUT.isTablet ? 34 : 28,
     fontWeight: "bold",
-    color: "#7cbd7e",
+    // 색은 등급에 따라 렌더에서 준다 (RESULT_TIERS)
     textAlign: "center",
-    textShadowColor: "rgba(135, 206, 235, 0.3)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-
   },
   scoreContainer: {
     alignItems: "center",
     marginBottom: 20,
-
-
-
   },
   scoreMessage: {
-    fontSize: 32,
-    color: "#333",
+    fontSize: LAYOUT.isTablet ? 40 : 32,
+    color: COLORS.textPrimary,
     marginTop: 5,
     fontWeight: "bold",
   },
@@ -185,6 +240,8 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     width: "100%",
+    maxWidth: CARD_MAX_WIDTH,
+    alignSelf: "center",
     gap: 15,
     marginTop: 20,
     flexDirection: "row",
@@ -193,17 +250,25 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     borderRadius: 16,
-    backgroundColor: "#7cbd7e",
+    backgroundColor: COLORS.success,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 18,
     paddingHorizontal: 12,
-    minHeight: 80,
+    minHeight: LAYOUT.isTablet ? 92 : 80,
+    borderWidth: 2,
+    borderColor: COLORS.success,
+  },
+  secondaryButton: {
+    backgroundColor: COLORS.white,
   },
   buttonText: {
-    fontSize: 20,
+    fontSize: LAYOUT.isTablet ? 24 : 20,
     fontWeight: "bold",
-    color: "#FFFFFF", // 흰색
+    color: COLORS.white,
+  },
+  secondaryButtonText: {
+    color: GREEN_ON_WHITE,
   },
   pressedButton: {
     transform: [{ scale: 0.98 }],

@@ -172,24 +172,30 @@ export default function Index() {
                 )}
 
                 <View style={styles.gameContentInner}>
-                  {isGameOver ? (
-                    <DrumGameOverScreen
-                      score={finalScore}
-                      maxScore={finalMaxScore}
-                      onRestart={handleRestartGame}
-                      onGoHome={handleGoHome}
-                    />
-                  ) : (
+                  {!isGameOver && (
                     <WordGame
                       difficulty={currentDifficulty}
                       onGameComplete={handleGameComplete}
-                
                     />
                   )}
                 </View>
               </View>
             </View>
           </View>
+
+          {/* 게임 종료 오버레이 — 드럼(`drum/index.tsx`)과 같은 방식.
+              결과를 페이지 안에 끼워 넣지 않고 검은 스크림 위에 띄운다.
+              WordGame은 위에서 언마운트해 오디오·타이머가 뒤에 남지 않게 한다. */}
+          {isGameOver && (
+            <View style={styles.gameOverOverlay}>
+              <DrumGameOverScreen
+                score={finalScore}
+                maxScore={finalMaxScore}
+                onRestart={handleRestartGame}
+                onGoHome={handleGoHome}
+              />
+            </View>
+          )}
         </View>
       </View>
     </GestureHandlerRootView>
@@ -296,5 +302,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-start',
     marginTop: LAYOUT.learnGameContentMarginTop,
+  },
+  /** 게임 종료 오버레이 — 드럼(`drum/index.tsx`의 gameOverOverlay)과 같은 값 */
+  gameOverOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2000,
   },
 });
