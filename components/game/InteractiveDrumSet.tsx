@@ -14,6 +14,7 @@ import {
   State,
   PanGestureHandlerGestureEvent,
 } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 
 import { useAudioManager } from '../../context/AudioManager';
 import { DRUM_INSTRUMENTS, InstrumentType } from '../../constants/drumSounds';
@@ -23,6 +24,16 @@ const { width: initialScreenWidth, height: initialScreenHeight } = Dimensions.ge
 
 
 const DRUM_IMAGE_ASPECT_RATIO = 1;
+
+/**
+ * 드럼을 칠 때의 촉각 피드백. 연주·퀴즈 두 모드가 같은 자리(snapToInstrument)를 지나므로
+ * 여기 한 곳이면 캐릭터 드래그와 하단 ◀/▶ 버튼 양쪽을 다 덮는다.
+ * 타격감이라 selection(약한 틱)이 아니라 impact를 쓴다.
+ * 지원하지 않는 환경(웹 등)에서는 조용히 넘어간다 — 소리와 하이라이트는 그대로 나가야 한다.
+ */
+const triggerHitHaptic = () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+};
 
 // (기본 전역 순서는 존재하지만 컴포넌트에서는 layout.order를 사용)
 const DEFAULT_DRUM_ORDER: InstrumentType[] = ['snare', 'hihat', 'cymbal', 'tom', 'kick'];
@@ -387,9 +398,11 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     // 퀴즈 모드: 정답 제출 + 터치 피드백 소리만
     if (isQuizWaiting && onAnswerSubmit) {
       onAnswerSubmit(instrument);
+      triggerHitHaptic();
       audioManager.playSound(instrument, DRUM_INSTRUMENTS[instrument].sound);
     } else if (!isGameAudioPlaying) {
       // 일반 연주 모드: 소리 + 하이라이트
+      triggerHitHaptic();
       audioManager.playSound(instrument, DRUM_INSTRUMENTS[instrument].sound);
       onInstrumentPlay?.(DRUM_INSTRUMENTS[instrument].name);
       triggerHighlight(instrument);
