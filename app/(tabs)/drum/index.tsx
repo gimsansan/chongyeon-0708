@@ -36,6 +36,12 @@ const HEADER_ACTION_ICON_CHIP_SIZE = HEADER_ACTION_FONT_SIZE + 7;
 
 // 설정 드롭다운: 문제 수 옵션 (세그먼티드 컨트롤의 칸 = 이 배열의 원소)
 const QUESTION_COUNTS = [5, 10, 15, 20] as const;
+/**
+ * 악기명 레이블 칩의 최소 높이. 레이블을 제 높이만큼 아래로 내리는 데 쓰는데,
+ * 실측(onLayout)이 오기 전 첫 프레임에도 자리가 맞아야 튀지 않는다.
+ * 스타일의 minHeight와 같은 값을 봐야 하므로 상수 하나를 양쪽에서 쓴다.
+ */
+const INSTRUMENT_LABEL_MIN_HEIGHT = 50;
 
 /** 세그먼티드 컨트롤 트랙 안쪽 여백. 인디케이터 pill이 트랙 테두리에서 이만큼 떠 있음 */
 const SEGMENTED_TRACK_PADDING = 4;
@@ -133,6 +139,12 @@ export default function Index() {
    * 화면 높이에 비례시키되 양 끝을 묶어 극단으로 가지 않게 한다.
    */
   const instrumentLabelGap = Math.min(24, Math.max(8, Math.round(windowHeight * 0.02)));
+  /**
+   * 레이블 칩의 실측 높이. 레이블을 제 높이만큼 더 내리라는 요구라, 내리는 양이 곧 이 값이다.
+   * 고정 50으로 두지 않는 이유는 기기 글꼴 배율이 크면 칩이 minHeight보다 커지기 때문이다.
+   * 초기값을 minHeight와 맞춰 두어 실측 전 첫 프레임에서도 자리가 튀지 않는다.
+   */
+  const [instrumentLabelHeight, setInstrumentLabelHeight] = useState(INSTRUMENT_LABEL_MIN_HEIGHT);
   const viewportAspectRatio = backgroundViewport.width > 0 && backgroundViewport.height > 0
     ? backgroundViewport.width / backgroundViewport.height
     : 0;
@@ -469,14 +481,25 @@ export default function Index() {
           {/*
             현재 악기 레이블 — ScrollView 밖에 둔다. 안에 두면 드럼 세트 위로 올릴 때
             FlatList 셀에 잘려 뒤 배경이 드러난다. 세로 기준은 헤더 실측 높이(상단 인셋 포함).
+            거기에 칩 높이를 한 번 더 더해 제 높이만큼 아래로 내린다.
             퀴즈 중에는 정답을 알려주는 셈이라 숨긴다.
           */}
           {!isQuizActive && labelInstrument && (
             <View
-              style={[styles.instrumentLabelFixed, { top: headerHeight + instrumentLabelGap }]}
+              style={[
+                styles.instrumentLabelFixed,
+                { top: headerHeight + instrumentLabelGap + instrumentLabelHeight },
+              ]}
               pointerEvents="none"
             >
-              <View style={styles.currentInstrumentDisplay}>
+              <View
+                style={styles.currentInstrumentDisplay}
+                onLayout={(event) => {
+                  // 같은 값이면 setState를 부르지 않는다 — onLayout → 리렌더 → onLayout 반복을 막는다
+                  const measured = Math.round(event.nativeEvent.layout.height);
+                  setInstrumentLabelHeight((prev) => (prev === measured ? prev : measured));
+                }}
+              >
                 <Text style={styles.currentInstrumentText}>
                   {DRUM_INSTRUMENTS[labelInstrument].name}
                 </Text>
@@ -757,7 +780,7 @@ const styles = StyleSheet.create({
   },
   currentInstrumentDisplay: {
     minWidth: 140,
-    minHeight: 50,
+    minHeight: INSTRUMENT_LABEL_MIN_HEIGHT,
     backgroundColor: 'rgba(252, 237, 204, 0.9)',
     paddingHorizontal: 16,
     paddingVertical: 8,
