@@ -337,6 +337,35 @@ export function MusicTrainingScreen() {
   const [repeatCount, setRepeatCount] = useState(0);
   const [sessionLog, setSessionLog] = useState<any[]>([]);
 
+  /**
+   * 정답 뒤 다음 문제가 나올 때까지의 **채점 빗장.**
+   *
+   * `currentNote`는 1초(미션 성공은 2.5초) 뒤에야 바뀐다. 그 사이 같은 건반을 또 누르면
+   * 계속 정답이라 **한 문제 연타로 5점(클리어)**이 됐다. 막는 것은 **채점뿐**이다 —
+   * 소리는 그대로 낸다. 렌더에서 읽지 않으므로 state가 아니라 ref다.
+   */
+  const isScoringLockedRef = useRef(false);
+
+  /**
+   * 정답 처리용 타이머 모음 (`matchGame.tsx:66`과 같은 방식).
+   *
+   * 담아두지 않으면 「훈련 종료」·난이도 변경 뒤에도 예약된 `playNextQuestion`이 살아나
+   * **끝난 훈련에서 문제음이 나고**, 바꾸기 전 난이도의 음이 출제된다.
+   * 터진 타이머는 자기 id를 스스로 뺀다 — 한 훈련 동안 쌓이지 않게.
+   */
+  const trainingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const clearTrainingTimers = useCallback(() => {
+    trainingTimersRef.current.forEach(clearTimeout);
+    trainingTimersRef.current.clear();
+  }, []);
+  const scheduleTrainingTimer = useCallback((run: () => void, delayMs: number) => {
+    const id = setTimeout(() => {
+      trainingTimersRef.current.delete(id);
+      run();
+    }, delayMs);
+    trainingTimersRef.current.add(id);
+  }, []);
+
   const KEYBOARD_ENABLED = false;
   const VISUALIZER_MODE: 'ripple' | 'particle' = 'particle'; // 스위치 제공 ('ripple'로 변경 시 이전 물결로 복구)
   const SHOW_ANSWER_HINT = true; // 테스트용 정답 힌트 노출 스위치 (true 활성화 / false 비활성화)
@@ -350,6 +379,25 @@ export function MusicTrainingScreen() {
   const [feedback, setFeedback] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('3단계');
   const [progress, setProgress] = useState<MusicProgress>({});
+
+  /**
+   * `score`·`progress`의 동기 사본과 **유일한 쓰기 통로.**
+   *
+   * 정답 처리가 `score + 1` · `{...progress}`로 **렌더 클로저 값**을 읽고 있었다
+   * (오답 쪽만 updater였다). 한 프레임에 두 건반이 들어오면 둘이 같은 값을 계산해
+   * 점수·누적이 하나만 오른다. updater 안에서는 `addStar`를 못 부르므로(세션 40)
+   * 사본을 두되, **쓰는 자리를 아래 둘로 좁혀** 두 곳이 갈라지지 않게 한다.
+   */
+  const scoreRef = useRef(0);
+  const progressRef = useRef<MusicProgress>({});
+  const applyScore = useCallback((next: number) => {
+    scoreRef.current = next;
+    setScore(next);
+  }, []);
+  const applyProgress = useCallback((next: MusicProgress) => {
+    progressRef.current = next;
+    setProgress(next);
+  }, []);
   const [showMissionSuccess, setShowMissionSuccess] = useState(false);
   const [hasShownMissionSuccess, setHasShownMissionSuccess] = useState(false);
 
@@ -563,7 +611,7 @@ export function MusicTrainingScreen() {
       try {
         const savedProgress = await AsyncStorage.getItem(MUSIC_PROGRESS_KEY);
         if (savedProgress) {
-          setProgress(JSON.parse(savedProgress));
+          applyProgress(JSON.parse(savedProgress));
         }
       } catch (e) {
         console.error('Failed to load music progress.', e);
@@ -574,6 +622,7 @@ export function MusicTrainingScreen() {
     return () => {
       isMounted = false;
       clearFallingNoteTimers();
+      clearTrainingTimers();
       if (previewTimerRef.current) {
         clearTimeout(previewTimerRef.current);
       }
@@ -589,7 +638,7 @@ export function MusicTrainingScreen() {
       soundCache.current = {};
       recentlyUsedNotes.current = [];
     };
-  }, [clearFallingNoteTimers]);
+  }, [clearFallingNoteTimers, clearTrainingTimers, applyProgress]);
 
   // 저장 기록 동기화
   useEffect(() => {
@@ -795,23 +844,35 @@ export function MusicTrainingScreen() {
     const randomIndex = Math.floor(Math.random() * notesToUse.length);
     const randomNote = notesToUse[randomIndex];
     setCurrentNote(randomNote);
-    setRepeatCount(0); // 새 문제 출제 시 데이터 초기화 및 시간 기록
+    setRepeatCount(0);
+    // 응답 시간의 기준은 **출제하는 이 자리에서 동기로** 찍는다.
+    // 여기서 안 찍으면 기준이 `null`이라 첫 문제들은 `null || 0` → 응답시간 0초로,
+    // 한 번 오답을 낸 뒤로는 **그 오답 시각**이 다음 문제들의 기준으로 남는다.
+    // 서버 `detailed_logs`에 그대로 담긴다.
+    setQuestionStartTime(Date.now());
+    isScoringLockedRef.current = false;
     playSound(randomNote);
   }, [difficulty]);
 
   const handleDifficultyChange = (name: Difficulty) => {
     setDifficulty(name);
     if (mode === 'random') {
+      // 예약된 출제를 먼저 끊는다. 남겨두면 바꾸기 전 난이도의 음이 뒤늦게 나온다
+      clearTrainingTimers();
+      isScoringLockedRef.current = false;
       setCurrentNote(null);
-      setScore(0);
+      applyScore(0);
       setFeedback(`난이도가 ${name}로 변경되었습니다. [문제 재생]을 누르세요.`);
     }
   };
 
   const startTraining = () => {
     clearFallingNoteTimers();
+    clearTrainingTimers();
+    isScoringLockedRef.current = false;
+    setQuestionStartTime(null);
     setMode('random');
-    setScore(0);
+    applyScore(0);
     setSessionLog([]); // 세션 로그 초기화
     setFeedback('난이도를 선택하고 [문제 재생]을 눌러 시작하세요!');
     setShowMissionSuccess(false);
@@ -823,8 +884,11 @@ export function MusicTrainingScreen() {
   const handleResetProgress = async () => {
     try {
       await AsyncStorage.removeItem(MUSIC_PROGRESS_KEY);
-      setProgress({});
-      setScore(0);
+      // 문제를 지우므로 예약된 출제도 함께 끊는다 — 안 끊으면 초기화 직후 되살아난다
+      clearTrainingTimers();
+      isScoringLockedRef.current = false;
+      applyProgress({});
+      applyScore(0);
       setCurrentNote(null);
       setFeedback('기록이 초기화되었습니다.');
     } catch (e) {
@@ -836,8 +900,10 @@ export function MusicTrainingScreen() {
     if (!songToPlay) return;
 
     clearFallingNoteTimers();
+    clearTrainingTimers();
+    isScoringLockedRef.current = false;
     setMode('falling');
-    setScore(0);
+    applyScore(0);
     resetFallingStats();
     setCurrentNote(null);
     setPreviewCount(3);
@@ -862,6 +928,9 @@ export function MusicTrainingScreen() {
     }
     
     clearFallingNoteTimers();
+    clearTrainingTimers();
+    isScoringLockedRef.current = false;
+    setQuestionStartTime(null);
     if (previewTimerRef.current) {
       clearTimeout(previewTimerRef.current);
       previewTimerRef.current = null;
@@ -904,6 +973,13 @@ export function MusicTrainingScreen() {
 
   const replayFallingSong = () => {
     startFallingNoteMode(currentSong ?? selectedFallingSong);
+  };
+
+  /** 뒤로가기로 리플레이 안내를 닫는다. 결과는 버리고 대기 화면으로 돌아간다 */
+  const dismissFallingReplayPrompt = () => {
+    setShowFallingReplayPrompt(false);
+    setLastFallingResult(null);
+    setCurrentSong(null);
   };
 
   const showLastFallingResult = () => {
@@ -983,6 +1059,10 @@ export function MusicTrainingScreen() {
         setMissPulseKey(prev => prev + 1);
       }
     } else if (mode === 'random' && currentNote) {
+      // 정답을 맞힌 뒤 다음 문제가 나오기 전까지는 **채점하지 않는다.**
+      // 소리는 위 1번에서 이미 냈다 — 막는 것은 채점뿐이다
+      if (isScoringLockedRef.current) return;
+
       const isCorrect = note === currentNote;
       const responseTime = questionStartTime ? (Date.now() - questionStartTime) / 1000 : 0;
 
@@ -997,26 +1077,32 @@ export function MusicTrainingScreen() {
       setSessionLog(prev => [...prev, attemptRecord]);
 
       if (isCorrect) {
-        const newScore = score + 1;
-        setScore(newScore);
+        isScoringLockedRef.current = true;
 
-        const currentProgress = progress[difficulty] || { cumulativeSuccesses: 0, highestScore: 0 };
+        const newScore = scoreRef.current + 1;
+        applyScore(newScore);
+
+        const currentProgress = progressRef.current[difficulty] || { cumulativeSuccesses: 0, highestScore: 0 };
         const newCumulativeSuccesses = currentProgress.cumulativeSuccesses + 1;
 
         const updatedProgress = {
-          ...progress,
+          ...progressRef.current,
           [difficulty]: {
             cumulativeSuccesses: newCumulativeSuccesses,
             highestScore: Math.max(currentProgress.highestScore, newScore),
           },
         };
-        setProgress(updatedProgress);
+        applyProgress(updatedProgress);
 
-        if (newCumulativeSuccesses >= 3) {
-          starContext?.addStar(`music_${difficulty}`);
+        // 조건을 넘긴 뒤로는 **정답마다** 다시 부르고 있었다.
+        // 두 Provider가 안에서도 막지만(`StarContext.addStar` · `ClearContext.markAsCleared`),
+        // 부르는 쪽에서 한 번만 부르는 것이 뜻이 분명하다
+        const missionKey = `music_${difficulty}`;
+        if (newCumulativeSuccesses >= 3 && !starContext?.starData?.[missionKey]) {
+          starContext?.addStar(missionKey);
         }
-        if (newScore >= 5) {
-          clearContext?.markAsCleared(`music_${difficulty}`);
+        if (newScore >= 5 && !clearContext?.clearData?.[missionKey]) {
+          clearContext?.markAsCleared(missionKey);
         }
 
         if (newScore >= 5 && !hasShownMissionSuccess) {
@@ -1025,26 +1111,26 @@ export function MusicTrainingScreen() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setShowMissionSuccess(true);
           setFeedback('정답!');
-          setTimeout(() => {
+          scheduleTrainingTimer(() => {
             setShowMissionSuccess(false);
             setFeedback('다음 문제');
             playNextQuestion();
           }, 2500);
         } else {
           setFeedback('정답!');
-          setTimeout(() => {
+          scheduleTrainingTimer(() => {
             setFeedback('다음 문제');
             playNextQuestion();
           }, 1000);
         }
       } else {
-        setScore(prev => (prev > 0 ? prev - 1 : 0));
+        applyScore(Math.max(0, scoreRef.current - 1));
         setFeedback('오답! 다시 들어보세요.');
         // 오답 시 재시도 시간을 새로 재기 위해 타이머 리셋
         setQuestionStartTime(Date.now());
       }
     }
-  }, [mode, currentNote, currentSong, isFallingNoteActive, playNextQuestion, score, progress, difficulty, hasShownMissionSuccess, starContext, clearContext, triggerFallingHitEffect, questionStartTime, repeatCount]);
+  }, [mode, currentNote, currentSong, isFallingNoteActive, playNextQuestion, difficulty, hasShownMissionSuccess, starContext, clearContext, triggerFallingHitEffect, questionStartTime, repeatCount, applyScore, applyProgress, scheduleTrainingTimer]);
 
   const handleNotePressOut = useCallback((note: Note) => {
     setActiveNotes(prev => {
@@ -1439,6 +1525,7 @@ export function MusicTrainingScreen() {
           result={lastFallingResult}
           onReplay={replayFallingSong}
           onShowResult={showLastFallingResult}
+          onDismiss={dismissFallingReplayPrompt}
         />
       )}
 
