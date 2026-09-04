@@ -20,7 +20,21 @@ const AnimatedTabBarButton = ({
 }: any) => {
   const scaleValue = useRef(new Animated.Value(1)).current;
 
-  const handlePressOut = () => {
+  // 언마운트 뒤에 튐이 남지 않게 끊는다.
+  useEffect(() => () => scaleValue.stopAnimation(), [scaleValue]);
+
+  /**
+   * 탭이 **실제로 눌렸을 때**만 튄다.
+   *
+   * 예전에는 `onPressOut`에 걸려 있었다. `onPressOut`은 눌렀다가 버튼 밖으로 끌어
+   * **취소한 누름**에도 불리므로, 탭이 바뀌지 않는데 아이콘만 튀었다.
+   *
+   * 그리고 이전 시퀀스를 끊지 않아 연타하면 배율이 겹쳤다. 끊고 1로 되돌린 뒤 다시 튄다.
+   */
+  const handlePress = (event: any) => {
+    scaleValue.stopAnimation();
+    scaleValue.setValue(1);
+
     Animated.sequence([
       Animated.spring(scaleValue, {
         toValue: 1.2,
@@ -33,6 +47,8 @@ const AnimatedTabBarButton = ({
         speed: 200,
       }),
     ]).start();
+
+    onPress?.(event);
   };
 
   const { ref, pressColor, pressOpacity, hoverEffect, href, ...filteredRestProps } = restProps as any;
@@ -40,8 +56,7 @@ const AnimatedTabBarButton = ({
   return (
     <Pressable
       {...filteredRestProps}
-      onPress={onPress}
-      onPressOut={handlePressOut}
+      onPress={handlePress}
       style={[
         { flex: 1, justifyContent: "center", alignItems: "center" },
         style,
@@ -74,7 +89,18 @@ const LANDSCAPE_ROUTES = ['/activity', '/guitar'];
 function useOrientationForRoute() {
   const pathname = usePathname();
 
+  /**
+   * 몇 번째 잠금인지 세는 표.
+   *
+   * `lockAsync`는 **취소되지 않는다.** 탭을 빠르게 옮기면 지난 경로의 프라미스가
+   * 나중에 끝나서, 지금 화면과 상관없는 실패를 지금 것처럼 다룰 수 있다.
+   * 끝날 때마다 이 표와 대조해 **마지막 잠금이 아니면 아무것도 하지 않는다.**
+   */
+  const lockRunIdRef = useRef(0);
+
   useEffect(() => {
+    const runId = ++lockRunIdRef.current;
+
     const wantsLandscape = LANDSCAPE_ROUTES.some(
       route => pathname === route || pathname.startsWith(route + '/')
     );
@@ -83,7 +109,16 @@ function useOrientationForRoute() {
       wantsLandscape
         ? ScreenOrientation.OrientationLock.LANDSCAPE
         : ScreenOrientation.OrientationLock.PORTRAIT_UP
-    ).catch(() => { });
+    ).catch(error => {
+      // 지난 경로의 잠금이 늦게 실패한 것이면 지금 화면과 무관하다.
+      if (runId !== lockRunIdRef.current) return;
+
+      // 삼키면 가로 화면이 세로로 남아도 아무 데도 안 남는다.
+      console.warn(
+        `[화면 방향] ${wantsLandscape ? '가로' : '세로'} 잠금 실패 (${pathname})`,
+        error
+      );
+    });
   }, [pathname]);
 }
 
@@ -100,18 +135,20 @@ export default function TabLayout() {
         tabBarStyle: [styles.tabBar, { paddingBottom: 4 + insets.bottom, height: 64 + insets.bottom }],
         tabBarActiveTintColor: COLORS.textPrimary,
         tabBarInactiveTintColor: COLORS.textLight,
-   /*      // screenOptions로 Tabs에 props를 내려주면
-        // (예: screenOptions={{ tabBarButton: ... }})
-        // 각 tab의 tabBarButton에 자동으로 전달됨.
-        // props는 내부적으로 Navigation이 탭 상태, onPress 등 정보 자동 전달!
-        // 네, props 파라미터는 여기서 처음 생성(정의)됩니다. */
         tabBarButton: (props) => <AnimatedTabBarButton {...props} />,
       }}
     >
+      {/*
+        탭 라벨은 일곱 다 `() => null`이라 화면에 글자가 없고, 아이콘은 글리프 `<Text>`뿐이다.
+        `bottom-tabs`가 라벨로 접근성 이름을 만드는 길은 `Platform.OS === 'ios'` 조건이라
+        (`BottomTabBar.js:292`) 안드로이드에서는 **읽을 것이 하나도 없다.**
+        그래서 `tabBarAccessibilityLabel`을 탭마다 직접 준다.
+      */}
       <Tabs.Screen
         name="drum"
         options={{
           tabBarLabel: () => null,
+          tabBarAccessibilityLabel: "드럼",
           tabBarIcon: ({ color }) => (
             <Ionicons name="musical-notes" size={24} color={color} />
           ),
@@ -122,33 +159,21 @@ export default function TabLayout() {
         name="learn"
         options={{
           tabBarLabel: () => null,
+          tabBarAccessibilityLabel: "소리 구별 퀴즈",
           tabBarIcon: ({ color }) => (
             <Ionicons name="headset" size={24} color={color} />
           ),
         }}
       />
 
-  {/*       // 아래는 "flashcards" 탭(플래시카드 기능) 추가 코드.
-      // 각 라인별 설명:
-
-      // Tabs.Screen 컴포넌트는 탭 내에서 새로운 화면(탭) 하나를 정의한다. */}
       <Tabs.Screen
-     /*    // name: 이 탭의 네비게이션 이름 ("flashcards"로 지정. 라우팅에 사용.) */
         name="flashcards"
-   /*      // options: 이 탭 전용 옵션 객체 */
         options={{
-    /*       // tabBarLabel: 탭 하단에 표시될 라벨 설정. 
-          // ()=>null로 지정해 아래 텍스트 라벨 숨김(아이콘만 보임). */
           tabBarLabel: () => null,
-   /*        // tabBarIcon: 탭에 표시될 아이콘 컴포넌트 정의.
-          // props에서 color(현재 테마/활성화 상태 등에 따라 결정)를 받아  
-          // Ionicons에서 "book" 아이콘(책 모양), 크기 24, color 적용하여 렌더링.
-          // 네, tabBarIcon이 ({ color }) 객체를 인자로 받고, 그 color 값을 실제 아이콘(color prop)에 넣어 색상이 자동 변경됩니다.
-          // 아래는 color가 현재 상태(활성/비활성 등)에 따라 자동으로 전달/적용되는 예시입니다. */
+          tabBarAccessibilityLabel: "단어 카드",
           tabBarIcon: ({ color }) => (
             <Ionicons name="book" size={24} color={color} />
           ),
-      /*     // tabBarIcon은 탭이 렌더될 때 호출되므로, 선택(활성) 상태에 따라 내부적으로 color값이 달라진다. */
         }}
       />
 
@@ -156,6 +181,7 @@ export default function TabLayout() {
         name="activity"
         options={{
           tabBarLabel: () => null,
+          tabBarAccessibilityLabel: "피아노",
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="piano" size={24} color={color} />
           ),
@@ -167,6 +193,7 @@ export default function TabLayout() {
         name="guitar"
         options={{
           tabBarLabel: () => null,
+          tabBarAccessibilityLabel: "기타",
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="guitar-acoustic" size={24} color={color} />
           ),
@@ -179,6 +206,7 @@ export default function TabLayout() {
         name="new"
         options={{
           tabBarLabel: () => null,
+          tabBarAccessibilityLabel: "청능 훈련 게임",
           tabBarIcon: ({ color }) => (
             <Ionicons name="paw" size={24} color={color} />
           ),
@@ -189,6 +217,7 @@ export default function TabLayout() {
         name="refri-test"
         options={{
           tabBarLabel: () => null,
+          tabBarAccessibilityLabel: "냉장고",
           tabBarIcon: ({ color }) => (
             <Ionicons name="snow-outline" size={24} color={color} />
           ),
