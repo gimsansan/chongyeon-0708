@@ -306,13 +306,31 @@ const useAuditoryGame = () => {
 const HomeScreen = memo(({ onStartGame, onShowStats }: { onStartGame: (mode: GameMode, isNewRun: boolean) => void, onShowStats: () => void }) => (
     <View style={styles.centered}>
         <Text style={styles.mainTitle}>🎯 청능 훈련 (PG)</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={() => onStartGame('STANDARD', true)} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => onStartGame('STANDARD', true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="표준 모드 시작"
+        >
             <Text style={styles.primaryButtonText}>🎮 표준 모드</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => onStartGame('WEAKNESS', true)} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => onStartGame('WEAKNESS', true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="약점 훈련 모드 시작"
+        >
             <Text style={styles.secondaryButtonText}>🔥 약점 훈련 모드</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.statsButton} onPress={onShowStats} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.statsButton}
+            onPress={onShowStats}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="내 통계 보기"
+        >
             <Text style={styles.statsButtonText} numberOfLines={1}>📊 내 통계 보기</Text>
         </TouchableOpacity>
     </View>
@@ -337,6 +355,10 @@ const GameScreen = memo(({ state, onSelect }: { state: GameState, onSelect: (nam
                         onPress={() => onSelect(name)}
                         disabled={!!status}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        // 정답·오답이 색으로만 구분돼 토크백에는 안 읽힌다 — 라벨이 결과를 말한다
+                        accessibilityLabel={status ? `${name}, ${status === 'correct' ? '정답' : '오답'}` : name}
+                        accessibilityState={{ disabled: !!status, selected: status === 'correct' }}
                     >
                         <Text style={[
                             styles.gameButtonText,
@@ -358,10 +380,22 @@ const ResultsScreen = memo(({ state, onContinue, onGoHome }: { state: GameState,
         {state.roundResult === 'LOSE' &&
             <Text style={styles.resultText}>남은 정답: {[...state.correctSoundNames].join(', ') || '없음'}</Text>
         }
-        <TouchableOpacity style={styles.primaryButton} onPress={() => onContinue(state.mode, false)} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => onContinue(state.mode, false)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="계속하기"
+        >
             <Text style={styles.primaryButtonText}>▶️ 계속하기</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.statsBackButton} onPress={onGoHome} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.statsBackButton}
+            onPress={onGoHome}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="홈으로"
+        >
             <Text style={styles.statsBackButtonText} numberOfLines={1}>🏠 홈으로</Text>
         </TouchableOpacity>
     </View>
@@ -448,7 +482,13 @@ const StatsScreen = memo(({ stats, onGoHome }: { stats: UserStats, onGoHome: () 
                 })}
             </ScrollView>
 
-            <TouchableOpacity style={styles.statsBackButton} onPress={onGoHome} activeOpacity={0.8}>
+            <TouchableOpacity
+                style={styles.statsBackButton}
+                onPress={onGoHome}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="홈으로"
+            >
                 <Text style={styles.statsBackButtonText} numberOfLines={1}>🏠 홈으로</Text>
             </TouchableOpacity>
         </View>

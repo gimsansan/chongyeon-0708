@@ -101,6 +101,7 @@ function gameReducer(state: GameState, action: Action): GameState {
             return { ...state, correctSoundNames: action.payload.correctNames };
         case 'SELECT_ANSWER': {
             const { selectedName, isCorrect } = action.payload;
+            if (state.userSelections[selectedName]) return state; // 같은 것을 두 번 채점하지 않는다
             const newSelections = { ...state.userSelections, [selectedName]: isCorrect ? 'correct' : 'incorrect' } as const;
             const newStats = { ...state.userStats };
             const newQTable = JSON.parse(JSON.stringify(state.qTable));
@@ -235,8 +236,6 @@ const useAuditoryGame = () => {
     
     // isNewRun 파라미터 추가
     const startGame = useCallback(async (mode: GameMode, isNewRun: boolean = false) => {
-        dispatch({ type: 'GAME_START_REQUEST', payload: { mode, isNewRun } });
-
         // 떠났다 돌아온 뒤라면 여기서 다시 만든다 (이미 있으면 즉시 돌아온다)
         await gameAudioManager.loadSoundsAsync();
 
@@ -285,12 +284,15 @@ const useAuditoryGame = () => {
         //     await new Promise(resolve => setTimeout(resolve, 800));
         // }
 
-        // ✅ 재생 후 게임 시작 처리
-        dispatch({ 
-            type: 'GAME_START_SUCCESS', 
-            payload: { correctNames: new Set(quizSounds.map(s => s.name)) } 
+        // ✅ 재생이 끝난 뒤에야 PLAYING으로 간다.
+        // 재생 전에 PLAYING이 되면 그 사이 렌더에서 **이전 라운드 정답**으로 게임판이 보이고,
+        // 그 창에 누른 것이 채점된다. 라운드 초기화(GAME_START_REQUEST)도 여기서 함께 한다 —
+        // `gameStartTime`이 「조작 시작 시간」이어야 반응 시간에 재생 시간이 안 섞인다.
+        dispatch({ type: 'GAME_START_REQUEST', payload: { mode, isNewRun } });
+        dispatch({
+            type: 'GAME_START_SUCCESS',
+            payload: { correctNames: new Set(quizSounds.map(s => s.name)) }
         });
-        dispatch({ type: 'SET_STATUS', payload: 'PLAYING' });
     }, [state.difficulty, state.userStats, state.qTable]);
 
 
@@ -308,13 +310,31 @@ const useAuditoryGame = () => {
 const HomeScreen = memo(({ onStartGame, onShowStats }: { onStartGame: (mode: GameMode, isNewRun: boolean) => void, onShowStats: () => void }) => (
     <View style={styles.centered}>
         <Text style={styles.mainTitle}>🎯 청능 훈련 (Q-Learning)</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={() => onStartGame('STANDARD', true)} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => onStartGame('STANDARD', true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="표준 모드 시작"
+        >
             <Text style={styles.primaryButtonText}>🎮 표준 모드</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => onStartGame('WEAKNESS', true)} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => onStartGame('WEAKNESS', true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="약점 훈련 모드 시작"
+        >
             <Text style={styles.secondaryButtonText}>🔥 약점 훈련 모드</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.statsButton} onPress={onShowStats} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.statsButton}
+            onPress={onShowStats}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="내 통계 보기"
+        >
             <Text style={styles.statsButtonText} numberOfLines={1}>📊 내 통계 보기</Text>
         </TouchableOpacity>
     </View>
@@ -338,6 +358,10 @@ const GameScreen = memo(({ state, onSelect }: { state: GameState, onSelect: (nam
                         onPress={() => onSelect(name)}
                         disabled={!!status}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        // 정답·오답이 색으로만 구분돼 토크백에는 안 읽힌다 — 라벨이 결과를 말한다
+                        accessibilityLabel={status ? `${name}, ${status === 'correct' ? '정답' : '오답'}` : name}
+                        accessibilityState={{ disabled: !!status, selected: status === 'correct' }}
                     >
                         <Text style={[
                             styles.gameButtonText,
@@ -359,10 +383,22 @@ const ResultsScreen = memo(({ state, onContinue, onGoHome }: { state: GameState,
         {state.roundResult === 'LOSE' && 
             <Text style={styles.resultText}>정답: {[...state.correctSoundNames].join(', ')}</Text>
         }
-        <TouchableOpacity style={styles.primaryButton} onPress={() => onContinue(state.mode, false)} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => onContinue(state.mode, false)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="계속하기"
+        >
             <Text style={styles.primaryButtonText}>▶️ 계속하기</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.statsButton} onPress={onGoHome} activeOpacity={0.8}>
+        <TouchableOpacity
+            style={styles.statsButton}
+            onPress={onGoHome}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="홈으로"
+        >
             <Text style={styles.statsButtonText}>🏠 홈으로</Text>
         </TouchableOpacity>
     </View>
@@ -449,7 +485,13 @@ const StatsScreen = memo(({ stats, onGoHome }: { stats: UserStats, onGoHome: () 
                 })}
             </ScrollView>
 
-            <TouchableOpacity style={styles.statsBackButton} onPress={onGoHome} activeOpacity={0.8}>
+            <TouchableOpacity
+                style={styles.statsBackButton}
+                onPress={onGoHome}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="홈으로"
+            >
                 <Text style={styles.statsBackButtonText} numberOfLines={1}>🏠 홈으로</Text>
             </TouchableOpacity>
         </View>
@@ -476,7 +518,7 @@ export default function MatchGameAI() {
                     <Text style={styles.loadingText}>소리를 재생하고 있습니다...</Text>
                     </View>
                 );
-            case 'LOADING': default: return <ActivityIndicator size="large" color={COLORS.activityIndicator} />;
+            case 'LOADING': default: return <View style={styles.centered}><ActivityIndicator size="large" color={COLORS.activityIndicator} /></View>;
             }
         };
 
