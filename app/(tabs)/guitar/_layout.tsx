@@ -56,6 +56,30 @@ const guitarSounds: { [key in GuitarNote]: any } = {
   'F#4': require('../../../assets/sounds/guitar/F_sharp4.m4a'), 'G4': require('../../../assets/sounds/guitar/G4.m4a'),
 };
 
+/**
+ * 화면에 그리는 프렛. 줄 6개 × 4프렛 = **24개**다.
+ *
+ * `guitarSounds`(28개)와 수가 다르다 — `G#2` `C#3` `F#3` `D#4`는 소리는 있지만
+ * **누를 자리가 없다.** 그래서 출제 후보를 이 목록으로 거른다(`getVisibleNoteSet`).
+ * 거르지 않으면 3단계 16.7% · 4단계 14.3%가 **정답을 누를 수단이 없는 문제**가 되어
+ * 「틀렸습니다」만 반복된다.
+ *
+ * 프렛을 늘리거나 줄이면 출제 후보가 **자동으로 따라온다** — 두 곳을 손으로 맞추지 않는다.
+ */
+const GUITAR_STRINGS: { name: string; notes: GuitarNote[] }[] = [
+  { name: '1번줄(E)', notes: ['E4', 'F4', 'F#4', 'G4'] },
+  { name: '2번줄(B)', notes: ['B3', 'C4', 'C#4', 'D4'] },
+  { name: '3번줄(G)', notes: ['G3', 'G#3', 'A3', 'A#3'] },
+  { name: '4번줄(D)', notes: ['D3', 'D#3', 'E3', 'F3'] },
+  { name: '5번줄(A)', notes: ['A2', 'A#2', 'B2', 'C3'] },
+  { name: '6번줄(E)', notes: ['E2', 'F2', 'F#2', 'G2'] },
+];
+
+/** 프렛보드에 실제로 있는 음. 출제 후보의 상한이다 */
+const FRETBOARD_NOTES = new Set<GuitarNote>(
+  GUITAR_STRINGS.reduce<GuitarNote[]>((acc, str) => acc.concat(str.notes), [])
+);
+
 const GUITAR_PROGRESS_KEY = '@MiniGameApp:guitarProgress';
 
 /**
@@ -83,8 +107,39 @@ export default function Guitar() {
   const soundCache = useRef<{ [key in GuitarNote]?: any }>({});
   const recentlyUsedNotes = useRef<GuitarNote[]>([]);
 
+  /**
+   * 정답을 맞힌 뒤 다음 문제가 나올 때까지(1.2초) 채점을 막는 빗장.
+   *
+   * 없으면 그 사이 **같은 프렛을 또 눌러도 정답**이라 점수·누적성공이 계속 오르고
+   * `playNextQuestion` 타이머가 겹겹이 쌓인다. 5점이면 클리어라 **한 문제 연타로
+   * 클리어된다.** 프렛은 `onPressIn`이라 더 쉽게 걸린다.
+   *
+   * 렌더에서 읽지 않으므로 ref다 — state면 연타가 같은 렌더의 옛 값을 본다
+   * (세션 47 `isAnimating`과 같은 처방). **소리는 그대로 낸다.** 막는 것은 채점뿐이다.
+   */
+  const isScoringLockedRef = useRef(false);
+
+  /** 예약된 타이머. `matchGame`과 같은 방식으로 모아서 정리한다 (`matchGame.tsx:66`) */
+  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearPendingTimers = () => {
+    timerRefs.current.forEach(clearTimeout);
+    timerRefs.current.length = 0;
+  };
+
+  /** `progress`의 현재 값. 연타에서 렌더 클로저의 옛 값으로 덮어쓰지 않으려고 함께 든다 */
+  const progressRef = useRef<any>({});
+
   const { syncData } = useSyncGameData();
-  const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
+  /**
+   * 이번 문제가 시작된 시각. `response_time_seconds`의 기준이다.
+   *
+   * 전에는 state였고 `playSound(...).then()` **안에서만** 찍었다. 그래서 첫 문제에서
+   * 소리가 나기 전에 프렛을 누르면 `null || 0`이 되어 `(Date.now() − 0)/1000`,
+   * 곧 **17억 초**가 기록됐다. 두 번째 세션은 앞 세션 시각이 남아 그만큼 기록됐다.
+   * 출제할 때 **동기로** 한 번 찍고 재생이 시작되면 다시 찍는다 — 비는 구간이 없다.
+   * 렌더에서 읽지 않으므로 state가 아니라 ref다.
+   */
+  const questionStartTimeRef = useRef<number | null>(null);
   const [repeatCount, setRepeatCount] = useState(0);
   const [sessionLog, setSessionLog] = useState<any[]>([]);
 
@@ -99,7 +154,11 @@ export default function Guitar() {
         // 화면 방향은 `app/(tabs)/_layout.tsx`가 단독으로 건다. 여기서 걸면 피아노 탭과 서로 덮어쓴다.
         // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
         const saved = await AsyncStorage.getItem(GUITAR_PROGRESS_KEY);
-        if (saved && isMounted) setProgress(JSON.parse(saved));
+        if (saved && isMounted) {
+          const loaded = JSON.parse(saved);
+          progressRef.current = loaded;
+          setProgress(loaded);
+        }
       } finally {
         if (isMounted) setIsReady(true);
       }
@@ -108,6 +167,7 @@ export default function Guitar() {
 
     return () => {
       isMounted = false;
+      clearPendingTimers();
       // 사운드 해제
       for (const player of Object.values(soundCache.current)) {
         player?.remove();
@@ -214,24 +274,36 @@ export default function Guitar() {
 
   const getVisibleNoteSet = useCallback((level: string) => {
     const allNotesList = Object.keys(guitarSounds) as GuitarNote[];
+    // 화면에 프렛이 없는 음은 후보에서 뺀다 — 누를 수단이 없는 문제가 나오지 않게
+    const onFretboard = (notes: GuitarNote[]) =>
+      new Set<GuitarNote>(notes.filter(n => FRETBOARD_NOTES.has(n)));
     switch (level) {
-      case '1단계': return new Set(['E2', 'A2', 'D3', 'G3', 'B3', 'E4']);
-      case '2단계': return new Set(allNotesList.filter(n => !n.includes('#')));
-      case '3단계': return new Set(allNotesList.slice(0, 18));
-      case '4단계': return new Set(allNotesList);
-      default: return new Set(['E2', 'A2', 'D3', 'G3', 'B3', 'E4']);
+      case '1단계': return onFretboard(['E2', 'A2', 'D3', 'G3', 'B3', 'E4']);
+      case '2단계': return onFretboard(allNotesList.filter(n => !n.includes('#')));
+      case '3단계': return onFretboard(allNotesList.slice(0, 18));
+      case '4단계': return onFretboard(allNotesList);
+      default: return onFretboard(['E2', 'A2', 'D3', 'G3', 'B3', 'E4']);
     }
   }, []);
 
   const playNextQuestion = useCallback(() => {
-    const visibleNotes = Array.from(getVisibleNoteSet(difficulty)) as GuitarNote[];
+    const visibleNotes = Array.from(getVisibleNoteSet(difficulty));
     const randomNote = visibleNotes[Math.floor(Math.random() * visibleNotes.length)];
+    // 출제 시각을 **먼저** 찍는다. 재생을 기다리는 동안 눌려도 기준이 비어 있지 않도록
+    questionStartTimeRef.current = Date.now();
+    isScoringLockedRef.current = false;
     setCurrentNote(randomNote);
     setRepeatCount(0);
-    playSound(randomNote).then(() => setQuestionStartTime(Date.now()));
+    // 재생이 실제로 시작되면 그때로 다시 찍는다 (첫 음은 플레이어를 만드느라 늦는다)
+    playSound(randomNote).then(() => {
+      questionStartTimeRef.current = Date.now();
+    });
   }, [difficulty, getVisibleNoteSet]);
 
   const startTraining = () => {
+    // 앞 세션에서 예약된 문제 출제가 남아 있으면 새 문제를 곧바로 덮어쓴다
+    clearPendingTimers();
+    isScoringLockedRef.current = false;
     setIsTraining(true);
     setScore(0);
     setSessionLog([]);
@@ -254,17 +326,25 @@ export default function Guitar() {
       syncData('guitar', payload);
     }
     
+    // 정답 뒤 1.2초 안에 종료하면 예약된 `playNextQuestion`이 살아 남아
+    // 훈련이 끝난 뒤에 문제음이 나고 `currentNote`가 다시 세팅된다 — 아래 초기화가 뒤집힌다
+    clearPendingTimers();
+    isScoringLockedRef.current = false;
+    questionStartTimeRef.current = null;
+
     setIsTraining(false);
     setCurrentNote(null);
     setFeedback('');
   };
 
   const handleNotePress = (note: GuitarNote) => {
+    // 소리는 늘 낸다. 막는 것은 채점뿐이다 — 악기 화면이라 프렛은 언제나 울려야 한다
     playSound(note);
-    if (!isTraining || !currentNote) return;
+    if (!isTraining || !currentNote || isScoringLockedRef.current) return;
 
     const isCorrect = note === currentNote;
-    const responseTime = (Date.now() - (questionStartTime || 0)) / 1000;
+    const startedAt = questionStartTimeRef.current;
+    const responseTime = startedAt === null ? 0 : (Date.now() - startedAt) / 1000;
 
     setSessionLog(prev => [...prev, {
       target_note: currentNote,
@@ -275,26 +355,32 @@ export default function Guitar() {
     }]);
 
     if (isCorrect) {
+      // 다음 문제가 나올 때까지 채점을 잠근다. 여기서 안 잠그면 같은 프렛 연타가 계속 정답이다
+      isScoringLockedRef.current = true;
+
       const newScore = score + 1;
       setScore(newScore);
-      const currentProgress = progress[difficulty] || { cumulativeSuccesses: 0, highestScore: 0 };
+      // 렌더 클로저의 `progress`가 아니라 ref를 읽는다 — 연속 정답에서 옛 값으로 덮어쓰지 않게
+      const currentProgress = progressRef.current[difficulty] || { cumulativeSuccesses: 0, highestScore: 0 };
       const newCumulativeSuccesses = currentProgress.cumulativeSuccesses + 1;
-      setProgress({
-        ...progress,
+      const nextProgress = {
+        ...progressRef.current,
         [difficulty]: {
           cumulativeSuccesses: newCumulativeSuccesses,
           highestScore: Math.max(currentProgress.highestScore, newScore),
         }
-      });
+      };
+      progressRef.current = nextProgress;
+      setProgress(nextProgress);
       if (newCumulativeSuccesses >= 3) {
         starContext?.addStar(`guitar_${difficulty}`);
       }
       if (newScore >= 5) clearContext?.markAsCleared(`guitar_${difficulty}`);
       setFeedback('정답입니다! 🎸');
-      setTimeout(playNextQuestion, 1200);
+      timerRefs.current.push(setTimeout(playNextQuestion, 1200));
     } else {
       setFeedback('틀렸습니다! 다시 들어보세요.');
-      setQuestionStartTime(Date.now());
+      questionStartTimeRef.current = Date.now();
     }
   };
 
@@ -334,18 +420,10 @@ export default function Guitar() {
 
   const renderGuitarStrings = () => {
     const visibleNoteSet = getVisibleNoteSet(difficulty);
-    const strings = [
-      { name: '1번줄(E)', notes: ['E4', 'F4', 'F#4', 'G4'] },
-      { name: '2번줄(B)', notes: ['B3', 'C4', 'C#4', 'D4'] },
-      { name: '3번줄(G)', notes: ['G3', 'G#3', 'A3', 'A#3'] },
-      { name: '4번줄(D)', notes: ['D3', 'D#3', 'E3', 'F3'] },
-      { name: '5번줄(A)', notes: ['A2', 'A#2', 'B2', 'C3'] },
-      { name: '6번줄(E)', notes: ['E2', 'F2', 'F#2', 'G2'] },
-    ];
 
     return (
       <View style={styles.fretboardContainer}>
-        {strings.map((str, idx) => (
+        {GUITAR_STRINGS.map((str, idx) => (
           <View key={idx} style={styles.stringRow}>
             <Text
               style={[styles.stringName, { width: fit.stringNameWidth, fontSize: fit.stringNameFont }]}
@@ -356,13 +434,13 @@ export default function Guitar() {
             <View style={styles.fretContainer}>
               <View style={[styles.stringLine, { height: 1.2 + idx * 0.5 }]} />
               {str.notes.map(note => {
-                const isVisible = visibleNoteSet.has(note as GuitarNote);
+                const isVisible = visibleNoteSet.has(note);
                 return (
                   <TouchableOpacity
                     key={note}
                     disabled={!isVisible}
                     style={[styles.fret, !isVisible && styles.fretDisabled]}
-                    onPressIn={() => handleNotePress(note as GuitarNote)}
+                    onPressIn={() => handleNotePress(note)}
                   >
                     <Text style={[styles.fretText, { fontSize: fit.fretFont }, !isVisible && styles.textDisabled]}>
                       {note}
