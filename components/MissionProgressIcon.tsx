@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useContext, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView, Pressable, Alert } from 'react-native';
+import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView, Pressable, Alert, StyleProp, ViewStyle } from 'react-native';
 import { ClearContext } from '../context/ClearContext';
 import { StarContext } from '../context/StarContext';
 
@@ -27,7 +27,8 @@ interface MissionProgressIconProps {
   missionText: string;
   clearText: string;
   progressItems: { label: string; value: string | number }[];
-  style?: any;
+  /** 우상단 위치를 화면이 정한다. 악기 두 화면은 `useInstrumentMetrics().missionIconStyle`을 넘긴다 */
+  style?: StyleProp<ViewStyle>;
   onReset?: () => void;
   /**
    * 난이도별로 별·클리어가 갈리는 화면(피아노 5단계 · 기타 4단계)은 난이도 이름을 넘긴다.
@@ -114,8 +115,10 @@ export default function MissionProgressIcon({
         onPress={() => setModalVisible(true)}
         activeOpacity={0.7}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        accessibilityRole="button"
+        accessibilityLabel={`${title} 안내 열기`}
       >
-        <Ionicons name="help-circle-outline" size={32} color={iconColor} />
+        <Ionicons name="help-circle-outline" size={32} color={iconColor} importantForAccessibility="no" />
       </TouchableOpacity>
 
       {/* 아이콘 클릭 시 나타날 모달 */}
@@ -128,7 +131,12 @@ export default function MissionProgressIcon({
       >
         <View style={styles.modalContainer}>
           {/* Sibling Pressable Backdrop to capture background taps without blocking child gestures */}
-          <Pressable style={styles.modalBackdrop} onPress={() => setModalVisible(false)} />
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setModalVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="미션 안내 닫기"
+          />
           
           <View style={[styles.modalContent, { overflow: 'hidden' }]}>
             {/* Top Accent Bar */}
@@ -138,21 +146,39 @@ export default function MissionProgressIcon({
               {/* 타이틀 및 초기화 버튼 영역 (임시 디버그용) */}
               <View style={styles.titleContainer}>
                 <Text style={styles.modalTitle}>{title}</Text>
-                <TouchableOpacity onPress={handleReset} style={styles.resetButton} activeOpacity={0.6}>
-                  <Ionicons name="refresh-circle-outline" size={24} color="#E53E3E" />
+                <TouchableOpacity
+                  onPress={handleReset}
+                  style={styles.resetButton}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel="별·클리어 기록 초기화"
+                >
+                  <Ionicons name="refresh-circle-outline" size={24} color="#E53E3E" importantForAccessibility="no" />
                 </TouchableOpacity>
               </View>
               
               {/* 미션 조건 (별 카드) */}
               <View style={[styles.conditionCard, styles.starCard]}>
-                <Ionicons name={hasStar ? "star" : "star-outline"} size={22} color={hasStar ? '#FFD700' : '#8E8E93'} />
-                <Text style={styles.conditionText}>별 획득: {missionText}</Text>
+                {/* 달성 여부는 이 아이콘의 모양·색에만 있었다. 아이콘은 장식으로 내리고
+                    글자 쪽 라벨이 「획득/미획득」을 대신 읽는다 — 보이는 글자는 그대로다 */}
+                <Ionicons name={hasStar ? "star" : "star-outline"} size={22} color={hasStar ? '#FFD700' : '#8E8E93'} importantForAccessibility="no" />
+                <Text
+                  style={styles.conditionText}
+                  accessibilityLabel={`별 ${hasStar ? '획득' : '미획득'}. 조건 ${missionText}`}
+                >
+                  별 획득: {missionText}
+                </Text>
               </View>
               
               {/* 클리어 조건 (클리어 카드) */}
               <View style={[styles.conditionCard, styles.clearCard]}>
-                <Ionicons name={isCleared ? "checkmark-circle" : "ellipse-outline"} size={22} color={isCleared ? '#34C759' : '#8E8E93'} />
-                <Text style={styles.conditionText}>클리어: {clearText}</Text>
+                <Ionicons name={isCleared ? "checkmark-circle" : "ellipse-outline"} size={22} color={isCleared ? '#34C759' : '#8E8E93'} importantForAccessibility="no" />
+                <Text
+                  style={styles.conditionText}
+                  accessibilityLabel={`${isCleared ? '클리어함' : '클리어 못 함'}. 조건 ${clearText}`}
+                >
+                  클리어: {clearText}
+                </Text>
               </View>
 
               <View style={styles.divider} />
@@ -171,7 +197,12 @@ export default function MissionProgressIcon({
               </View>
             </ScrollView>
             
-            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="닫기"
+            >
               <Text style={styles.closeButtonText}>닫기</Text>
             </TouchableOpacity>
           </View>
