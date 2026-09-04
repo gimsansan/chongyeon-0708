@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { Text, View, StyleSheet, TouchableOpacity, Image, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from 'expo-router';
 import React, { useState } from "react";
@@ -210,8 +210,19 @@ export default function Index() {
 
           {/* 게임 종료 오버레이 — 드럼(`drum/index.tsx`)과 같은 방식.
               결과를 페이지 안에 끼워 넣지 않고 검은 스크림 위에 띄운다.
-              WordGame은 위에서 언마운트해 오디오·타이머가 뒤에 남지 않게 한다. */}
-          {isGameOver && (
+              WordGame은 위에서 언마운트해 오디오·타이머가 뒤에 남지 않게 한다.
+
+              조건부 View + zIndex였을 때는 뒤로가기가 이 창이 아니라 **탭을 나갔다.**
+              뒤로가기는 「나가기」와 같은 길로 보낸다 (냉장고 세션 47 · 피아노 49 ·
+              드럼 50과 같은 처방 — 드럼은 이 컴포넌트를 함께 쓰면서 먼저 고쳤다).
+              Modal 안에서는 절대배치가 아니라 flex로 채운다. */}
+          <Modal
+            visible={isGameOver}
+            transparent
+            statusBarTranslucent
+            animationType="fade"
+            onRequestClose={handleGoHome}
+          >
             <View style={styles.gameOverOverlay}>
               <DrumGameOverScreen
                 score={finalScore}
@@ -220,7 +231,7 @@ export default function Index() {
                 onGoHome={handleGoHome}
               />
             </View>
-          )}
+          </Modal>
         </View>
       </View>
     </GestureHandlerRootView>
@@ -353,16 +364,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     marginTop: LAYOUT.learnGameContentMarginTop,
   },
-  /** 게임 종료 오버레이 — 드럼(`drum/index.tsx`의 gameOverOverlay)과 같은 값 */
+  /**
+   * 게임 종료 오버레이 — 드럼(`drum/index.tsx`의 gameOverOverlay)과 같은 값.
+   * Modal 안이라 절대배치·zIndex가 필요 없다 — 판 전체를 flex로 채운다.
+   */
   gameOverOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2000,
   },
 });

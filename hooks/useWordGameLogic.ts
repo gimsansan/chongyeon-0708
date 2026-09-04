@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { WORD_DIFFICULTY_LEVELS, WordPair, WordDifficultyType } from '../constants/wordSounds';
 
 export type GameState = 'ready' | 'playing' | 'answered' | 'waitingForNextRound';
@@ -13,7 +13,6 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
   const [correctWord, setCorrectWord] = useState<'word1' | 'word2' | null>(null);
   const [correctSound, setCorrectSound] = useState<any>(null);
   const [gameState, setGameState] = useState<GameState>('ready');
-  const [score, setScore] = useState(0);
   const [round, setRound] = useState(1);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
@@ -22,11 +21,46 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
   const [answerHistory, setAnswerHistory] = useState<boolean[]>([]); // 정답/오답 기록
   const [usedPairs, setUsedPairs] = useState<Set<number>>(new Set()); // 이미 사용한 단어 쌍 인덱스
 
+  /**
+   * 채점 빗장. 정답을 한 번 받으면 다음 문제가 나올 때까지 잠근다.
+   * `gameState`(state)로만 막으면 **같은 프레임의 두 번째 탭이 갱신 전 값을 봐서** 그대로 통과했다 —
+   * 두 선택지를 동시에 눌러도 둘 다 채점됐고 아래 타이머가 2개 걸려 라운드가 2칸 뛰었다.
+   * 렌더에서 읽지 않으므로 ref다 (기타 세션 48 · 피아노 49의 채점 빗장과 같은 처방).
+   */
+  const isGradingLockedRef = useRef(false);
+
+  /**
+   * 점수. **화면에 그리는 곳이 없으므로 ref 하나로만 든다.**
+   * 예전에는 `score + 1`을 렌더 클로저에서 더해, 한 프레임에 두 번 들어오면 1점만 올랐다.
+   * state와 ref 양쪽에 들면 초기값이 갈리므로(기타 48 · 피아노 49 · 드럼 50에서 나온 자리)
+   * 여기서는 ref만 둔다.
+   */
+  const scoreRef = useRef(0);
+
+  /** 다음 문제로 넘기는 타이머. 끊지 않으면 게임이 끝나거나 난이도를 바꾼 뒤에도 늦게 도착한다 */
+  const nextRoundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearNextRoundTimer = useCallback(() => {
+    if (nextRoundTimerRef.current) {
+      clearTimeout(nextRoundTimerRef.current);
+      nextRoundTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearNextRoundTimer();
+    };
+  }, [clearNextRoundTimer]);
+
   const currentDifficulty = WORD_DIFFICULTY_LEVELS[difficulty];
   const availablePairs = currentDifficulty.pairs;
   const maxRounds = currentDifficulty.rounds;
 
   const startNewRound = useCallback(() => {
+    // 새 문제를 내는 순간 채점을 다시 받는다
+    isGradingLockedRef.current = false;
+
     setUsedPairs(prev => {
       // 아직 사용하지 않은 단어 쌍 찾기
       const availableIndices = availablePairs
@@ -64,25 +98,24 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
 
   const handleAnswer = useCallback(
     (selectedWord: string) => {
-      if (gameState !== 'answered' || !currentWordPair || !correctWord) {
+      if (isGradingLockedRef.current || gameState !== 'answered' || !currentWordPair || !correctWord) {
         return;
       }
 
+      // 이 라운드의 채점은 여기서 한 번뿐이다. 다음 문제(`startNewRound`)에서 풀린다
+      isGradingLockedRef.current = true;
+
       const correctWordText = currentWordPair[correctWord];
       const isCorrect = selectedWord === correctWordText;
-      let newScore = score;
       setSelectedAnswer(selectedWord);
       setIsLastAnswerCorrect(isCorrect);
 
+      // 점수는 ref 하나로만 더한다 — 렌더 클로저의 `score + 1`은 겹친 입력에서 하나를 잃는다
       if (isCorrect) {
-        newScore = score + 1;
-        setScore(newScore);
-        setFeedbackMessage('⭕');
-        setShowFeedback(true);
-      } else {
-        setFeedbackMessage('❌');
-        setShowFeedback(true);
+        scoreRef.current += 1;
       }
+      setFeedbackMessage(isCorrect ? '⭕' : '❌');
+      setShowFeedback(true);
       
       // 정답/오답 기록 추가
       setAnswerHistory(prev => [...prev, isCorrect]);
@@ -90,29 +123,34 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
       setGameState('waitingForNextRound');
 
       // 600ms 후 자동으로 다음 문제 진행
-      setTimeout(() => {
+      clearNextRoundTimer();
+      nextRoundTimerRef.current = setTimeout(() => {
+        nextRoundTimerRef.current = null;
         setShowFeedback(false);
         if (round >= maxRounds) {
-          onGameComplete?.(newScore, maxRounds, Math.round((newScore / maxRounds) * 100));
+          onGameComplete?.(scoreRef.current, maxRounds, Math.round((scoreRef.current / maxRounds) * 100));
         } else {
           setRound((prevRound) => prevRound + 1);
           startNewRound();
         }
       }, 600);
     },
-    [gameState, currentWordPair, correctWord, score, round, maxRounds, onGameComplete, startNewRound]
+    [gameState, currentWordPair, correctWord, round, maxRounds, onGameComplete, startNewRound, clearNextRoundTimer]
   );
 
   const resetGame = useCallback(() => {
-    setScore(0);
+    clearNextRoundTimer();
+    scoreRef.current = 0;
     setRound(1);
     setAnswerHistory([]);
     setUsedPairs(new Set());
     startNewRound();
-  }, [startNewRound]);
+  }, [startNewRound, clearNextRoundTimer]);
 
   const resetGameWithoutStarting = useCallback(() => {
-    setScore(0);
+    clearNextRoundTimer();
+    isGradingLockedRef.current = false;
+    scoreRef.current = 0;
     setRound(1);
     setCurrentWordPair(null);
     setCorrectWord(null);
@@ -124,7 +162,7 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
     setFeedbackMessage('');
     setAnswerHistory([]);
     setUsedPairs(new Set());
-  }, []);
+  }, [clearNextRoundTimer]);
 
   const startPlaying = useCallback(() => {
     setGameState('playing');
@@ -140,7 +178,6 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
     correctWord,
     correctSound,
     gameState,
-    score,
     round,
     showFeedback,
     feedbackMessage,
