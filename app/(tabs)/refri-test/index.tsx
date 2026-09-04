@@ -1,10 +1,3 @@
-/**
- * 🧊 냉장고 + 정답 흡입 퀴즈 테스트
- *
- *
- * - 게이지 바: 70% 초록, 90% 주황, 100% 빨강 깜빡임
- */
-
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
@@ -13,8 +6,10 @@ import {
   TouchableOpacity,
   Animated,
   Image,
+  Modal,
 } from "react-native";
 import { LAYOUT } from "../../../constants/layout";
+import { COLORS } from "../../../constants/colors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
@@ -51,7 +46,6 @@ export default function RefriTestScreen() {
     new Array(CARD_SLOTS).fill(null),
   );
   const [currentState, setCurrentState] = useState<RefriState>("closed");
-  const [isAnimating, setIsAnimating] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState<QuizItem>(MONO_ITEMS[0]);
   const [isAnswerLocked, setIsAnswerLocked] = useState(false);
   const [gauge, setGauge] = useState(0);
@@ -59,6 +53,14 @@ export default function RefriTestScreen() {
   const [isGameComplete, setIsGameComplete] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
+  /** 다음 문항을 세울 때까지의 구간. 이 동안 「다시 듣기」는 잠근다 */
+  const [isRoundLoading, setIsRoundLoading] = useState(false);
+
+  /**
+   * 애니메이션 잠금은 **ref로 든다.** state로 두면 550ms·250ms 타이머 콜백이
+   * 누른 시점 렌더의 옛 값을 보고 서로의 잠금을 먼저 푼다.
+   */
+  const isAnimatingRef = useRef(false);
 
   // Rive absorbAmount: 문제수÷6 = 용기당 문제수 → correctCount 기준 0~6
   const totalProblems = MONO_ITEMS.length;
@@ -77,6 +79,10 @@ export default function RefriTestScreen() {
   const gaugeAnim = useRef(new Animated.Value(0)).current;
   const gaugeBlink = useRef(new Animated.Value(1)).current;
   const blinkLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  /** 완료화면 별 루프 4개. 참조를 안 들면 「다시 하기」마다 루프가 쌓인다 */
+  const starLoopsRef = useRef<Animated.CompositeAnimation[]>([]);
+  /** 예약한 타이머를 모아 둔다 (`matchGame`과 같은 방식) */
+  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // 버튼 애니메이션 값들 제거 (단순 TouchableOpacity 사용)
 
@@ -104,6 +110,20 @@ export default function RefriTestScreen() {
   const sparkle2Opacity = useRef(new Animated.Value(0)).current;
   const sparkle3Scale = useRef(new Animated.Value(0)).current;
   const sparkle3Opacity = useRef(new Animated.Value(0)).current;
+
+  /** 별 루프를 멈추고 값도 처음으로 되돌린다 */
+  const stopStarAnimation = () => {
+    starLoopsRef.current.forEach((loop) => loop.stop());
+    starLoopsRef.current = [];
+    starMainScale.setValue(0.9);
+    starMainOpacity.setValue(0.8);
+    sparkle1Scale.setValue(0);
+    sparkle1Opacity.setValue(0);
+    sparkle2Scale.setValue(0);
+    sparkle2Opacity.setValue(0);
+    sparkle3Scale.setValue(0);
+    sparkle3Opacity.setValue(0);
+  };
 
   // 별 애니메이션 시작
   const startStarAnimation = useCallback(() => {
@@ -230,10 +250,15 @@ export default function RefriTestScreen() {
       ]),
     );
 
-    mainPulse.start();
-    sparkle1Blink.start();
-    sparkle2Blink.start();
-    sparkle3Blink.start();
+    // 남아 있던 루프를 먼저 걷어낸다 — 안 그러면 「다시 하기」마다 쌓인다
+    stopStarAnimation();
+    starLoopsRef.current = [
+      mainPulse,
+      sparkle1Blink,
+      sparkle2Blink,
+      sparkle3Blink,
+    ];
+    starLoopsRef.current.forEach((loop) => loop.start());
   }, [
     starMainScale,
     starMainOpacity,
@@ -304,7 +329,6 @@ export default function RefriTestScreen() {
   // Rive 문 직접 제어 (stale closure 우회)
   const setRiveDoor = (isOpen: boolean) => {
     if (riveRef.current) {
-      console.log("🎬 Rive 직접 제어: isOpen =", isOpen);
       riveRef.current.setInputState("Refri_SM", "isOpen", isOpen);
     }
   };
@@ -329,48 +353,35 @@ export default function RefriTestScreen() {
       if (blinkLoopRef.current) {
         blinkLoopRef.current.stop();
       }
+      starLoopsRef.current.forEach((loop) => loop.stop());
+      starLoopsRef.current = [];
+      timerRefs.current.forEach(clearTimeout);
+      timerRefs.current.length = 0;
     };
   }, []);
 
   // 상태 전환 애니메이션 (정답: 냉장고 열림)
   const switchState = useCallback(
     (newState: RefriState) => {
-      console.log(
-        "🚪 switchState 호출:",
-        newState,
-        "currentState:",
-        currentState,
-        "isAnimating:",
-        isAnimating,
-      );
+      if (newState === currentState) return;
+      if (isAnimatingRef.current) return;
 
-      if (newState === currentState) {
-        console.log("❌ 이미 같은 상태 - 무시");
-        return;
-      }
-      if (isAnimating) {
-        console.log("❌ 애니메이션 중 - 무시");
-        return;
-      }
-
-      console.log("✅ switchState 실행!");
-      setIsAnimating(true);
+      isAnimatingRef.current = true;
       setCurrentState(newState);
 
       // Rive 애니메이션 제어
       if (riveRef.current) {
         const isOpen = newState === "open";
-        console.log("🎬 Rive setInputState: isOpen =", isOpen);
         riveRef.current.setInputState("Refri_SM", "isOpen", isOpen);
       }
 
-      // Rive 애니메이션 완료 후 isAnimating 해제 (열림/닫힘 약 500ms)
-      setTimeout(() => {
-        setIsAnimating(false);
-        console.log("🔓 isAnimating = false");
+      // Rive 애니메이션 완료 후 잠금 해제 (열림/닫힘 약 500ms)
+      const doorTimer = setTimeout(() => {
+        isAnimatingRef.current = false;
       }, 550);
+      timerRefs.current.push(doorTimer);
     },
-    [currentState, isAnimating],
+    [currentState],
   );
 
   // 흔들림 애니메이션 (오답 효과)
@@ -423,8 +434,8 @@ export default function RefriTestScreen() {
 
   // 바운스 애니메이션 (정답 축하 효과)
   const triggerBounce = useCallback(() => {
-    if (isAnimating) return;
-    setIsAnimating(true);
+    if (isAnimatingRef.current) return;
+    isAnimatingRef.current = true;
 
     Animated.sequence([
       Animated.timing(scaleAnim, {
@@ -439,9 +450,9 @@ export default function RefriTestScreen() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setIsAnimating(false);
+      isAnimatingRef.current = false;
     });
-  }, [isAnimating, scaleAnim]);
+  }, [scaleAnim]);
 
   const stopGaugeBlink = () => {
     gaugeBlink.setValue(1);
@@ -559,32 +570,47 @@ export default function RefriTestScreen() {
       slots.push(i < shuffled.length ? shuffled[i] : null);
     const next = shuffled[Math.floor(Math.random() * slotCount)];
 
+    // 문을 닫고 다음 문항을 세울 때까지 「다시 듣기」를 잠근다.
+    // 안 잠그면 아직 갈아끼우지 않은 `currentQuiz`의 소리가 난다 —
+    // 첫 라운드는 `MONO_ITEMS[0]`(아스파라거스), 그 뒤로는 직전 문항이다.
+    setIsRoundLoading(true);
     setRiveDoor(false);
     setCurrentState("closed");
-    setIsAnimating(true);
+    isAnimatingRef.current = true;
     await new Promise((resolve) => setTimeout(resolve, 600));
-    setIsAnimating(false);
+    isAnimatingRef.current = false;
 
+    // 상태 전환은 대기가 끝난 뒤에 몰아서 한다
     resetAnswerAnimations();
     setIsAnswerLocked(false);
     setSlotItems(slots);
     setCurrentQuiz(next);
+    setIsRoundLoading(false);
     await playSound(next);
   }, []);
 
   const startGame = useCallback(async () => {
+    // 첫 라운드를 세우는 600ms 동안 시작 버튼이 아직 보인다
+    if (isRoundLoading) return;
     Haptics.selectionAsync().catch(() => {});
     setIsGameStarted(true);
     await pickRandomAndPlay(remainingIds);
-  }, [pickRandomAndPlay, remainingIds]);
+  }, [isRoundLoading, pickRandomAndPlay, remainingIds]);
 
   const handleReplay = async () => {
+    // 준비 중에는 `currentQuiz`가 아직 이번 문항이 아니다
+    if (isRoundLoading) return;
     await playSound(currentQuiz); // 다시 듣기
   };
 
   // 게임 리셋 함수
   const resetGame = useCallback(() => {
     Haptics.selectionAsync().catch(() => {});
+    // 예약된 타이머와 별 루프를 먼저 걷어낸다 — 안 그러면 다시 할 때마다 쌓인다
+    timerRefs.current.forEach(clearTimeout);
+    timerRefs.current.length = 0;
+    stopStarAnimation();
+
     // 게이지 초기화
     setGauge(0);
     gaugeAnim.setValue(0);
@@ -607,7 +633,9 @@ export default function RefriTestScreen() {
 
     // 퀴즈 상태 초기화
     resetAnswerAnimations();
+    isAnimatingRef.current = false;
     setIsAnswerLocked(false);
+    setIsRoundLoading(false);
     setIsGameStarted(false);
     setIsGameComplete(false);
     setCorrectCount(0);
@@ -627,15 +655,19 @@ export default function RefriTestScreen() {
     if (nextRemaining.length === 0) {
       // 6용기 상태를 잠깐 보여준 뒤 결과 메시지 표시
       const showResultDelay = 800;
-      setTimeout(() => {
+      const resultTimer = setTimeout(() => {
         resetAnswerAnimations();
         setIsAnswerLocked(false);
         setIsGameComplete(true);
         startStarAnimation();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }, showResultDelay);
+      timerRefs.current.push(resultTimer);
     } else {
-      setTimeout(() => pickRandomAndPlay(nextRemaining), 100);
+      // 100ms 대기 구간까지 「다시 듣기」를 덮는다
+      setIsRoundLoading(true);
+      const nextTimer = setTimeout(() => pickRandomAndPlay(nextRemaining), 100);
+      timerRefs.current.push(nextTimer);
     }
   };
 
@@ -690,16 +722,18 @@ export default function RefriTestScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       // 타이밍 맞춰 문 열기 → 카드 흡입 (Rive 문 애니메이션과 부드럽게 연결)
       switchState("open");
-      setTimeout(() => {
+      const absorbTimer = setTimeout(() => {
         animateCorrectAnswer(item.id);
       }, 250);
+      timerRefs.current.push(absorbTimer);
     } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       // 오답: 오답 횟수 증가 + 냉장고 흔들림 + 해당 카드 바운스 후 다시 선택 가능
       setWrongCount((prev) => prev + 1);
-      setTimeout(() => {
+      const shakeTimer = setTimeout(() => {
         triggerShake();
       }, 200);
+      timerRefs.current.push(shakeTimer);
       // 카드 제자리 바운스
       const anim = answerAnimations[item.id];
       if (anim) {
@@ -717,7 +751,8 @@ export default function RefriTestScreen() {
           }),
         ]).start();
       }
-      setTimeout(() => setIsAnswerLocked(false), 700);
+      const unlockTimer = setTimeout(() => setIsAnswerLocked(false), 700);
+      timerRefs.current.push(unlockTimer);
     }
   };
 
@@ -873,8 +908,14 @@ export default function RefriTestScreen() {
         </View>
       </View>
 
-      {/* 게임 완료 화면 */}
-      {isGameComplete && (
+      {/* 게임 완료 화면 — 뒤로가기로도 닫히도록 `Modal`이다 (익힘모달과 같은 갈래) */}
+      <Modal
+        visible={isGameComplete}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={resetGame}
+      >
         <View style={styles.completeOverlay}>
           <View style={styles.completeBox}>
             <View style={styles.completeEmoji}>
@@ -952,7 +993,7 @@ export default function RefriTestScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      </Modal>
 
       {/* 플로팅 다시 듣기 (게임 중일 때만, 하단 고정) */}
       {isGameStarted && (
@@ -967,6 +1008,7 @@ export default function RefriTestScreen() {
             style={styles.floatingReplayBtn}
             onPress={handleReplay}
             activeOpacity={0.88}
+            disabled={isRoundLoading}
           >
             <Ionicons
               name="volume-high"
@@ -1270,7 +1312,7 @@ const styles = StyleSheet.create({
   completeTitle: {
     fontSize: LAYOUT.refriCompleteTitleFontSize,
     fontWeight: "800",
-    color: "#4CAF50",
+    color: COLORS.successOnWhite,
     marginBottom: LAYOUT.spacingSM,
   },
 
