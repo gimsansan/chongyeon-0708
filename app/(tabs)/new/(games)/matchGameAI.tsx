@@ -343,6 +343,7 @@ const HomeScreen = memo(({ onStartGame, onShowStats }: { onStartGame: (mode: Gam
 const GameScreen = memo(({ state, onSelect }: { state: GameState, onSelect: (name: string) => void }) => (
     <View style={styles.centered}>
         <Text style={styles.statusText}>난이도: {state.difficulty} | 남은 기회: {state.remainingChoices} | 점수: {state.score}</Text>
+        <Text style={styles.statusText}>들었던 소리를 모두 선택하세요</Text>
         <View style={styles.gameBoard}>
             {SOUNDS_CONFIG.map(({ name }) => {
                 const status = state.userSelections[name];
@@ -393,13 +394,13 @@ const ResultsScreen = memo(({ state, onContinue, onGoHome }: { state: GameState,
             <Text style={styles.primaryButtonText}>▶️ 계속하기</Text>
         </TouchableOpacity>
         <TouchableOpacity
-            style={styles.statsButton}
+            style={styles.statsBackButton}
             onPress={onGoHome}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="홈으로"
         >
-            <Text style={styles.statsButtonText}>🏠 홈으로</Text>
+            <Text style={styles.statsBackButtonText} numberOfLines={1}>🏠 홈으로</Text>
         </TouchableOpacity>
     </View>
 ));
