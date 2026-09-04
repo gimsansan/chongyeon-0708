@@ -9,7 +9,14 @@ interface DrumGameOverScreenProps {
   score: number;
   maxScore: number;
   onRestart: () => void;
-  onGoHome: () => void;
+  /**
+   * 결과를 접고 **돌아갈 화면이 있을 때만** 넘긴다. 안 넘기면 「나가기」를 그리지 않는다.
+   *
+   * 드럼은 퀴즈를 접고 **연주 모드**로 돌아가므로 넘긴다.
+   * learn은 탭 전체가 퀴즈라 접고 갈 데가 없어 — 넘기던 함수가 결과창만 닫아
+   * **「다시 하기」와 결과가 같았다** (세션 52).
+   */
+  onGoHome?: () => void;
 }
 
 /**
@@ -141,7 +148,8 @@ function DrumGameOverScreen({
 
           </View>
 
-          {/* 버튼 — 주 동작(다시 하기)만 채우고, 결과를 닫는 나가기는 아웃라인으로 구분한다 */}
+          {/* 버튼 — 주 동작(다시 하기)만 채우고, 결과를 닫는 나가기는 아웃라인으로 구분한다.
+              `onGoHome`이 없으면 「다시 하기」 하나가 칸을 채운다 (learn) */}
           <View style={styles.buttonContainer}>
             <Pressable
               onPress={onRestart}
@@ -155,18 +163,20 @@ function DrumGameOverScreen({
               <Text style={styles.buttonText}>다시 하기</Text>
             </Pressable>
 
-            <Pressable
-              onPress={onGoHome}
-              accessibilityRole="button"
-              accessibilityLabel="나가기"
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.secondaryButton,
-                pressed && styles.pressedButton,
-              ]}
-            >
-              <Text style={[styles.buttonText, styles.secondaryButtonText]}>나가기</Text>
-            </Pressable>
+            {onGoHome && (
+              <Pressable
+                onPress={onGoHome}
+                accessibilityRole="button"
+                accessibilityLabel="나가기"
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  styles.secondaryButton,
+                  pressed && styles.pressedButton,
+                ]}
+              >
+                <Text style={[styles.buttonText, styles.secondaryButtonText]}>나가기</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       </View>

@@ -70,13 +70,6 @@ export default function Index() {
     setFinalMaxScore(0);
   };
 
-  // 홈으로 이동
-  const handleGoHome = () => {
-    setIsGameOver(false);
-    easyScale.value = withSpring(1);
-    normalScale.value = withSpring(1);
-  };
-
   // 애니메이션 스타일
   const easyAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: easyScale.value }],
@@ -213,22 +206,25 @@ export default function Index() {
               WordGame은 위에서 언마운트해 오디오·타이머가 뒤에 남지 않게 한다.
 
               조건부 View + zIndex였을 때는 뒤로가기가 이 창이 아니라 **탭을 나갔다.**
-              뒤로가기는 「나가기」와 같은 길로 보낸다 (냉장고 세션 47 · 피아노 49 ·
+              뒤로가기는 「다시 하기」와 같은 길로 보낸다 (냉장고 세션 47 · 피아노 49 ·
               드럼 50과 같은 처방 — 드럼은 이 컴포넌트를 함께 쓰면서 먼저 고쳤다).
+
+              **`onGoHome`은 넘기지 않는다** — 이 탭은 전체가 퀴즈라 결과를 접고 갈 화면이 없다.
+              넘기면 「나가기」가 그려지는데 하는 일이 「다시 하기」와 같았다 (세션 52).
+              드럼은 연주 모드로 돌아가므로 그쪽은 그대로 넘긴다.
               Modal 안에서는 절대배치가 아니라 flex로 채운다. */}
           <Modal
             visible={isGameOver}
             transparent
             statusBarTranslucent
             animationType="fade"
-            onRequestClose={handleGoHome}
+            onRequestClose={handleRestartGame}
           >
             <View style={styles.gameOverOverlay}>
               <DrumGameOverScreen
                 score={finalScore}
                 maxScore={finalMaxScore}
                 onRestart={handleRestartGame}
-                onGoHome={handleGoHome}
               />
             </View>
           </Modal>
