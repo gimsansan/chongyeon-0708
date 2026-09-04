@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, ScrollView, TouchableOpacity, FlatList, TouchableWithoutFeedback, Dimensions, Image, Animated as RNAnimated, useWindowDimensions } from "react-native";
+import { Text, View, StyleSheet, ScrollView, TouchableOpacity, FlatList, TouchableWithoutFeedback, Dimensions, Image, Modal, Animated as RNAnimated, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from 'expo-router';
 import React, { useState, useRef, useCallback, useEffect } from "react";
@@ -179,7 +179,10 @@ export default function Index() {
       );
 
       return () => {
-        // 탭을 떠날 때 (포커스 잃음) - 게임 상태 정리 (모드 상태는 유지)
+        // 탭을 떠날 때 (포커스 잃음) - 게임 상태 정리
+        // 소리를 끊는 이상 퀴즈는 이어질 수 없다. 예약된 다음 라운드·카운트다운까지 함께 끊지
+        // 않으면 떠난 탭에서 라운드가 혼자 넘어가고, 돌아왔을 때 답을 못 내는 상태로 굳는다.
+        exitQuizRef.current();
         setIsGameStarted(false);
         setIsGameOver(false);
         setFinalScore(0);
@@ -250,7 +253,54 @@ export default function Index() {
     handleAnswer,
     resetGame,
     startPlaying,
+    stopPendingRounds,
   } = gameLogic;
+
+  // 게임 중 사용자가 다른 페이지로 스크롤 시 퀴즈 강제 종료 → 사운드 체크 모드로 복귀
+  const quizScrollLockRef = useRef(false);
+
+  /**
+   * 진행 중인 카운트다운을 무효화하는 표. 시작할 때마다 하나 올리고, 기다림이 끝날 때
+   * 번호가 그대로인지 본다 — 다르면 그 사이에 그만둔 것이므로 아무것도 하지 않는다.
+   *
+   * `await`는 취소되지 않는다. 표가 없으면 「그만하기」를 눌러도 남은 카운트다운이 끝까지 돌아
+   * **접은 퀴즈가 `playing`으로 들어간다.**
+   */
+  const quizRunIdRef = useRef(0);
+  /** 카운트다운 대기 타이머. 끊을 때 `clearTimeout`과 함께 `resolve`도 해서 대기를 깨운다 */
+  const quizWaitersRef = useRef<Map<ReturnType<typeof setTimeout>, () => void>>(new Map());
+  const cancelQuizWaits = useCallback(() => {
+    quizWaitersRef.current.forEach((resolve, id) => {
+      clearTimeout(id);
+      resolve();
+    });
+    quizWaitersRef.current.clear();
+  }, []);
+  const waitInQuiz = useCallback((delayMs: number) => new Promise<void>((resolve) => {
+    const id = setTimeout(() => {
+      quizWaitersRef.current.delete(id);
+      resolve();
+    }, delayMs);
+    quizWaitersRef.current.set(id, resolve);
+  }), []);
+
+  /**
+   * 퀴즈를 접는 유일한 통로 — 「그만하기」·「나가기」·페이지 이탈·탭 이탈이 다 여기로 온다.
+   * 한 군데라도 빼먹으면 그 길로 나갔을 때만 타이머가 살아남는다 (세션 49 피아노 재점검 참고).
+   */
+  const exitQuiz = useCallback(() => {
+    quizRunIdRef.current += 1; // 진행 중인 카운트다운 무효화
+    cancelQuizWaits();
+    stopPendingRounds();
+    isStartingQuizRef.current = false;
+    quizScrollLockRef.current = false;
+    setCountdown(null);
+    setIsQuizActive(false);
+    setQuizStartScrollIndex(null);
+  }, [cancelQuizWaits, stopPendingRounds]);
+  /** 탭 포커스 클린업은 의존성이 빈 배열이라(재구독 방지) 최신 함수를 ref로 본다 */
+  const exitQuizRef = useRef(exitQuiz);
+  exitQuizRef.current = exitQuiz;
 
   // 퀴즈 시작: 설정된 악기 수 페이지로 전환 → 카운트다운 → 첫 문제 재생
   const handleStartQuiz = useCallback(async () => {
@@ -261,6 +311,7 @@ export default function Index() {
     }
     isStartingQuizRef.current = true;
 
+    const runId = ++quizRunIdRef.current;
     quizScrollLockRef.current = true;
     setQuizStartScrollIndex(currentDrumScrollIndex);
     setIsQuizActive(true);
@@ -268,36 +319,36 @@ export default function Index() {
     setIsGameOver(false);
     setFinalScore(0);
     setFinalMaxScore(0);
-    
+
     // 헤더 배경 플래시 애니메이션
     RNAnimated.sequence([
       RNAnimated.timing(headerFlashAnim, { toValue: 1, duration: 150, useNativeDriver: false }),
       RNAnimated.timing(headerFlashAnim, { toValue: 0, duration: 150, useNativeDriver: false }),
     ]).start();
-    
-    setTimeout(() => { quizScrollLockRef.current = false; }, 800);
+
+    void waitInQuiz(800).then(() => {
+      if (quizRunIdRef.current === runId) quizScrollLockRef.current = false;
+    });
     for (let i = 2; i > 0; i--) {
       setCountdown(i);
-      await new Promise((r) => setTimeout(r, 1000));
+      await waitInQuiz(1000);
+      if (quizRunIdRef.current !== runId) return; // 그 사이에 그만뒀다
     }
     setCountdown(0);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitInQuiz(500);
+    if (quizRunIdRef.current !== runId) return;
     setCountdown(null);
     startPlaying();
     isStartingQuizRef.current = false;
-  }, [currentDrumScrollIndex, resetGame, startPlaying]);
+  }, [currentDrumScrollIndex, resetGame, startPlaying, waitInQuiz]);
 
-  // 게임 중 사용자가 다른 페이지로 스크롤 시 퀴즈 강제 종료 → 사운드 체크 모드로 복귀
-  const quizScrollLockRef = useRef(false);
   useEffect(() => {
     if (!isQuizActive || quizStartScrollIndex === null) return;
     if (quizScrollLockRef.current) return; // 시작 직후 자동 스크롤은 무시
     if (currentDrumScrollIndex !== quizStartScrollIndex) {
-      setIsQuizActive(false);
-      setQuizStartScrollIndex(null);
-      isStartingQuizRef.current = false;
+      exitQuiz();
     }
-  }, [isQuizActive, quizStartScrollIndex, currentDrumScrollIndex]);
+  }, [isQuizActive, quizStartScrollIndex, currentDrumScrollIndex, exitQuiz]);
 
   // 문제 출제 시 소리만 재생 (힌트 없이)
   useEffect(() => {
@@ -409,9 +460,7 @@ export default function Index() {
                       RNAnimated.timing(headerFlashAnim, { toValue: 2, duration: 150, useNativeDriver: false }),
                       RNAnimated.timing(headerFlashAnim, { toValue: 0, duration: 150, useNativeDriver: false }),
                     ]).start();
-                    setIsQuizActive(false);
-                    setQuizStartScrollIndex(null);
-                    isStartingQuizRef.current = false;
+                    exitQuiz();
                   }}
                   style={styles.headerSide}
                 >
@@ -595,17 +644,27 @@ export default function Index() {
             </View>
           )}
 
-          {/* 게임 종료 오버레이 */}
-          {isQuizActive && isGameOver && (
+          {/*
+            게임 종료 결과창. 조건부 View + zIndex였을 때는 뒤로가기가 이 창이 아니라
+            **탭을 나갔다.** 뒤로가기는 「나가기」와 같은 길로 보낸다 (세션 47 냉장고 완료 ·
+            49 피아노 결과와 같은 처방). Modal 안에서는 절대배치가 아니라 flex로 채운다.
+          */}
+          <Modal
+            visible={isQuizActive && isGameOver}
+            transparent
+            statusBarTranslucent
+            animationType="fade"
+            onRequestClose={exitQuiz}
+          >
             <View style={styles.gameOverOverlay}>
               <DrumGameOverScreen
                 score={finalScore}
                 maxScore={finalMaxScore}
                 onRestart={handleStartQuiz}
-                onGoHome={() => { setIsQuizActive(false); setQuizStartScrollIndex(null); }}
+                onGoHome={exitQuiz}
               />
             </View>
-          )}
+          </Modal>
         </View>
       </View>
     </GestureHandlerRootView>
@@ -936,16 +995,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 
+  /** Modal 안이라 절대배치·zIndex가 필요 없다 — 판 전체를 flex로 채운다 */
   gameOverOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2000,
   },
   quizOverlayCenter: {
     justifyContent: 'center',

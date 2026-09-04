@@ -201,10 +201,17 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     setCharacterPosition({ x: centerX, y: bottomY });
   }, []);
 
-  // 캐릭터 펄스 애니메이션 - 컴포넌트 마운트 후 500ms 대기 후 시작
+  /**
+   * 캐릭터 펄스 애니메이션 - 컴포넌트 마운트 후 500ms 대기 후 시작.
+   *
+   * 루프를 바깥 변수에 담아 두는 이유: cleanup이 `clearTimeout`만 하면 **대기 시간이 지난 뒤에
+   * 언마운트될 때 루프를 못 세운다.** 이 컴포넌트는 FlatList에 네 벌 살아서 페이지를 오갈 때마다
+   * 멈추지 않는 루프가 쌓인다. 타이머와 루프는 **둘 다** 끊어야 한다.
+   */
   useEffect(() => {
+    let pulseAnimation: Animated.CompositeAnimation | null = null;
     const timer = setTimeout(() => {
-      const pulseAnimation = Animated.loop(
+      pulseAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(characterPulse, {
             toValue: 1.15,
@@ -223,13 +230,15 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
 
     return () => {
       clearTimeout(timer);
+      pulseAnimation?.stop();
     };
   }, []);
 
-  // 드럼 마커 펄스 애니메이션 - 700ms 후 시작
+  // 드럼 마커 펄스 애니메이션 - 700ms 후 시작 (정지 참조는 위 캐릭터 펄스와 같은 이유)
   useEffect(() => {
+    let markerAnimation: Animated.CompositeAnimation | null = null;
     const timer = setTimeout(() => {
-      const markerAnimation = Animated.loop(
+      markerAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(markerPulse, {
             toValue: 1.3,
@@ -248,6 +257,7 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
 
     return () => {
       clearTimeout(timer);
+      markerAnimation?.stop();
     };
   }, []);
 
