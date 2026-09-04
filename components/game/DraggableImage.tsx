@@ -70,6 +70,14 @@ export default function DraggableImage({
   return (
     <Animated.View
       {...panResponder.panHandlers}
+      accessible={true}
+      accessibilityRole="imagebutton"
+      // 순서 칸에 놓인 카드는 몇 번째인지까지 읽는다 (그리드에 있는 것은 이름만)
+      accessibilityLabel={
+        sourceZoneIndex !== undefined ? `${sourceZoneIndex + 1}번째 자리, ${imageName}` : imageName
+      }
+      accessibilityState={{ disabled: !!disabled }}
+      accessibilityHint="끌어서 순서 칸에 놓습니다"
       style={[
         { transform: pan.getTranslateTransform() },
         styles.imageContainer,

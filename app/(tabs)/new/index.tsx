@@ -186,6 +186,13 @@ export default function App() {
                                         style={styles.gameCard} 
                                         onPress={() => router.push(game.route as any)}
                                         activeOpacity={0.82}
+                                        accessibilityRole="button"
+                                        // 별·클리어는 배지 아이콘에만 있어 토크백이 못 읽는다. 라벨이 대신 읽는다
+                                        accessibilityLabel={
+                                            `${game.name}, ${game.desc}` +
+                                            (hasStar ? ', 별 획득' : '') +
+                                            (isCleared ? ', 클리어 완료' : '')
+                                        }
                                     >
                                         {/* 별 배지 */}
                                         {hasStar && (

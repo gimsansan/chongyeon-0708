@@ -150,7 +150,6 @@ export default function OrderGame() {
 
       // 선택된 3개의 사운드만 로드 (메모리 최적화 + 최대 안정성)
       const randomSounds = getRandomElements(sounds, 3);
-      console.log('=== 게임 시작: 사운드 순차적 로드 (최대 안정성) ===');
 
       // 순차적 로드 (하나씩 안정적으로)
       const soundList: { sound: AudioPlayer; name: string }[] = [];
@@ -163,33 +162,26 @@ export default function OrderGame() {
         // 각 사운드마다 최대 2번 재시도
         while (retryCount <= maxRetries && !loadedSound) {
           try {
-            console.log(`🔄 ${soundPath.name} 로드 시도 (${retryCount + 1}/${maxRetries + 1})`);
             const sound = createAudioPlayer(soundPath.sound, { updateInterval: 500 });
             loadedSound = sound;
             soundList.push({ sound, name: soundPath.name });
-            console.log(`✅ ${soundPath.name} 로드 완료`);
             break;
           } catch (error) {
             retryCount++;
             console.error(`❌ ${soundPath.name} 로드 실패 (${retryCount}/${maxRetries + 1}):`, error);
 
             if (retryCount <= maxRetries) {
-              console.log(`🔄 ${soundPath.name} 재시도 중...`);
               await new Promise(resolve => setTimeout(resolve, 300)); // 재시도 전 대기
             }
           }
         }
 
-        if (!loadedSound) {
-          console.log(`💥 ${soundPath.name} 최종 로드 실패 - 건너뜀`);
-        }
+        // 로드에 실패한 소리는 그냥 건너뛴다 (남은 것만으로 진행)
       }
 
       if (soundList.length === 0) {
         throw new Error('모든 사운드 로드에 실패했습니다.');
       }
-
-      console.log(`📊 최종 로드 성공: ${soundList.length}/${randomSounds.length}개`);
 
       setPlayList(soundList);
       questionSoundsRef.current = soundList;
@@ -200,14 +192,7 @@ export default function OrderGame() {
         return;
       }
 
-      // 🔍 디버깅 로그
-      console.log('=== 게임 시작: 선택된 사운드들 ===');
-      soundList.forEach((sound, index) => {
-        console.log(`${index + 1}번째: ${sound.name}`);
-      });
-
       // 소리 재생 (안정적 순차 재생)
-      console.log('=== 소리 재생 시작 ===');
       const correctNames = [];
 
       for (let i = 0; i < soundList.length; i++) {
@@ -217,20 +202,16 @@ export default function OrderGame() {
 
         while (retryCount <= maxRetries) {
           try {
-            console.log(`🔊 ${soundObj.name} 재생 시도 (${retryCount + 1}/${maxRetries + 1})`);
             soundObj.sound.play();
             correctNames.push(soundObj.name);
-            console.log(`✅ ${soundObj.name} 재생 성공`);
             break; // 성공하면 루프 탈출
           } catch (playError) {
             retryCount++;
             console.error(`❌ ${soundObj.name} 재생 실패 (${retryCount}/${maxRetries + 1}):`, playError);
 
             if (retryCount <= maxRetries) {
-              console.log(`🔄 ${soundObj.name} 재시도 중...`);
               await new Promise(resolve => setTimeout(resolve, 500)); // 재시도 전 잠시 대기
             } else {
-              console.log(`💥 ${soundObj.name} 최종 실패 - 게임 계속 진행`);
               correctNames.push(soundObj.name); // 실패해도 이름은 추가
             }
           }
@@ -254,13 +235,7 @@ export default function OrderGame() {
 
       setCorrectSoundNames(correctNames);
 
-      console.log('=== 정답 순서 ===');
-      correctNames.forEach((name, index) => {
-        console.log(`${index + 1}번째 정답: ${name}`);
-      });
-
       // 소리 재생이 완전히 끝난 후 약간의 추가 대기 (사용자 경험 개선)
-      console.log('=== 소리 재생 완료 - UI 전환 준비 ===');
       await new Promise(resolve => setTimeout(resolve, 500)); // 0.5초 추가 대기
 
       if (leftScreenRef.current) {
@@ -268,7 +243,6 @@ export default function OrderGame() {
         return;
       }
 
-      console.log('=== UI 전환 시작 ===');
       setShowWaveAnimation(false);
       setIsGameStarted(true);
 
@@ -322,24 +296,13 @@ export default function OrderGame() {
     const currentAttempt = attemptCount + 1;
     setAttemptCount(currentAttempt);
     
-    // 🔍 콘솔로그: 정답 제출 시 비교 결과
-    console.log('=== 정답 제출 결과 ===');
-    console.log('정답 순서:', correctSoundNames);
-    console.log('사용자 답:', droppedImages);
-    
     let correct = true;
     for (let i = 0; i < correctSoundNames.length; i++) {
-      const isMatch = correctSoundNames[i] === droppedImages[i];
-      console.log(`${i + 1}번째: ${correctSoundNames[i]} vs ${droppedImages[i]} → ${isMatch ? '✅ 정답' : '❌ 오답'}`);
       if (correctSoundNames[i] != droppedImages[i]) {
         correct = false;
         break;
       }
     }
-    
-    console.log(`최종 결과: ${correct ? '🎉 정답!' : '😅 오답!'}`);
-    console.log(`시도 횟수: ${currentAttempt}회`);
-    console.log('====================');
 
     if (correct) {
       // 데이터 전송
@@ -480,7 +443,13 @@ export default function OrderGame() {
 
         {/* 게임 시작 버튼 */}
         {!isGameStarted && !showWaveAnimation && (
-          <TouchableOpacity style={styles.startButton} onPress={startGame} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={startGame}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="게임 시작"
+          >
             <Text style={styles.startButtonText} numberOfLines={1}>🎮 게임시작</Text>
           </TouchableOpacity>
         )}
@@ -551,7 +520,12 @@ export default function OrderGame() {
                           debug={DEBUG_DROP}
                         />
                       ) : (
-                        <Text style={{ color: COLORS.textPlaceholder }}>놓는곳</Text>
+                        <Text
+                          style={{ color: COLORS.textPlaceholder }}
+                          accessibilityLabel={`${i + 1}번째 자리, 비어 있음`}
+                        >
+                          놓는곳
+                        </Text>
                       )}
                     </View>
                   </View>
@@ -559,7 +533,13 @@ export default function OrderGame() {
               })}
             </View>
 
-            <TouchableOpacity style={styles.submitButton} onPress={submit} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={submit}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="정답 제출"
+            >
               <Text style={styles.submitButtonText}>✅ 정답 제출</Text>
             </TouchableOpacity>
           </ScrollView>

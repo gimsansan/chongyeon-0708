@@ -43,6 +43,11 @@ export default function MatchGame() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [disabledButtons, setDisabledButtons] = useState<Set<string>>(new Set());
   const [correctSoundNames, setCorrectSoundNames] = useState<Set<string>>(new Set());
+  /**
+   * 위 상태의 동기 사본. `setCorrectSoundNames`의 **업데이터 안에서** 전송·타이머를 부르면
+   * React가 업데이터를 두 번 돌릴 때 의료 데이터가 두 번 나간다. 남은 개수는 여기서 센다.
+   */
+  const remainingCorrectRef = useRef<Set<string>>(new Set());
   const [isStartModalVisible, setIsStartModalVisible] = useState(false);
   const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -116,6 +121,7 @@ export default function MatchGame() {
     }
     questionSoundsRef.current = [];
     setPlayList([]);
+    remainingCorrectRef.current = new Set();
     setCorrectSoundNames(new Set());
     setIsGameStarted(false);
     setIsLoading(false);
@@ -129,10 +135,6 @@ export default function MatchGame() {
 
     setWrongAttempts([]); // 새 게임 시작 시 오답 기록 초기화
     wrongAttemptsRef.current = [];
-    
-    // 소리 재생이 끝난 후 UI가 바뀔 때 현재 시간 기록
-    setIsGameStarted(true);
-    setGameStartTime(Date.now())
 
     try {
       // 오디오 모드는 `AudioManagerProvider`가 앱 시작 시 1회 설정한다(4-B에서 일원화).
@@ -198,6 +200,7 @@ export default function MatchGame() {
         }
       }
 
+      remainingCorrectRef.current = new Set(correctNames);
       setCorrectSoundNames(new Set(correctNames));
       await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -206,6 +209,10 @@ export default function MatchGame() {
         return;
       }
 
+      // 소리가 다 나온 **뒤에** 게임판을 연다. 앞에서 켜면 재생 중에 카드가 눌리고,
+      // 그때 `correctSoundNames`는 비어 있어 누르는 족족 오답으로 기록된다.
+      // 시작 시각도 여기서 잡는다 — 시작 모달을 뒤로가기로 닫아도 재생 시간이 안 섞인다.
+      setGameStartTime(Date.now());
       setIsGameStarted(true);
       setIsStartModalVisible(true);
     } catch (error) {
@@ -231,6 +238,7 @@ export default function MatchGame() {
     setIsLoading(false);
     setPlayList([]);
     setDisabledButtons(new Set());
+    remainingCorrectRef.current = new Set();
     setCorrectSoundNames(new Set());
     setAnimatingAnimals(new Set());
     setErrorAnimals(new Set());
@@ -288,32 +296,35 @@ export default function MatchGame() {
 
       if (isCorrect) {
         setDisabledButtons(prev => new Set(prev).add(soundName));
-        setCorrectSoundNames(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(soundName);
-          if (newSet.size === 0) {
-            // 데이터 전송
-            const endTime = Date.now();
-            const durationSeconds = gameStartTime ? (endTime - gameStartTime) / 1000 : 0;
 
-            const medicalDataPayload = {
-              presented_sounds: playList.map(item => item.name),
-              wrong_selections: [...wrongAttemptsRef.current], // 현재까지 쌓인 오답 배열
-              error_count: wrongAttemptsRef.current.length,
-              completion_time_seconds: parseFloat(durationSeconds.toFixed(2)), // 소수점 2자리
-              is_perfect: !madeMistakeRef.current
-            };
+        // 남은 정답은 ref로 센다. 업데이터는 순수해야 한다 —
+        // 안에서 전송·타이머를 부르면 React가 두 번 돌릴 때 둘 다 두 번 나간다.
+        const remaining = new Set(remainingCorrectRef.current);
+        remaining.delete(soundName);
+        remainingCorrectRef.current = remaining;
+        setCorrectSoundNames(remaining);
 
-            console.log("🚀 [의료 데이터 전송] matchGame:", medicalDataPayload);
-            syncData('matchGame', medicalDataPayload); // 서버 전송
-            
-            const successTimer = setTimeout(() => {
-              setIsSuccessModalVisible(true);
-            }, 300);
-            timerRefs.current.push(successTimer);
-          }
-          return newSet;
-        });
+        if (remaining.size === 0) {
+          // 데이터 전송
+          const endTime = Date.now();
+          const durationSeconds = gameStartTime ? (endTime - gameStartTime) / 1000 : 0;
+
+          const medicalDataPayload = {
+            presented_sounds: playList.map(item => item.name),
+            wrong_selections: [...wrongAttemptsRef.current], // 현재까지 쌓인 오답 배열
+            error_count: wrongAttemptsRef.current.length,
+            completion_time_seconds: parseFloat(durationSeconds.toFixed(2)), // 소수점 2자리
+            is_perfect: !madeMistakeRef.current
+          };
+
+          console.log("🚀 [의료 데이터 전송] matchGame:", medicalDataPayload);
+          syncData('matchGame', medicalDataPayload); // 서버 전송
+
+          const successTimer = setTimeout(() => {
+            setIsSuccessModalVisible(true);
+          }, 300);
+          timerRefs.current.push(successTimer);
+        }
       } else {
         // 오답은 Alert 없이 흔들림 + 카드 색상 변화로만 피드백
       }
@@ -343,7 +354,13 @@ export default function MatchGame() {
               <Text style={styles.loadingText}>소리를 재생하고 있습니다...</Text>
             </View>
           ) : (
-            <TouchableOpacity style={styles.startButton} onPress={startGame} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={startGame}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="게임 시작"
+            >
               <Text style={styles.startButtonText} numberOfLines={1}>🎮 게임시작</Text>
             </TouchableOpacity>
           )
@@ -365,6 +382,9 @@ export default function MatchGame() {
                   onPress={() => handleButtonPress(soundItem.name)}
                   disabled={isDisabled || isAnimating}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={isDisabled ? `${soundItem.name}, 정답` : soundItem.name}
+                  accessibilityState={{ disabled: isDisabled || isAnimating, selected: isDisabled }}
                 >
                   <View style={[styles.buttonContent, isAnimating && styles.buttonContentAnimating]}>
                     {/* 클릭한 동물만 Rive로 렌더링, 나머지는 Image로 렌더링 */}
@@ -404,7 +424,7 @@ export default function MatchGame() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>게임 시작!</Text>
+            <Text style={styles.modalTitle} accessibilityRole="header">게임 시작!</Text>
             <Text style={styles.modalText}>등장한 동물 세 마리를 골라 주세요! 🐾</Text>
             <TouchableOpacity
               style={styles.modalButton}
@@ -412,6 +432,8 @@ export default function MatchGame() {
                 setIsStartModalVisible(false);
                 setGameStartTime(Date.now());}
               }
+              accessibilityRole="button"
+              accessibilityLabel="시작하기"
             >
               <Text style={styles.modalButtonText}>시작하기</Text>
             </TouchableOpacity>
@@ -427,13 +449,15 @@ export default function MatchGame() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>⚠️ 오류 발생</Text>
+            <Text style={styles.modalTitle} accessibilityRole="header">⚠️ 오류 발생</Text>
             <Text style={styles.modalText}>
               {errorMessage ?? '오류가 발생했어요. 잠시 후 다시 시도해주세요.'}
             </Text>
             <TouchableOpacity
               style={styles.modalButton}
               onPress={() => setIsErrorModalVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="확인"
             >
               <Text style={styles.modalButtonText}>확인</Text>
             </TouchableOpacity>
@@ -449,10 +473,12 @@ export default function MatchGame() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>🎉 축하합니다!</Text>
+            <Text style={styles.modalTitle} accessibilityRole="header">🎉 축하합니다!</Text>
             <Text style={styles.modalText}>모든 동물을 맞추셨어요! 🌟</Text>
             <TouchableOpacity
               style={styles.modalButton}
+              accessibilityRole="button"
+              accessibilityLabel="확인"
               onPress={() => {
                 setIsSuccessModalVisible(false);
                 starContext?.addStar('matchGame');
