@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useWordAudioPlayer } from '../../hooks/useWordAudioPlayer';
@@ -11,16 +11,9 @@ import { getImmutableWaveformData } from './waveformData';
 
 interface WordFlashcardProps {
   readonly wordPair: WordPair;
-  /** true면 스택 뒤 카드용: 전체 듣기·VS 미표시 */
-  /** minimal이 true면: 뒤집은 카드(뒷면) 용 — 전체 듣기 버튼/VS 표시/파형 등 미노출(최소 정보만 보여줌) */
-  /** 카드 "미니멀"(최소 정보) 모드: true 시 뒷면(힌트 없음·파형 등 미노출) 용. better name? showMinimal/compact/summary/backFace? */
-  readonly minimal?: boolean;
 }
 
-export function WordFlashcard({
-  wordPair,
-  minimal = false,
-}: Readonly<WordFlashcardProps>) {
+export function WordFlashcard({ wordPair }: Readonly<WordFlashcardProps>) {
   const audioPlayer = useWordAudioPlayer();
   const [playingWord, setPlayingWord] = useState<string | null>(null);
   const [isPlayingAll, setIsPlayingAll] = useState(false);
@@ -28,8 +21,12 @@ export function WordFlashcard({
   // ✅ SSOT: showWaveform은 playingWord에서 파생
   const showWaveform = playingWord !== null;
 
-  // ✅ SSOT: 파형 데이터도 playingWord에서 파생
-  const waveformData = getImmutableWaveformData(playingWord || ''); //waveformData는 playingWord에서 파생
+  /**
+   * 파형 데이터도 `playingWord`에서 파생한다.
+   * **`useMemo`가 필수다** — 새 배열을 주면 `Waveform`의 `useDerivedValue` 의존성이 바뀌어
+   * 렌더마다 mapper가 정지·재시작된다 (`useDerivedValue.ts:72-80`).
+   */
+  const waveformData = useMemo(() => getImmutableWaveformData(playingWord ?? ''), [playingWord]);
 
   /**
    * 지금 소리 나는 단어카드. 전체듣기는 단어1 → 단어2로 **혼자 넘어가므로**,
@@ -145,13 +142,10 @@ export function WordFlashcard({
             </TouchableOpacity>
           </View>
 
-          {/* VS 표시 (뒤 카드에서는 숨김) */}
-          {!minimal && (
-            <View style={styles.vsContainer}>
-              <Text style={styles.vsText}>VS</Text>
-            </View>
-          )}
-          {minimal && <View style={styles.vsContainerSpacer} />}
+          {/* VS 표시 */}
+          <View style={styles.vsContainer}>
+            <Text style={styles.vsText}>VS</Text>
+          </View>
 
           {/* 단어 2 */}
           <View style={styles.wordColumnContainer}>
@@ -184,41 +178,37 @@ export function WordFlashcard({
             전체듣기 중에도 그린다. 전에는 `!isPlayingAll`로 막혀 있어서, 정작 소리가
             이어서 나는 동안 파형 자리가 빈 채로 남았다 (자리는 늘 차지하고 있었다) */}
         <View style={styles.waveformContainer}>
-        {showWaveform && (
+          {showWaveform && (
             <Waveform
               data={waveformData}
-              isPlaying={audioPlayer.isPlaying}
               color={WAVEFORM_GRADIENT.start}
               width={LAYOUT.waveformWidth}
               height={LAYOUT.waveformHeight}
               progress={audioPlayer.progress}
             />
           )}
-          </View>
-          
+        </View>
       </View>
 
-      {!minimal && (
-        <TouchableOpacity
-          style={[styles.playAllButton, isPlayingAll && styles.playAllButtonDisabled]}
-          onPress={handlePlayAll}
-          disabled={isPlayingAll}
-          activeOpacity={0.88}
-          accessibilityRole="button"
-          accessibilityLabel={isPlayingAll ? '두 단어를 이어서 재생 중입니다' : '두 단어를 이어서 듣기'}
-          accessibilityState={{ disabled: isPlayingAll, busy: isPlayingAll }}
-        >
-          {/* 아이콘이 글자 앞에 선다. 전에는 자식이 글자 하나뿐이라 style의 gap 8이 죽은 값이었다 */}
-          <Ionicons
-            name={isPlayingAll ? 'musical-notes' : 'volume-high'}
-            size={LAYOUT.playAllButtonIconSize}
-            color={isPlayingAll ? COLORS.textSecondary : COLORS.white}
-          />
-          <Text style={[styles.playAllButtonText, isPlayingAll && styles.playAllButtonTextDisabled]}>
-            {isPlayingAll ? '재생 중...' : '전체 듣기'}
-          </Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={[styles.playAllButton, isPlayingAll && styles.playAllButtonDisabled]}
+        onPress={handlePlayAll}
+        disabled={isPlayingAll}
+        activeOpacity={0.88}
+        accessibilityRole="button"
+        accessibilityLabel={isPlayingAll ? '두 단어를 이어서 재생 중입니다' : '두 단어를 이어서 듣기'}
+        accessibilityState={{ disabled: isPlayingAll, busy: isPlayingAll }}
+      >
+        {/* 아이콘이 글자 앞에 선다. 전에는 자식이 글자 하나뿐이라 style의 gap 8이 죽은 값이었다 */}
+        <Ionicons
+          name={isPlayingAll ? 'musical-notes' : 'volume-high'}
+          size={LAYOUT.playAllButtonIconSize}
+          color={isPlayingAll ? COLORS.textSecondary : COLORS.white}
+        />
+        <Text style={[styles.playAllButtonText, isPlayingAll && styles.playAllButtonTextDisabled]}>
+          {isPlayingAll ? '재생 중...' : '전체 듣기'}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -323,24 +313,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'white',
   },
-  vsContainerSpacer: {
-    paddingHorizontal: LAYOUT.vsPaddingH,
-    paddingVertical: LAYOUT.vsPaddingV,
-    minWidth: LAYOUT.vsSpacerMinWidth,
-  },
+  /**
+   * 파형 자리. **높이를 Canvas와 같은 값으로 둔다** — 전에는 상자 39에 Canvas 60이라
+   * Canvas가 21px 삐져나왔고 `paddingVertical`은 그 아래 깔려 뜻이 없었다.
+   */
   waveformContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    height: LAYOUT.waveformContainerHeight,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    paddingVertical: LAYOUT.waveformContainerPaddingV,
-   
+    height: LAYOUT.waveformHeight,
   },
 });
 
 export default WordFlashcard;
-
-
-

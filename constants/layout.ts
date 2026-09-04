@@ -171,9 +171,14 @@ export const LAYOUT = {
   /** WordFlashcard — 값의 근거는 위 `FLASHCARD_CARD_*` 주석 참고. 411×868에서는 전부 종전값이다 */
   /** 파형 폭은 화면이 아니라 **카드 안쪽 폭**을 넘지 않아야 한다 (320dp에서 12px 삐져나왔다) */
   waveformWidth: Math.min(isTablet ? 400 : 280, Math.floor(FLASHCARD_CARD_INNER_WIDTH)),
-  waveformHeight: scaleInCardH(60, 36, 72),
+  /**
+   * 파형의 세로. **담는 상자(`waveformContainer`)의 높이이자 Canvas의 높이**다 — 하나로 둔다.
+   * 전에는 상자가 `scaleInCardH(39…)`, Canvas가 `scaleInCardH(60…)`이라 기준이 갈려
+   * Canvas가 담는 상자보다 21px 커졌고 `paddingVertical`은 뜻을 잃었다.
+   * 값은 **자리를 차지하던 쪽(39)**을 남겨 레이아웃이 종전 그대로다.
+   */
+  waveformHeight: scaleInCardH(39, 26, 52),
   wordCardMinWidth: FLASHCARD_WORD_CARD_WIDTH,
-  vsSpacerMinWidth: scaleInCardW(44, 30, 56),
   containerPaddingV: scaleInCardH(20, 10, 24),
   containerPaddingH: FLASHCARD_CONTAINER_PADDING_H,
   wordCardPadding: FLASHCARD_WORD_CARD_PADDING,
@@ -204,8 +209,6 @@ export const LAYOUT = {
   vsPaddingV: scaleInCardH(8, 5, 10),
   vsFontSize: 16,
   vsBorderRadius: 20,
-  waveformContainerHeight: scaleInCardH(39, 26, 52),
-  waveformContainerPaddingV: scaleInCardH(10, 6, 12),
   waveformContainerElevation: 2,
 
   /** 진행도 텍스트 */
