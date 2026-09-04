@@ -226,6 +226,8 @@ export const LAYOUT = {
   hintTextFontSize: isTablet ? 17 : 14,
   completedTitleFontSize: isTablet ? 22 : 18,
   completionTextFontSize: isTablet ? 30 : 24,
+  /** 완료화면 제목과 그 아래 설명 사이 */
+  completionTextMarginBottom: 10,
   /** 완료화면 맨 위 트로피. 글자 위에 따로 서므로 제목보다 크다 */
   completionIconSize: isTablet ? 56 : 44,
   /**
@@ -259,6 +261,8 @@ export const LAYOUT = {
   navArrowButtonBorderRadius: isTablet ? 30 : 24,
   navArrowButtonElevation: 3,
   completeButtonBorderRadius: 28,
+  /** 버튼이 `flex: 1`이라 폭은 남는 자리가 정한다. 이 값은 **글자가 붙지 않을 최소 안쪽 여백**이다 */
+  completeButtonPaddingH: 20,
   completeButtonPaddingV: 14,
   completeButtonElevation: 4,
 

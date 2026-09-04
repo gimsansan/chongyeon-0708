@@ -22,7 +22,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Text, View, StyleSheet, ScrollView, Animated, TouchableOpacity, Image, Modal } from 'react-native';
+import { Text, View, StyleSheet, ScrollView, Animated, TouchableOpacity, Pressable, Image, Modal } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -157,9 +157,17 @@ export default function HomeScreen() {
   /** 눈금은 카드 한 장씩이라 개수가 카드 수를 따라간다. 많으면 붙으므로 크기를 줄인다 */
   const tickSize = getProgressTickSize(cardCount);
 
-  // 애니메이션 초기화: 모든 애니메이션 값을 초기 상태로 리셋
-  // 기존 resetAnimation은 값을 바로 세팅만 하므로 리렌더와 애니메이션이 없음
-  // Animated.timing을 써서 부드럽게 '원위치'로 돌아가게 한다
+  /**
+   * 카드 애니메이션 값을 제자리로 **즉시** 돌린다 (`setValue`).
+   *
+   * **연출이 아니다.** 부르는 세 자리(`handlePrevCard` · `handleNextCard`의 `animateSwipe`
+   * 완료 콜백, `handleCompleteCard`의 배지로 날아간 뒤) 모두 **카드가 이미 화면 밖으로 나가고
+   * 다음 카드 내용으로 바뀐 뒤**다. 여기서 `Animated.timing`으로 되돌리면
+   * 새 카드가 **밖에서 날아 들어오는 것처럼** 보인다.
+   *
+   * (전에 이 자리에 「`Animated.timing`을 써서 부드럽게 원위치로」라는 주석이 있었는데
+   *  본문은 처음부터 `setValue`뿐이라 **코드와 반대였다.**)
+   */
   const resetAnimation = () => {
     panX.setValue(0);
     panY.setValue(0);
@@ -371,11 +379,19 @@ export default function HomeScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowCompletedModal(false)}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setShowCompletedModal(false)}
-          style={styles.modalOverlay}
-        >
+        <View style={styles.modalOverlay}>
+          {/* 배경은 시트를 **품지 않는다.** 전에는 시트를 자식으로 감싼 `TouchableOpacity`였는데,
+              `TouchableOpacity`는 `accessible`을 끄지 않는 한 켜져 있어(RN 0.86
+              `TouchableOpacity.js:303` — `accessible={this.props.accessible !== false}`)
+              **시트 안이 통째로 한 덩어리로 묶여** 닫기 버튼·완료 항목·「전체 다시 하기」에
+              토크백 초점이 따로 가지 않았다. 절대배치 **형제**로 내리면 시트는 형제라 안 묶인다.
+              미션모달(`components/MissionProgressIcon.tsx`)이 쓰는 형태와 같다. */}
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setShowCompletedModal(false)}
+            accessibilityRole="button"
+            accessibilityLabel="목록 닫기"
+          />
           {/* 시트는 누르는 것이 아니라 담는 판이다. 전에는 `TouchableOpacity` +
               `e.stopPropagation()`이었는데, **RN 터치는 애초에 위로 전파되지 않아**
               하는 일이 없었다 — 시트 전체가 눌리는 것처럼 보이기만 했다 */}
@@ -479,7 +495,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       <View style={styles.container}>
@@ -537,7 +553,7 @@ export default function HomeScreen() {
                     accessibilityLabel={`학습 완료한 카드 ${completedCards.size}개. 눌러서 목록을 엽니다`}
                     accessibilityState={{ disabled: completedCards.size === 0 }}
                   >
-                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+                    <View style={StyleSheet.absoluteFill}>
                       <CompletedBadgeBg width="100%" height="100%" />
                     </View>
                     <Ionicons
@@ -1051,8 +1067,16 @@ const styles = StyleSheet.create({
    */
   modalOverlay: {
     flex: 1,
-    backgroundColor: COLORS.overlayModal,
     justifyContent: 'flex-end',
+  },
+  /**
+   * 어둡게 덮는 것도 **닫기 버튼**도 이 판이다. 시트의 부모가 아니라 **절대배치 형제**라
+   * 시트가 이 판의 접근성 덩어리에 들어가지 않는다 (위 렌더의 주석).
+   * 절대배치는 흐름 밖이라 시트의 `justifyContent: 'flex-end'` 배치는 그대로다.
+   */
+  modalBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: COLORS.overlayModal,
   },
   /**
    * 바닥 인셋은 `paddingBottom`으로 렌더에서 더한다 — 제스처바에 「전체 다시 하기」가 물렸다.
@@ -1159,7 +1183,7 @@ const styles = StyleSheet.create({
   completeButton: {
     flex: 1,
     backgroundColor: COLORS.success,
-    paddingHorizontal: 20,
+    paddingHorizontal: LAYOUT.completeButtonPaddingH,
     paddingVertical: LAYOUT.completeButtonPaddingV,
     borderRadius: LAYOUT.completeButtonBorderRadius,
     justifyContent: 'center',
@@ -1199,7 +1223,7 @@ const styles = StyleSheet.create({
     // `constants/colors.ts`가 이미 적어 둔 규칙이다 — 글자는 `successOnWhite`
     color: COLORS.successOnWhite,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: LAYOUT.completionTextMarginBottom,
   },
   completionSubText: {
     fontSize: LAYOUT.completionSubTextFontSize,
@@ -1230,6 +1254,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    // 「단어1 / 단어2」 사이. 값이 `spacingSM`과 같아 폰(8)에서는 그대로이고
+    // 태블릿에서만 10으로 벌어진다 — 320dp의 빠듯한 폭(안쪽 108)은 건드리지 않는다.
+    gap: LAYOUT.spacingSM,
   },
 });
