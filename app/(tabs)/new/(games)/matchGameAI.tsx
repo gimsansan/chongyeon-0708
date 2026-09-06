@@ -104,12 +104,13 @@ function gameReducer(state: GameState, action: Action): GameState {
             if (state.userSelections[selectedName]) return state; // 같은 것을 두 번 채점하지 않는다
             const newSelections = { ...state.userSelections, [selectedName]: isCorrect ? 'correct' : 'incorrect' } as const;
             const newStats = { ...state.userStats };
+            const statsForSelection = newStats[selectedName] || { correct: 0, total: 0 };
+            newStats[selectedName] = { correct: statsForSelection.correct + (isCorrect ? 1 : 0), total: statsForSelection.total + 1 };
             const newQTable = JSON.parse(JSON.stringify(state.qTable));
             const reward = isCorrect ? 1 : -1;
 
             state.correctSoundNames.forEach(name => {
                 if(!state.userSelections[name]){
-                    newStats[name] = { correct: newStats[name].correct + (isCorrect ? 1 : 0), total: newStats[name].total + 1 };
                     const futureQValues = Object.values(newQTable[selectedName] ?? {}) as number[];
                     const maxFutureQ = futureQValues.length > 0 ? Math.max(...futureQValues) : 0;
                     const oldQ = newQTable[name]?.[selectedName] ?? 0;
