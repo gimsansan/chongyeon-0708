@@ -21,6 +21,7 @@ const FIXED_BUTTON_HEIGHT = Math.round(56 * fixedBtnScale);
 const FIXED_BUTTON_GAP = Math.round(150 * fixedBtnScale);
 const FIXED_BUTTON_RADIUS = Math.round(12 * fixedBtnScale);
 const FIXED_ICON_FONT_SIZE = Math.max(22, Math.min(34, Math.round(26 * fixedBtnScale)));
+const PAGE_INDICATOR_FONT_SIZE = Math.max(16, Math.min(22, Math.round(18 * fixedBtnScale)));
 const FIXED_REPLAY_MARGIN_LEFT = -(FIXED_BUTTON_WIDTH + FIXED_BUTTON_GAP / 2);
 const FIXED_CYCLE_MARGIN_LEFT = FIXED_BUTTON_GAP / 2;
 const DRUM_BACKGROUND_IMAGE = require('../../../assets/images/drum_m.webp');
@@ -636,6 +637,13 @@ export default function Index() {
                           <DrumStickIcon direction="left" />
                         )}
                       </AnimatedTouchable>
+                      {!isQuizActive && (
+                        <View style={styles.pageIndicator} pointerEvents="none">
+                          <Text style={styles.pageIndicatorText}>
+                            {pageIndex + 1}/{ANIMATED_FLATLIST_PAGES}
+                          </Text>
+                        </View>
+                      )}
                       {/* 오른쪽 ▶ 순차 이동: 퀴즈모드에서는 회색 처리 대신 언마운트 */}
                       {!isQuizActive && (
                         <TouchableOpacity
@@ -981,6 +989,21 @@ const styles = StyleSheet.create({
     fontSize: FIXED_ICON_FONT_SIZE,
     color: '#fff',
     fontWeight: 'bold',
+  },
+  /** 연주 버튼 사이 페이지 표시. 1/4 = 2악기 화면. 터치는 좌우 버튼으로 통과 */
+  pageIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: FIXED_BUTTON_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageIndicatorText: {
+    fontSize: PAGE_INDICATOR_FONT_SIZE,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
   },
   fixedCycleButtonText: {
     fontSize: FIXED_ICON_FONT_SIZE,
