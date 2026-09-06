@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Text, Pressable, LayoutChangeEvent } from "react-native";
-import Rive from "rive-react-native";
+import Rive, { Fit } from "rive-react-native";
 import { COLORS } from "../constants/colors";
 import { LAYOUT } from "../constants/layout";
 
@@ -44,6 +44,25 @@ const GAUGE_MIN_WIDTH = 160;
 /** 원본 Rive 아트보드 비율(220 × 40). 폭이 바뀌어도 이 비율을 지킨다. */
 const GAUGE_ASPECT = 220 / 40;
 
+/**
+ * 만점 콘페티. 카드 폭 실측(`onLayout`)으로 게이지가 다시 그려져도
+ * 콘페티가 처음부터 다시 돌지 않게 화면과 나눈다.
+ */
+const PerfectConfetti = React.memo(function PerfectConfetti() {
+  return (
+    <View style={styles.confettiOverlay} pointerEvents="none" importantForAccessibility="no">
+      <Rive
+        resourceName="confetti"
+        artboardName="Confetti"
+        stateMachineName="State Machine 1"
+        autoplay
+        fit={Fit.Cover}
+        style={StyleSheet.absoluteFill}
+      />
+    </View>
+  );
+});
+
 function DrumGameOverScreen({
   score,
   maxScore,
@@ -52,8 +71,9 @@ function DrumGameOverScreen({
 }: DrumGameOverScreenProps) {
   // 점수에 따른 등급(메시지 + 색)
   const clampedMaxScore = Math.max(maxScore, 1);
+  const isPerfect = score === maxScore;
   const tier =
-    score === maxScore
+    isPerfect
       ? RESULT_TIERS.perfect
       : score >= clampedMaxScore * 0.7
         ? RESULT_TIERS.good
@@ -180,21 +200,28 @@ function DrumGameOverScreen({
           </View>
         </View>
       </View>
+      {isPerfect && <PerfectConfetti />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: "100%",
+    ...StyleSheet.absoluteFill,
     padding: 16,
     justifyContent: "center",
     alignItems: "center",
+  },
+  confettiOverlay: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 2,
+    elevation: 8,
   },
   resultWrapper: {
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 1,
   },
   resultContent: {
     width: "100%",
