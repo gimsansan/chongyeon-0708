@@ -97,6 +97,8 @@ export interface InteractiveDrumSetRef {
   moveToPrevInstrument: () => void;
   /** 현재 악기의 중립 위치로 캐릭터 이동 (다음 문제 준비용) */
   moveToNeutralPosition: (instrument: InstrumentType) => void;
+  /** 캐릭터를 초기 위치(순환 버튼 옆)로 되돌리고 악기 선택도 해제 (퀴즈 진입용) */
+  resetToInitialPosition: () => void;
 }
 
 const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: React.Ref<InteractiveDrumSetRef>) => {
@@ -169,8 +171,13 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     tom: null,
   });
 
-  // 캐릭터 초기 위치: 순환 버튼 바로 우측, 세로는 버튼과 맞춤
-  useEffect(() => {
+  /**
+   * 캐릭터 초기 위치: 순환 버튼 바로 우측, 세로는 버튼과 맞춤.
+   *
+   * 함수로 뺀 이유: 마운트 때만 쓰던 자리였는데 퀴즈 진입(resetToInitialPosition)도 같은 곳으로
+   * 돌아가야 한다. 두 벌로 두면 한쪽만 고쳐져 출발점이 어긋난다.
+   */
+  const computeInitialCharacterPosition = () => {
     const currentAvailableHeight = dimensions.height - insets.top - insets.bottom;
     const currentAvailableWidth = dimensions.width - insets.left - insets.right;
     const currentDrumSetSize = Math.min(currentAvailableWidth * 0.9, currentAvailableHeight * 0.6 / DRUM_IMAGE_ASPECT_RATIO);
@@ -196,9 +203,14 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     const currentBottomAlignShift = currentDrumSetSize * (activeLayout.bottomAlignOffset ?? 0);
     const bottomY = currentDrumSetSize - 50 - 60 + 30 - currentCharacterSize / 2 - currentBottomAlignShift;
 
-    translateX.setValue(centerX);
-    translateY.setValue(bottomY);
-    setCharacterPosition({ x: centerX, y: bottomY });
+    return { x: centerX, y: bottomY };
+  };
+
+  useEffect(() => {
+    const { x, y } = computeInitialCharacterPosition();
+    translateX.setValue(x);
+    translateY.setValue(y);
+    setCharacterPosition({ x, y });
   }, []);
 
   /**
@@ -584,7 +596,40 @@ const InteractiveDrumSetInner = (props: Readonly<InteractiveDrumSetProps>, ref: 
     setCurrentInstrument(null); // 악기 선택 해제 (중립 상태)
   };
 
-  useImperativeHandle(ref, () => ({ moveToNextInstrument, moveToPrevInstrument, moveToNeutralPosition }), [currentInstrumentIndex, layoutOrder, snapToInstrument, dimensions, insets, characterSize, activeLayout]);
+  /**
+   * 캐릭터를 마운트 때와 같은 자리로 되돌린다 (퀴즈 진입용).
+   *
+   * 연주모드에서 마지막으로 친 악기는 캐릭터를 그 악기 정중앙에 붙여 놓고 선택 상태도 남긴다.
+   * 그대로 듣기연습에 들어가면 첫 문제가 그 악기일 때 캐릭터가 이미 정답 위에 서 있고
+   * 마커도 초록으로 켜져 있어 답이 새어 나간다. 회차마다 출발점을 같게 만든다.
+   *
+   * setValue가 아니라 spring인 이유: 카운트다운(2·1·0) 동안 캐릭터가 제자리로 돌아가는
+   * 움직임 자체가 「이제 시작」 신호가 된다. 순간이동하면 그 신호가 없다.
+   */
+  const resetToInitialPosition = () => {
+    const { x, y } = computeInitialCharacterPosition();
+
+    Animated.parallel([
+      Animated.spring(translateX, {
+        toValue: x,
+        useNativeDriver: true,
+        tension: 80,
+        friction: 10,
+      }),
+      Animated.spring(translateY, {
+        toValue: y,
+        useNativeDriver: true,
+        tension: 80,
+        friction: 10,
+      }),
+    ]).start();
+
+    setCharacterPosition({ x, y });
+    setCurrentInstrument(null); // 마커 초록 해제
+    setCurrentInstrumentIndex(-1); // 다음 ▶는 첫 악기부터
+  };
+
+  useImperativeHandle(ref, () => ({ moveToNextInstrument, moveToPrevInstrument, moveToNeutralPosition, resetToInitialPosition }), [currentInstrumentIndex, layoutOrder, snapToInstrument, dimensions, insets, characterSize, activeLayout]);
 
   // 제스처
   const onGestureEvent = (event: PanGestureHandlerGestureEvent) => {

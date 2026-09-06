@@ -320,6 +320,16 @@ export default function Index() {
     setFinalScore(0);
     setFinalMaxScore(0);
 
+    /**
+     * 캐릭터를 초기 위치로 되돌린다.
+     *
+     * 연주모드에서 마지막에 친 악기 위에 캐릭터가 앉은 채로 넘어오면, 첫 문제가 마침 그 악기일 때
+     * 정답 자리에 이미 서 있는 셈이 된다(마커 초록도 남는다). 라운드 사이에는
+     * moveToNeutralPosition이 비켜 주는데 진입 첫 문제에만 그 처리가 없었다.
+     * 카운트다운 동안 돌아가므로 첫 문제가 나갈 때는 이미 제자리다.
+     */
+    horizontalDrumScrollerRef.current?.resetCharacterToInitial();
+
     // 헤더 배경 플래시 애니메이션
     RNAnimated.sequence([
       RNAnimated.timing(headerFlashAnim, { toValue: 1, duration: 150, useNativeDriver: false }),
@@ -526,6 +536,23 @@ export default function Index() {
               </View>
             </View>
           </ScrollView>
+
+          {/*
+            듣기연습 첫 문제 안내. 헤더 바로 아래, 1회째만.
+            악기명 레이블은 퀴즈 중 숨기므로 그 자리를 쓴다. 터치는 통과.
+          */}
+          {isQuizActive && !isGameOver && round === 1 && (
+            <View
+              style={[
+                styles.quizHintFixed,
+                { top: headerHeight + instrumentLabelGap },
+              ]}
+              pointerEvents="none"
+              accessibilityLiveRegion="polite"
+            >
+              <Text style={styles.quizHintText}>들린 악기에 캐릭터를 가져가세요</Text>
+            </View>
+          )}
 
           {/*
             현재 악기 레이블 — ScrollView 밖에 둔다. 안에 두면 드럼 세트 위로 올릴 때
@@ -837,6 +864,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 300,
   },
+  quizHintFixed: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 300,
+    paddingHorizontal: LAYOUT.spacingMD,
+  },
+  quizHintText: {
+    maxWidth: '100%',
+    backgroundColor: COLORS.white,
+    color: COLORS.textPrimary,
+    fontSize: LAYOUT.isTablet ? 18 : 15,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    paddingHorizontal: LAYOUT.spacingMD,
+    paddingVertical: LAYOUT.spacingSM,
+    borderRadius: 10,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
   currentInstrumentDisplay: {
     minWidth: 140,
     minHeight: INSTRUMENT_LABEL_MIN_HEIGHT,
@@ -1128,6 +1177,8 @@ export interface HorizontalDrumScrollerRef {
   scrollToPage: (index: number) => void;
   /** 현재 페이지의 캐릭터를 중립 위치로 이동 (다음 문제 준비용) */
   moveToNeutralPosition: (instrument: InstrumentType) => void;
+  /** 현재 페이지의 캐릭터를 초기 위치로 되돌리고 악기 선택 해제 (퀴즈 진입용) */
+  resetCharacterToInitial: () => void;
 }
 
 const ANIMATED_FLATLIST_PAGES = 4;
@@ -1214,12 +1265,17 @@ const HorizontalDrumScroller = React.forwardRef<HorizontalDrumScrollerRef, Reado
       drumSetRefs.current[currentScrollIndex]?.moveToNeutralPosition(instrument);
     }, [currentScrollIndex]);
 
+    const resetCharacterToInitial = useCallback(() => {
+      drumSetRefs.current[currentScrollIndex]?.resetToInitialPosition();
+    }, [currentScrollIndex]);
+
     React.useImperativeHandle(ref, () => ({
       moveToNextInstrumentForCurrentPage,
       moveToPrevInstrumentForCurrentPage,
       scrollToPage,
       moveToNeutralPosition,
-    }), [moveToNextInstrumentForCurrentPage, moveToPrevInstrumentForCurrentPage, scrollToPage, moveToNeutralPosition]);
+      resetCharacterToInitial,
+    }), [moveToNextInstrumentForCurrentPage, moveToPrevInstrumentForCurrentPage, scrollToPage, moveToNeutralPosition, resetCharacterToInitial]);
 
     return (
       <View
