@@ -425,11 +425,22 @@ export const LAYOUT = {
   learnSectionMarginH: LEARN_SECTION_MARGIN_H,
   learnSectionMarginTop: 10,
   learnSectionTitleFontSize: isTablet ? 28 : 24,
+  /**
+   * 진행 게이지. 트랙은 냉장고와 같은 두께다.
+   * **섹션 고정 높이(냉장고 60/80)는 쓰지 않는다** — 320×569 여유가 ≈2px뿐이라
+   * (0-2절 세션 61) 그 높이를 더하면 선택지가 잘린다. 자리는 제목 아래 마진과
+   * `learnDifficultyContainerMarginBottom`에서 가져온다.
+   */
+  learnGaugeTrackHeight: 14,
+  learnGaugeTrackBorderRadius: 12,
+  learnGaugeContainerWidthPercent: '90%' as const,
+  learnGaugeMilestoneSize: isTablet ? 3 : 2,
   learnDifficultyButtonSize: LEARN_DIFFICULTY_BUTTON_SIZE,
   learnDifficultyButtonBorderRadius: 20,
   learnDifficultyButtonPadding: scaleFromPhoneButton(20),
   learnDifficultyButtonsGap: LEARN_DIFFICULTY_BUTTONS_GAP,
-  learnDifficultyContainerMarginBottom: 30,
+  /** 30이던 값. 제목 아래 게이지(~26)가 그 자리 일부를 먹으므로 16으로 줄였다 */
+  learnDifficultyContainerMarginBottom: 16,
   learnGameSectionPadding: LEARN_GAME_SECTION_PADDING,
   /** 게임 영역을 아래로 미는 값. 세로가 짧은 기기에서 선택지·다시 듣기가 밀려나지 않게
    *  높이 비례로 둔다. 상한 50은 기존 고정값이라 보통 폰에서는 그대로다 */

@@ -1,8 +1,8 @@
-import { Text, View, StyleSheet, TouchableOpacity, Image, Modal } from "react-native";
+import { Text, View, StyleSheet, TouchableOpacity, Image, Modal, Animated as RNAnimated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -12,9 +12,16 @@ import Animated, {
 import { WordGame, WordGameRef } from '../../../components/game/WordGame';
 import { GameState } from '../../../hooks/useWordGameLogic';
 import DrumGameOverScreen from '../../../screens/DrumGameOverScreen';
-import { WordDifficultyType } from '../../../constants/wordSounds';
+import { WORD_DIFFICULTY_LEVELS, WordDifficultyType } from '../../../constants/wordSounds';
 import { LAYOUT } from '../../../constants/layout';
 import { COLORS } from '../../../constants/colors';
+
+/** 냉장고 게이지와 같은 단계 색. 연습(5문항)은 `GAUGE_FILL`만 쓴다 */
+const GAUGE_TRACK = '#E0E6ED';
+const GAUGE_FILL = '#66BB6A';
+const GAUGE_FILL_70 = '#43A047';
+const GAUGE_FILL_90 = '#FB8C00';
+const GAUGE_FILL_100 = '#F44336';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -39,6 +46,76 @@ export default function Index() {
     isPlaying: false,
   });
   const wordGameRef = useRef<WordGameRef>(null);
+
+  /**
+   * 진행 게이지. 냉장고와 같은 RN Animated(폭은 native driver 불가).
+   * 푼 수 / 문항 수. 「그만하기」와 같은 식 — `answered`는 아직 안 고른 상태다
+   * (`useWordGameLogic` 주석).
+   */
+  const [gauge, setGauge] = useState(0);
+  const gaugeAnim = useRef(new RNAnimated.Value(0)).current;
+  const gaugeBlink = useRef(new RNAnimated.Value(1)).current;
+  const blinkLoopRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const maxRounds = WORD_DIFFICULTY_LEVELS[currentDifficulty].rounds;
+  const answeredCount =
+    gameProgress.gameState === 'waitingForNextRound'
+      ? gameProgress.round
+      : Math.max(0, gameProgress.round - 1);
+  const gaugeTarget = maxRounds > 0 ? (answeredCount / maxRounds) * 100 : 0;
+
+  const stopGaugeBlink = useCallback(() => {
+    gaugeBlink.setValue(1);
+    if (blinkLoopRef.current) {
+      blinkLoopRef.current.stop();
+      blinkLoopRef.current = null;
+    }
+  }, [gaugeBlink]);
+
+  const startGaugeBlink = useCallback(() => {
+    stopGaugeBlink();
+    blinkLoopRef.current = RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(gaugeBlink, {
+          toValue: 0.45,
+          duration: 350,
+          useNativeDriver: false,
+        }),
+        RNAnimated.timing(gaugeBlink, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+    blinkLoopRef.current.start();
+  }, [gaugeBlink, stopGaugeBlink]);
+
+  const setGaugeToValue = useCallback((value: number) => {
+    const v = Math.min(100, Math.max(0, value));
+    setGauge(v);
+    RNAnimated.timing(gaugeAnim, {
+      toValue: v,
+      // 냉장고는 220ms·칸이 작다. 연습은 한 칸 20%라 같은 시간이면 툭 끊긴다.
+      // 다음 문항 타이머(600ms)보다 짧게 두어 다음 문제가 나오기 전에 끝나게 한다.
+      // out만 쓰면 앞에서 튀어 1~2번째(막대가 짧을 때)가 끊겨 보인다.
+      duration: 450,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+    // 연습(5문항)은 색이 안 바뀌고 100%에서도 깜빡이지 않는다
+    if (currentDifficulty === 'normal' && v >= 100) startGaugeBlink();
+    else stopGaugeBlink();
+  }, [gaugeAnim, currentDifficulty, startGaugeBlink, stopGaugeBlink]);
+
+  useEffect(() => {
+    setGaugeToValue(gaugeTarget);
+  }, [gaugeTarget, setGaugeToValue]);
+
+  useEffect(() => {
+    return () => {
+      stopGaugeBlink();
+    };
+  }, [stopGaugeBlink]);
 
   // 매 렌더 새 함수를 넘기면 자식의 알림 이펙트가 계속 돈다
   const handleProgressChange = useCallback(
@@ -102,6 +179,9 @@ export default function Index() {
         setFinalMaxScore(0);
         setCurrentDifficulty('easy');
         setGameProgress({ round: 1, gameState: 'ready', isPlaying: false });
+        setGauge(0);
+        gaugeAnim.setValue(0);
+        stopGaugeBlink();
         easyScale.value = withSpring(1);
         normalScale.value = withSpring(1);
       };
@@ -123,6 +203,7 @@ export default function Index() {
     setFinalScore(score);
     setFinalMaxScore(maxScore);
     setIsGameOver(true);
+    stopGaugeBlink();
   };
 
   // 게임 재시작
@@ -133,6 +214,9 @@ export default function Index() {
     // 결과를 닫으면 `WordGame`이 다시 마운트돼 1라운드 준비 화면으로 돌아간다.
     // 자식의 알림을 기다리지 않고 여기서 함께 되돌린다 — 한 프레임 동안 「그만하기」가 남지 않게
     setGameProgress({ round: 1, gameState: 'ready', isPlaying: false });
+    setGauge(0);
+    gaugeAnim.setValue(0);
+    stopGaugeBlink();
   };
 
   /**
@@ -151,6 +235,25 @@ export default function Index() {
   const normalAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: normalScale.value }],
   }));
+
+  /** 연습은 한 색. 도전만 70·90·100에서 냉장고와 같이 바뀐다 */
+  const gaugeColor =
+    currentDifficulty === 'easy'
+      ? GAUGE_FILL
+      : gauge >= 100
+        ? GAUGE_FILL_100
+        : gauge >= 90
+          ? GAUGE_FILL_90
+          : gauge >= 70
+            ? GAUGE_FILL_70
+            : GAUGE_FILL;
+
+  const gaugeWidth = gaugeAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
+  const showGaugeMilestones = currentDifficulty === 'normal';
+  const gaugeBlinkOpacity = currentDifficulty === 'normal' && gauge >= 100 ? gaugeBlink : 1;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -188,6 +291,39 @@ export default function Index() {
                 <View style={styles.sectionTitlePill}>
                   <Text style={styles.sectionTitle}>🎧 소리 구별 퀴즈</Text>
                 </View>
+                {!isGameOver && (
+                  <View
+                    style={styles.gaugeSection}
+                    accessibilityRole="progressbar"
+                    accessibilityLabel="퀴즈 진행"
+                    accessibilityValue={{ min: 0, max: maxRounds, now: answeredCount }}
+                  >
+                    <View style={styles.gaugeContainer}>
+                      <View style={styles.gaugeTrack}>
+                        {showGaugeMilestones && (
+                          <>
+                            <View style={[styles.gaugeMilestone, { left: '70%' }]}>
+                              <View style={[styles.milestoneIcon, { backgroundColor: GAUGE_FILL_70 }]} />
+                            </View>
+                            <View style={[styles.gaugeMilestone, { left: '90%' }]}>
+                              <View style={[styles.milestoneIcon, { backgroundColor: GAUGE_FILL_90 }]} />
+                            </View>
+                          </>
+                        )}
+                        <RNAnimated.View
+                          style={[
+                            styles.gaugeFill,
+                            {
+                              width: gaugeWidth,
+                              backgroundColor: gaugeColor,
+                              opacity: gaugeBlinkOpacity,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* 난이도 선택 + 게임을 담는 영역.
@@ -397,9 +533,48 @@ const styles = StyleSheet.create({
     marginHorizontal: LAYOUT.learnSectionMarginH,
     marginTop: LAYOUT.learnSectionMarginTop,
   },
+  /**
+   * 제목 아래 마진은 게이지가 먹는다. spacingMD(16)를 두면 트랙(14)과 겹쳐 늘고,
+   * 320×569 여유가 ≈2px라(0-2절 세션 61) 순증을 만들 수 없다.
+   */
   sectionHeader: {
-    marginBottom: LAYOUT.spacingMD,
+    marginBottom: LAYOUT.spacingXS,
     alignItems: 'center',
+  },
+  gaugeSection: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: LAYOUT.spacingXS,
+    marginBottom: LAYOUT.spacingSM,
+  },
+  gaugeContainer: {
+    width: LAYOUT.learnGaugeContainerWidthPercent,
+    position: 'relative',
+  },
+  gaugeTrack: {
+    height: LAYOUT.learnGaugeTrackHeight,
+    borderRadius: LAYOUT.learnGaugeTrackBorderRadius,
+    backgroundColor: GAUGE_TRACK,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  gaugeMilestone: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  milestoneIcon: {
+    width: LAYOUT.learnGaugeMilestoneSize,
+    height: LAYOUT.learnGaugeMilestoneSize,
+    borderRadius: LAYOUT.learnGaugeMilestoneSize / 2,
+  },
+  gaugeFill: {
+    height: '100%',
+    borderRadius: LAYOUT.learnGaugeTrackBorderRadius,
   },
   /**
    * 제목 받침. 제목은 카드 밖, 배경 이미지 바로 위에 놓여서 이미지에 따라 대비가 흔들린다.
