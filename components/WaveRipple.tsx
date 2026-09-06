@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,7 +21,8 @@ import Animated, {
  * - scale        : 1% → 100%
  * - opacity      : 100% → 0%
  * - 1 cycle      : 90프레임 @30fps = 3000ms  (duration)
- * - 시차(stagger): 30프레임 = 1000ms → delay = duration / count
+ * - 시차(stagger): delay = duration / count → 3000/8 = 375ms
+ *                  (1000ms로 벌리면 8개가 3주기로 겹쳐 원이 3개로 보인다)
  */
 
 type WaveRippleProps = {
@@ -29,7 +30,7 @@ type WaveRippleProps = {
   color?: string;
   count?: number;       // 동시에 퍼지는 원 개수. 원본은 8
   duration?: number;    // 한 원이 퍼졌다 사라지는 시간(ms). 원본은 3000
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
 const Ripple = ({
@@ -97,6 +98,7 @@ export default function WaveRipple({
         style,
       ]}
       pointerEvents="none"
+      importantForAccessibility="no-hide-descendants"
     >
       {Array.from({ length: count }).map((_, i) => (
         <Ripple

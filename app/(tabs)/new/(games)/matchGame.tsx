@@ -264,8 +264,9 @@ export default function MatchGame() {
     }
 
     // 2. 모션 트리거
-    // - 오답은 즉시 흔들림을 보여주기 위해 지연을 최소화합니다.
-    // - 마운트 타이밍 차이로 ref가 늦게 잡히는 기기 대비 1회 재시도를 둡니다.
+    // - 이 카드의 Rive는 방금 마운트를 걸었으므로 ref는 다음 틱에 잡힌다.
+    // - 로드(상태머신이 붙는 시점)는 여기서 기다리지 않는다 —
+    //   RiveAnimalGame이 트리거를 담았다가 onPlay에서 쏜다.
     const trigger = () => {
       if (isCorrect) {
         riveRefs.current[soundName]?.triggerCorrect();
@@ -275,8 +276,8 @@ export default function MatchGame() {
         setMadeMistake(true);
       }
     };
-    // 정답은 안정적으로 120ms, 오답은 UX를 위해 50ms로 즉각 피드백
-    const triggerTimer = setTimeout(trigger, isCorrect ? 120 : 50);
+    // 마운트 한 틱만 넘긴다. 로드를 시간으로 때우지 않는다
+    const triggerTimer = setTimeout(trigger, 0);
     timerRefs.current.push(triggerTimer);
 
     // 3. 모션이 끝날 즈음 원래 이미지로 복구하고 상태 업데이트
