@@ -35,6 +35,19 @@ const scaleFromPhoneButton = (valueAt140: number) =>
   Math.round(LEARN_DIFFICULTY_BUTTON_SIZE * (valueAt140 / LEARN_BUTTON_REFERENCE_SIZE));
 
 /**
+ * learn **액션줄**(왼쪽 토글 · 오른쪽 「그만하기」) 안쪽 치수.
+ *
+ * 인자는 (하한, **지금 쓰던 값 = 상한**, 화면폭 비율)이다. 상한을 쓰던 값에 맞췄으므로
+ * 확인 기기(411dp)에서는 전부 종전 그대로이고 **좁은 기기에서만 줄어든다**
+ * (세션 34~35의 「폰 값은 그대로」 원칙 · 규칙 3).
+ *
+ * 한 줄에 알약 둘이 들어가므로 폭이 좁아지면 안쪽 여백·글자도 함께 줄어야
+ * 줄이 두 줄로 접히지 않는다 — 그래서 높이가 아니라 **폭**에서 역산한다.
+ */
+const scaleActionByWidth = (min: number, max: number, widthRatio: number) =>
+  Math.round(Math.max(min, Math.min(max, SCREEN_WIDTH * widthRatio)));
+
+/**
  * 학습 카드(flashcards) 세로 배치.
  *
  * 카드 높이는 `cardStackHeight`(= min(400, 화면높이 × 0.4))로 반응형인데,
@@ -495,8 +508,6 @@ export type WordGameMetrics = {
   contentBottomPadding: number;
   choiceVerticalPadding: number;
   choiceTextSize: number;
-  replayOffsetY: number;
-  startOffsetY: number;
 };
 
 /**
@@ -509,8 +520,8 @@ export function getWordGameMetrics(width: number, height: number): WordGameMetri
   const contentTopPadding = Math.round(
     Math.max(isTabletWidth ? 52 : 44, Math.min(isTabletWidth ? 84 : 72, height * 0.09))
   );
-  // 바닥에 붙는 버튼과 화면 끝 사이의 최소 숨. 상한이 8~10인 것은
-  // 그 위에서 `replayOffsetY`·`startOffsetY`가 따로 올리기 때문이다
+  // 게임 내용과 화면 끝 사이의 최소 숨.
+  // 바닥 버튼(시작·다시 듣기)이 **액션줄로 올라가** 여기 남는 것은 선택지·안내문뿐이다
   const contentBottomPadding = Math.round(
     Math.max(0, Math.min(isTabletWidth ? 10 : 8, height * 0.008))
   );
@@ -521,27 +532,15 @@ export function getWordGameMetrics(width: number, height: number): WordGameMetri
     Math.max(isTabletWidth ? 26 : 24, Math.min(isTabletWidth ? 34 : 30, width * 0.075))
   );
   /**
-   * 「다시 듣기」를 바닥에서 **올리는** 양. 전에는 `translateY`로 **내리는** 값이었다 —
-   * transform은 자리를 안 차지해서 부모 패딩을 뚫고 탭바 영역으로 들어갔고,
-   * 탭바가 `elevation: 8`이라 그 위를 덮으며 터치까지 가져갔다.
-   * 「시작하기」(`startOffsetY`)와 같이 `marginBottom`으로 올린다.
+   * `replayOffsetY`·`startOffsetY`는 **없앴다.** 바닥에 붙던 「시작하기」·「다시 듣기」를
+   * 난이도 아래 **액션줄**로 올렸으므로(`doc/learn-액션줄.md`) 바닥에서 띄울 것이 없다.
+   * 두 값은 탭바를 피하려고 바닥을 조정하던 값이었고, 이제 버튼이 탭바 근처에 없다.
    */
-  const replayOffsetY = Math.round(
-    Math.max(isTabletWidth ? 6 : 4, Math.min(isTabletWidth ? 14 : 10, height * 0.012))
-  );
-  // 「시작하기」를 바닥에서 살짝 띄우는 양. 아래 여백(contentBottomPadding)이 8px뿐이라
-  // 버튼이 화면 끝에 붙어 보였다. 고정 px로 올리면 세로가 짧은 기기에서 과해지므로 높이 비례로 둔다.
-  const startOffsetY = Math.round(
-    Math.max(12, Math.min(isTabletWidth ? 28 : 22, height * 0.022))
-  );
-
   return {
     contentTopPadding,
     contentBottomPadding,
     choiceVerticalPadding,
     choiceTextSize,
-    replayOffsetY,
-    startOffsetY,
   };
 }
 

@@ -1,5 +1,6 @@
 import { Text, View, StyleSheet, TouchableOpacity, Image, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from "react";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -25,23 +26,63 @@ export default function Index() {
   const [finalMaxScore, setFinalMaxScore] = useState(0);
 
   /**
-   * 「그만하기」를 그릴지 정하는 값. 라운드·상태는 `WordGame` 안에 있어 부모가 모른다 —
-   * 자식이 바뀔 때마다 알려 준다 (설계: `doc/learn-그만하기.md`).
+   * 액션줄을 그리는 값. 라운드·상태·재생 여부는 `WordGame` 안에 있어 부모가 모른다 —
+   * 자식이 바뀔 때마다 알려 준다 (설계: `doc/learn-액션줄.md` · `doc/learn-그만하기.md`).
    */
-  const [gameProgress, setGameProgress] = useState<{ round: number; gameState: GameState }>({
+  const [gameProgress, setGameProgress] = useState<{
+    round: number;
+    gameState: GameState;
+    isPlaying: boolean;
+  }>({
     round: 1,
     gameState: 'ready',
+    isPlaying: false,
   });
   const wordGameRef = useRef<WordGameRef>(null);
 
   // 매 렌더 새 함수를 넘기면 자식의 알림 이펙트가 계속 돈다
   const handleProgressChange = useCallback(
-    (progress: { round: number; gameState: GameState }) => setGameProgress(progress),
+    (progress: { round: number; gameState: GameState; isPlaying: boolean }) =>
+      setGameProgress(progress),
     []
   );
 
   /** 1라운드 준비 화면에서는 숨긴다 — 아직 「시작하기」라 접을 것이 없다 */
   const canQuit = !(gameProgress.round === 1 && gameProgress.gameState === 'ready');
+
+  /**
+   * 액션줄 **왼쪽은 칸 하나**다. 상태가 라벨·아이콘·동작을 바꾼다 —
+   * 버튼을 셋 두지 않는다 (설계 `doc/learn-액션줄.md`).
+   *
+   * | 지금 | 왼쪽 |
+   * |---|---|
+   * | `ready` | 「시작하기」(1라운드) / 「계속하기」 |
+   * | `playing` | **비움** — 「듣는 중...」은 아래 `WordGame`이 맡는다 |
+   * | `answered` · `waitingForNextRound` | 「다시 듣기」 (재생 중이면 「재생 중...」) |
+   */
+  const isReplayState =
+    gameProgress.gameState === 'answered' || gameProgress.gameState === 'waitingForNextRound';
+  const leftAction = (() => {
+    if (gameProgress.gameState === 'ready') {
+      return {
+        label: gameProgress.round === 1 ? '시작하기' : '계속하기',
+        icon: 'play' as const,
+        onPress: () => wordGameRef.current?.start(),
+        disabled: false,
+        playing: false,
+      };
+    }
+    if (isReplayState) {
+      return {
+        label: gameProgress.isPlaying ? '재생 중...' : '다시 듣기',
+        icon: gameProgress.isPlaying ? ('volume-high' as const) : ('refresh' as const),
+        onPress: () => wordGameRef.current?.replay(),
+        disabled: gameProgress.gameState !== 'answered',
+        playing: gameProgress.isPlaying,
+      };
+    }
+    return null;
+  })();
 
   // 애니메이션 값들
   const easyScale = useSharedValue(1);
@@ -60,7 +101,7 @@ export default function Index() {
         setFinalScore(0);
         setFinalMaxScore(0);
         setCurrentDifficulty('easy');
-        setGameProgress({ round: 1, gameState: 'ready' });
+        setGameProgress({ round: 1, gameState: 'ready', isPlaying: false });
         easyScale.value = withSpring(1);
         normalScale.value = withSpring(1);
       };
@@ -91,7 +132,7 @@ export default function Index() {
     setFinalMaxScore(0);
     // 결과를 닫으면 `WordGame`이 다시 마운트돼 1라운드 준비 화면으로 돌아간다.
     // 자식의 알림을 기다리지 않고 여기서 함께 되돌린다 — 한 프레임 동안 「그만하기」가 남지 않게
-    setGameProgress({ round: 1, gameState: 'ready' });
+    setGameProgress({ round: 1, gameState: 'ready', isPlaying: false });
   };
 
   /**
@@ -229,10 +270,44 @@ export default function Index() {
                       </Animated.View>
                     </View>
 
-                    {/* 「그만하기」 — 난이도 버튼과 붙이면 오탭이라 **줄 아래** 오른쪽 끝에 둔다.
-                        줄 높이는 버튼이 없을 때도 잡아 둔다 — 나타났다 사라져도 게임이 밀리지 않는다.
-                        배경 사진 위라 글자를 바로 얹지 않고 제목과 같은 흰 pill로 받친다 */}
-                    <View style={styles.quitRow}>
+                    {/* 액션줄 — 왼쪽 토글(시작·계속·다시 듣기) + 오른쪽 「그만하기」.
+                        난이도 버튼과 붙이면 오탭이라 **줄 아래**에 두고, 줄 높이는
+                        버튼이 없을 때도 잡아 둔다 — 나타났다 사라져도 게임이 밀리지 않는다.
+                        배경 사진 위라 글자를 바로 얹지 않는다 (설계 `doc/learn-액션줄.md`).
+
+                        빈 `View`를 왼쪽에 남긴다 — `space-between`은 자식이 하나면
+                        그 하나를 **왼쪽**으로 보내므로, 왼쪽이 비었을 때 「그만하기」가
+                        따라 넘어오지 않게 자리를 잡아 준다 */}
+                    <View style={styles.actionRow}>
+                      {leftAction ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.actionButton,
+                            leftAction.playing && styles.actionButtonPlaying,
+                            leftAction.disabled && styles.actionButtonDisabled,
+                          ]}
+                          onPress={leftAction.onPress}
+                          disabled={leftAction.disabled}
+                          accessibilityRole="button"
+                          accessibilityLabel={leftAction.label}
+                          accessibilityState={{ disabled: leftAction.disabled }}
+                        >
+                          <Ionicons
+                            name={leftAction.icon}
+                            size={LAYOUT.learnActionButtonIconSize}
+                            color={COLORS.white}
+                          />
+                          {/* 두 알약이 한 줄이라 **글자가 접히면 줄 높이가 뛴다.**
+                              320dp에서 「재생 중...」이 가장 길다 (설계 「한 줄이 두 줄로
+                              접히지 않게 한다」 · `GameExitButton`과 같은 처리) */}
+                          <Text style={styles.actionButtonText} numberOfLines={1}>
+                            {leftAction.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View />
+                      )}
+
                       {canQuit && (
                         <TouchableOpacity
                           style={styles.quitButton}
@@ -240,7 +315,7 @@ export default function Index() {
                           accessibilityRole="button"
                           accessibilityLabel="퀴즈 그만하기"
                         >
-                          <Text style={styles.quitButtonText}>그만하기</Text>
+                          <Text style={styles.quitButtonText} numberOfLines={1}>그만하기</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -417,18 +492,55 @@ const styles = StyleSheet.create({
     color: COLORS.successOnWhite,
   },
   /**
-   * 「그만하기」 줄. 난이도 버튼과 간격을 두고, 버튼이 없을 때도 높이를 잡는다 (규칙 3).
+   * 액션줄. 난이도 버튼과 간격을 두고, 버튼이 하나도 없을 때(듣는 중 · 1라운드 준비)도
+   * 높이를 잡는다 (규칙 3) — 나타났다 사라져도 아래 게임이 뛰지 않는다.
    * 작은 폰에서도 난이도 터치 영역과 겹치지 않게 `marginTop`을 준다.
+   *
+   * 두 알약이 한 줄에 들어가야 하므로 **줄바꿈을 허용하지 않는다**(RN 기본 `nowrap`).
+   * 좁은 기기에서는 안쪽 여백·글자가 `scaleActionByWidth`로 함께 줄어든다.
    */
-  quitRow: {
+  actionRow: {
     marginTop: LAYOUT.spacingMD,
     minHeight: LAYOUT.learnQuitButtonMinHeight,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: LAYOUT.learnActionRowGap,
+  },
+  /**
+   * 왼쪽 토글. `WordGame` 바닥에 있던 `startButton`을 그대로 옮긴 것이다 —
+   * 색·글자·아이콘을 새로 고르지 않았다. 리터럴이던 초록·파랑만 `COLORS`로 옮겼다.
+   */
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    minHeight: LAYOUT.learnQuitButtonMinHeight,
+    paddingHorizontal: LAYOUT.learnActionButtonPaddingH,
+    borderRadius: 999,
+    backgroundColor: COLORS.success,
+    gap: LAYOUT.learnActionButtonGap,
+    // 그림자는 elevation으로만 낸다 (규칙 4 — 안드로이드 전용 앱)
+    elevation: 2,
+    // 알약 둘이 한 줄이라, 좁아지면 왼쪽이 먼저 줄어 「그만하기」를 밀지 않는다
+    flexShrink: 1,
+  },
+  /** 소리가 나는 동안. 라벨도 「재생 중...」으로 바뀐다 */
+  actionButtonPlaying: {
+    backgroundColor: COLORS.playingBlue,
+  },
+  /** 채점을 기다리는 동안(`waitingForNextRound`)의 「다시 듣기」 */
+  actionButtonDisabled: {
+    opacity: 0.6,
+  },
+  actionButtonText: {
+    color: COLORS.white,
+    fontSize: LAYOUT.learnActionButtonFontSize,
+    fontWeight: 'bold',
   },
   quitButton: {
     minHeight: LAYOUT.learnQuitButtonMinHeight,
-    paddingHorizontal: LAYOUT.spacingMD,
+    paddingHorizontal: LAYOUT.learnQuitButtonPaddingH,
     justifyContent: 'center',
     borderRadius: 999,
     backgroundColor: COLORS.surfaceOnImage,
@@ -436,9 +548,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     // 그림자는 elevation으로만 낸다 (규칙 4 — 안드로이드 전용 앱)
     elevation: 2,
+    // 왼쪽 초록이 커도 이 알약은 줄지 않는다 — 글자가 두 줄로 접히지 않게
+    flexShrink: 0,
   },
   quitButtonText: {
-    fontSize: LAYOUT.buttonTextFontSize,
+    fontSize: LAYOUT.learnQuitButtonFontSize,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
   },

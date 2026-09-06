@@ -62,10 +62,18 @@ function AnimatedTapButton({
   );
 }
 
-/** 「그만하기」는 부모(`learn/index.tsx`)가 그리고, 접는 일은 여기서 한다 */
+/**
+ * **액션줄은 부모(`learn/index.tsx`)가 그리고, 하는 일은 여기서 한다.**
+ * 소리·라운드·상태를 이 컴포넌트가 들고 있어서 부모가 직접 할 수 없다
+ * (설계: `doc/learn-액션줄.md` · `doc/learn-그만하기.md`).
+ */
 export interface WordGameRef {
   /** 지금 점수·푼 수로 결과를 낸다. 소리와 다음 문제 타이머를 함께 끊는다 */
   quit: () => void;
+  /** 「시작하기」/「계속하기」 — 정답 소리를 틀고 끝나면 선택지를 연다 */
+  start: () => void;
+  /** 「다시 듣기」 — `answered`일 때만 같은 정답 소리를 다시 튼다 */
+  replay: () => void;
 }
 
 interface WordGameProps {
@@ -73,15 +81,22 @@ interface WordGameProps {
   readonly onGameComplete?: (score: number, maxScore: number, percentage: number) => void;
   readonly onAnswerShown?: () => void;
   /**
-   * 라운드·상태 알림. 부모가 「그만하기」를 **언제 그릴지** 정하는 데만 쓴다
+   * 라운드·상태·재생 여부 알림. 부모가 **액션줄을 무엇으로 그릴지** 정하는 데 쓴다 —
+   * 왼쪽 라벨(시작·계속·다시 듣기·비움)과 「그만하기」 숨김
    * (`round === 1 && 'ready'`이면 숨긴다 — 아직 「시작하기」다).
    *
    * 버튼을 이 컴포넌트 안에 두지 않는 이유는 상태가 넷이라 **자리마다 복제**되기 때문이다.
-   * 설계 원문은 `doc/learn-그만하기.md`.
+   * 설계 원문은 `doc/learn-그만하기.md` · `doc/learn-액션줄.md`.
+   *
+   * `isPlaying`을 위해 **콜백을 하나 더 만들지 않는다** — 이 길에 실어 보낸다.
    *
    * 매 렌더 새로 만들어 넘기면 아래 이펙트가 계속 돈다 — 부모에서 `useCallback`으로 고정한다.
    */
-  readonly onProgressChange?: (progress: { round: number; gameState: GameState }) => void;
+  readonly onProgressChange?: (progress: {
+    round: number;
+    gameState: GameState;
+    isPlaying: boolean;
+  }) => void;
 }
 
 function WordGameInner(
@@ -141,24 +156,10 @@ function WordGameInner(
     resetGame();
   }, [difficulty, resetGame]);
 
-  // 라운드·상태가 바뀔 때마다 부모에게 알린다. 부모는 이것으로 「그만하기」를 그릴지 정한다
+  // 라운드·상태·재생 여부가 바뀔 때마다 부모에게 알린다. 부모는 이것으로 액션줄을 그린다
   useEffect(() => {
-    onProgressChange?.({ round, gameState });
-  }, [round, gameState, onProgressChange]);
-
-  /**
-   * 「그만하기」. 오디오는 이 컴포넌트가 들고 있으므로 여기서 끊고,
-   * 타이머 취소와 결과 통보는 훅(`endGameEarly`)이 한다.
-   *
-   * 결과가 뜨면 부모가 이 컴포넌트를 언마운트하므로 `gameState`를 따로 되돌리지 않는다.
-   * 의존성 배열을 두지 않아 **매 렌더 최신 클로저**로 갱신한다 — `stopSound`가 매 렌더 새 함수다.
-   */
-  useImperativeHandle(ref, () => ({
-    quit: () => {
-      audioPlayer.stopSound();
-      endGameEarly();
-    },
-  }));
+    onProgressChange?.({ round, gameState, isPlaying: audioPlayer.isPlaying });
+  }, [round, gameState, audioPlayer.isPlaying, onProgressChange]);
 
   // 답안 표시 시 스크롤
   useEffect(() => {
@@ -197,6 +198,25 @@ function WordGameInner(
       audioPlayer.playWordSound(correctSound, currentWordPair[correctWord]);
     }
   };
+
+  /**
+   * 액션줄 셋(시작·다시 듣기·그만하기)이 **부르는 길**이다. 버튼은 부모가 그리지만
+   * 소리·타이머·라운드는 여기 있으므로 **본문은 그대로 두고 자리만 넘긴다.**
+   *
+   * 「그만하기」는 오디오를 여기서 끊고, 타이머 취소와 결과 통보는 훅(`endGameEarly`)이 한다.
+   * 결과가 뜨면 부모가 이 컴포넌트를 언마운트하므로 `gameState`를 따로 되돌리지 않는다.
+   *
+   * 의존성 배열을 두지 않아 **매 렌더 최신 클로저**로 갱신한다 — `stopSound`도,
+   * `handleStartGame`·`handleReplaySound`가 읽는 문제·상태도 매 렌더 새 값이다.
+   */
+  useImperativeHandle(ref, () => ({
+    quit: () => {
+      audioPlayer.stopSound();
+      endGameEarly();
+    },
+    start: handleStartGame,
+    replay: handleReplaySound,
+  }));
 
   const getChoiceFeedbackStyle = (word: string): ViewStyle[] => {
     if (!selectedAnswer || !correctWord || !currentWordPair) {
@@ -243,18 +263,10 @@ function WordGameInner(
               },
             ]}
           >
+            {/* 「시작하기」/「계속하기」는 여기 없다 — 난이도 아래 **액션줄**이 그린다
+                (`app/(tabs)/learn/index.tsx` · 설계 `doc/learn-액션줄.md`).
+                누름은 `WordGameRef.start`로 이 컴포넌트에 돌아온다 */}
             <Text style={styles.readyTitle}>준비되셨나요?</Text>
-
-            {/* marginTop: 'auto'로 바닥에 붙는다. marginBottom으로 그만큼 위로 올린다 */}
-            <View style={[styles.readyActionWrapper, { marginBottom: metrics.startOffsetY }]}>
-              <AnimatedTapButton
-                onPress={handleStartGame}
-                style={styles.startButton}
-              >
-                <Ionicons name="play" size={24} color="white" />
-                <Text style={styles.startButtonText}>{round === 1 ? '시작하기' : '계속하기'}</Text>
-              </AnimatedTapButton>
-            </View>
           </View>
         )}
 
@@ -310,28 +322,8 @@ function WordGameInner(
                 <Text style={[styles.choiceText, { fontSize: metrics.choiceTextSize }]}>{currentWordPair.word2}</Text>
               </AnimatedTapButton>
             </View>
-            {/* marginTop: 'auto'로 바닥에 붙는다. 「시작하기」와 같이 marginBottom으로 올린다 —
-                transform은 자리를 안 차지해서 부모 패딩을 뚫고 탭바로 들어갔다 */}
-            <View
-              style={[
-                styles.replayWrapper,
-                { marginBottom: metrics.replayOffsetY },
-              ]}
-            >
-              <AnimatedTapButton
-                onPress={handleReplaySound}
-                style={[
-                  styles.startButton,
-                  audioPlayer.isPlaying && styles.startButtonPlaying,
-                ]}
-                disabled={gameState !== 'answered'}
-              >
-                <Ionicons name={audioPlayer.isPlaying ? 'volume-high' : 'refresh'} size={20} color="white" />
-                <Text style={styles.startButtonText}>
-                  {audioPlayer.isPlaying ? '재생 중...' : '다시 듣기'}
-                </Text>
-              </AnimatedTapButton>
-            </View>
+            {/* 「다시 듣기」도 여기 없다 — 액션줄이 그리고 `WordGameRef.replay`로 돌아온다.
+                바닥에 두던 자리는 탭바가 덮던 자리다 (세션 61) */}
           </View>
         )}
 
@@ -380,33 +372,14 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 0,
   },
-  readyActionWrapper: {
-    marginTop: 'auto',
-    // marginBottom은 렌더에서 metrics.startOffsetY로 준다
-  },
-
-
+  // ── 여기 **없는** 것: 바닥에 붙던 래퍼 둘(`readyActionWrapper`·`replayWrapper`)과
+  //    초록 알약(`startButton`·`startButtonPlaying`·`startButtonText`).
+  //    버튼이 액션줄로 올라갔으므로 그리는 곳도, 스타일도 부모가 갖는다.
+  //    `marginTop: 'auto'`도 함께 사라졌다 — 바닥에 붙일 것이 없다.
   volumeHint: {
     fontSize: 14,
     color: '#F57C00',
     fontWeight: '600',
-  },
-  startButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#7cbd7e',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 25,
-    gap: 10,
-  },
-  startButtonPlaying: {
-    backgroundColor: '#4da8de',
-  },
-  startButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   playingContainer: {
     flex: 1,
@@ -432,11 +405,6 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     gap: 15,
-  },
-  replayWrapper: {
-    marginTop: 'auto',
-    // marginBottom은 렌더에서 metrics.replayOffsetY로 준다 (readyActionWrapper와 같은 방식)
-    alignItems: 'center',
   },
   choiceButton: {
     flex: 1,

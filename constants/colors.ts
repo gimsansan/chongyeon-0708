@@ -45,6 +45,11 @@ export const COLORS = {
    * 글자로 쓸 때만 이 값을 쓴다 (세션 34).
    */
   successOnWhite: '#4E9A51',
+  /**
+   * 소리가 **나는 중**임을 알리는 파랑. learn 액션줄의 「재생 중...」이 쓴다.
+   * `WordGame` 바닥 버튼에 리터럴로 있던 값 그대로다 — 색을 새로 고르지 않았다.
+   */
+  playingBlue: '#4da8de',
   purple: '#9C27B0',
 
   /** 상태 */
