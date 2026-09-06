@@ -123,10 +123,20 @@ export default function Index() {
           />
         </View>
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.backgroundOverlay]} />
+        {/**
+         * 바닥에서 `tabBarHeight`(64)를 **더 빼지 않는다.** 탭바는 보일 때
+         * 절대배치가 아니라(`BottomTabBar.js:248` — `isTabBarHidden`일 때만 `absolute`)
+         * **이 화면의 영역이 이미 탭바 위에서 끝난다.** 64를 또 빼면 게임 칸이
+         * 그만큼 줄어 `WordGame`이 아래로 넘치고, 넘친 끝을 탭바가 덮었다
+         * (0-2절 세션 52 · 근거는 세션 53에 확정).
+         *
+         * `insets.bottom`은 남긴다 — 제스처바와 겹치는 자리라 갈래가 다르다
+         * (냉장고 47 · 드럼 50은 아직 📱 기기 대기다).
+         */}
         <View
           style={[
             styles.contentWrapper,
-            { paddingTop: insets.top, paddingBottom: insets.bottom + LAYOUT.tabBarHeight },
+            { paddingTop: insets.top, paddingBottom: insets.bottom },
           ]}
         >
           <View style={styles.contentInner}>

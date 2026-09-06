@@ -483,7 +483,6 @@ export const LAYOUT = {
 export type WordGameMetrics = {
   contentTopPadding: number;
   contentBottomPadding: number;
-  contentMinHeight: number;
   choiceVerticalPadding: number;
   choiceTextSize: number;
   replayOffsetY: number;
@@ -500,12 +499,10 @@ export function getWordGameMetrics(width: number, height: number): WordGameMetri
   const contentTopPadding = Math.round(
     Math.max(isTabletWidth ? 52 : 44, Math.min(isTabletWidth ? 84 : 72, height * 0.09))
   );
-  // 하단 위치를 더 내리기 위해 bottom padding 상한/하한을 낮게 유지
+  // 바닥에 붙는 버튼과 화면 끝 사이의 최소 숨. 상한이 8~10인 것은
+  // 그 위에서 `replayOffsetY`·`startOffsetY`가 따로 올리기 때문이다
   const contentBottomPadding = Math.round(
     Math.max(0, Math.min(isTabletWidth ? 10 : 8, height * 0.008))
-  );
-  const contentMinHeight = Math.round(
-    Math.max(isTabletWidth ? 320 : 300, Math.min(isTabletWidth ? 440 : 380, height * 0.42))
   );
   const choiceVerticalPadding = Math.round(
     Math.max(isTabletWidth ? 22 : 20, Math.min(isTabletWidth ? 34 : 30, height * 0.035))
@@ -513,6 +510,12 @@ export function getWordGameMetrics(width: number, height: number): WordGameMetri
   const choiceTextSize = Math.round(
     Math.max(isTabletWidth ? 26 : 24, Math.min(isTabletWidth ? 34 : 30, width * 0.075))
   );
+  /**
+   * 「다시 듣기」를 바닥에서 **올리는** 양. 전에는 `translateY`로 **내리는** 값이었다 —
+   * transform은 자리를 안 차지해서 부모 패딩을 뚫고 탭바 영역으로 들어갔고,
+   * 탭바가 `elevation: 8`이라 그 위를 덮으며 터치까지 가져갔다.
+   * 「시작하기」(`startOffsetY`)와 같이 `marginBottom`으로 올린다.
+   */
   const replayOffsetY = Math.round(
     Math.max(isTabletWidth ? 6 : 4, Math.min(isTabletWidth ? 14 : 10, height * 0.012))
   );
@@ -525,7 +528,6 @@ export function getWordGameMetrics(width: number, height: number): WordGameMetri
   return {
     contentTopPadding,
     contentBottomPadding,
-    contentMinHeight,
     choiceVerticalPadding,
     choiceTextSize,
     replayOffsetY,

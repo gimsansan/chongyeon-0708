@@ -139,7 +139,10 @@ export default function HomeScreen() {
    * 네비는 높이 `tabBarHeight`짜리 절대 배치이고 `bottom: insets.bottom - flashcardsBottomOffset`에
    * 놓이므로, **가리는 높이가 그 둘에서 나온다.** 전에는 `100` 고정이라 인셋이 달라도 그대로였다.
    * 인셋이 보정값보다 작으면 네비가 화면 아래로 내려가므로 음수는 0으로 자른다.
-   * (learn 탭이 `insets.bottom + tabBarHeight`를 쓰는 것과 같은 방식이다)
+   *
+   * **여기 `tabBarHeight`는 시스템 탭바가 아니라 이 화면이 직접 그리는 하단 네비다**
+   * (`navBar`가 같은 값을 `height`로 쓴다). learn 탭이 시스템 탭바 높이를 또 빼던 것은
+   * 중복이라 걷어냈다 — 탭바는 보일 때 절대배치가 아니어서 화면 영역이 이미 그 위에서 끝난다.
    */
   const scrollBottomPadding =
     Math.max(0, insets.bottom - LAYOUT.flashcardsBottomOffset) +

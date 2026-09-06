@@ -240,7 +240,6 @@ function WordGameInner(
               {
                 paddingTop: Math.round(metrics.contentTopPadding * 0.4),
                 paddingBottom: metrics.contentBottomPadding,
-                minHeight: metrics.contentMinHeight,
               },
             ]}
           >
@@ -275,7 +274,6 @@ function WordGameInner(
               {
                 paddingTop: metrics.contentTopPadding,
                 paddingBottom: metrics.contentBottomPadding,
-                minHeight: metrics.contentMinHeight,
               },
             ]}
           >
@@ -312,10 +310,12 @@ function WordGameInner(
                 <Text style={[styles.choiceText, { fontSize: metrics.choiceTextSize }]}>{currentWordPair.word2}</Text>
               </AnimatedTapButton>
             </View>
+            {/* marginTop: 'auto'로 바닥에 붙는다. 「시작하기」와 같이 marginBottom으로 올린다 —
+                transform은 자리를 안 차지해서 부모 패딩을 뚫고 탭바로 들어갔다 */}
             <View
               style={[
                 styles.replayWrapper,
-                { transform: [{ translateY: metrics.replayOffsetY }] },
+                { marginBottom: metrics.replayOffsetY },
               ]}
             >
               <AnimatedTapButton
@@ -341,19 +341,30 @@ function WordGameInner(
 }
 
 const styles = StyleSheet.create({
+  /**
+   * `flex: 1`이 이 화면의 뿌리다. 전에는 없어서 **남은 칸을 받는 경로가 아예 없었고**,
+   * 높이가 내용과 `minHeight`로만 정해져 위에서 깎인 만큼 아래로 넘쳤다.
+   * 부모 `learn/index.tsx`의 `gameContentInner`가 `flex: 1`이라 여기서 받으면 된다.
+   */
   container: {
+    flex: 1,
     padding: 20,
     alignItems: 'center',
-
   },
   loadingText: {
     fontSize: 18,
     color: '#666',
     textAlign: 'center',
   },
+  /**
+   * `minHeight: 400`이었다. 창 전체 높이와 무관한 고정값이라 짧은 폰에서
+   * **남은 칸(360×640에서 ≈156)을 244px 넘겼다.** 뿌리가 `flex: 1`이 된 지금은
+   * 부모가 준 칸을 그대로 채우면 되므로 하한이 필요 없다 — 하한을 남기면
+   * 그게 다시 넘침의 원인이 된다.
+   */
   gameContentArea: {
     width: '100%',
-    minHeight: 400,  // 최소 높이 증가로 레이아웃 안정화
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -398,10 +409,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   playingContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start', // center → flex-start
     paddingTop: 20,               // 필요에 따라 10~40 조절
-    minHeight: 300,
   },
   playingText: {
     fontSize: 24,
@@ -424,7 +435,7 @@ const styles = StyleSheet.create({
   },
   replayWrapper: {
     marginTop: 'auto',
-    marginBottom: 0,
+    // marginBottom은 렌더에서 metrics.replayOffsetY로 준다 (readyActionWrapper와 같은 방식)
     alignItems: 'center',
   },
   choiceButton: {
