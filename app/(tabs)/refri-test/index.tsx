@@ -995,30 +995,6 @@ export default function RefriTestScreen() {
         </View>
       </Modal>
 
-      {/* 플로팅 다시 듣기 (게임 중일 때만, 하단 고정) */}
-      {isGameStarted && (
-        <View
-          style={[
-            styles.floatingReplayWrap,
-            { bottom: insets.bottom + LAYOUT.refriBottomInsetOffset },
-          ]}
-          pointerEvents="box-none"
-        >
-          <TouchableOpacity
-            style={styles.floatingReplayBtn}
-            onPress={handleReplay}
-            activeOpacity={0.88}
-            disabled={isRoundLoading}
-          >
-            <Ionicons
-              name="volume-high"
-              size={LAYOUT.refriVolumeIconSize}
-              color="#444"
-            />
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* 정답 카드 6슬롯 — 선반(Tray) 위에 배치 */}
       <View style={styles.answersContainer}>
         {slotItems.map((item, i) => {
@@ -1068,6 +1044,35 @@ export default function RefriTestScreen() {
             </View>
           );
         })}
+
+        {/* 다시 듣기 (게임 중일 때만) — **선반 안**에 절대배치한다.
+            화면 바닥을 기준으로 두면 `refriTrayPaddingBottom`(선반 안쪽 값)과
+            **기준이 갈린다.** 세로 스택(게이지·냉장고·선반)에 `flex: 1`이 없어
+            남는 높이가 선반 아래에 남고, 그만큼 버튼이 칸 밖으로 내려갔다
+            (411×868은 +7~31이라 티가 덜 났고 태블릿은 계산상 +212다).
+            선반의 자식이면 `bottom`이 그 88 칸을 바로 가리킨다. */}
+        {isGameStarted && (
+          <View
+            style={[
+              styles.floatingReplayWrap,
+              { bottom: LAYOUT.refriFloatingReplayBottom },
+            ]}
+            pointerEvents="box-none"
+          >
+            <TouchableOpacity
+              style={styles.floatingReplayBtn}
+              onPress={handleReplay}
+              activeOpacity={0.88}
+              disabled={isRoundLoading}
+            >
+              <Ionicons
+                name="volume-high"
+                size={LAYOUT.refriVolumeIconSize}
+                color="#444"
+              />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* 시작 버튼 — 게임 시작 전에만 하단 고정 */}
@@ -1197,7 +1202,12 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
 
-  // 플로팅 다시 듣기 (하단 고정, bottom은 JSX에서 insets 반영)
+  /**
+   * 다시 듣기 — **선반(`answersContainer`)을 기준으로** 절대배치한다.
+   * `bottom`은 선반이 아래로 비운 칸(`refriTrayPaddingBottom`) 안의 가운데다
+   * (`LAYOUT.refriFloatingReplayBottom`). 화면 바닥 기준이던 것을 옮긴 이유는
+   * 그 둘이 **선반 바닥이 화면 바닥에 닿을 때만** 같은 자리이기 때문이다.
+   */
   floatingReplayWrap: {
     position: "absolute",
     left: 0,
@@ -1230,6 +1240,8 @@ const styles = StyleSheet.create({
 
   // 하단 단어 카드 전용 선반(Tray)
   answersContainer: {
+    // 다시 듣기가 이 상자를 기준으로 절대배치된다 (RN 기본값이지만 뜻을 적어 둔다)
+    position: "relative",
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",

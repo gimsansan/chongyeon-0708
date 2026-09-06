@@ -47,6 +47,9 @@ const scaleFromPhoneButton = (valueAt140: number) =>
 const scaleActionByWidth = (min: number, max: number, widthRatio: number) =>
   Math.round(Math.max(min, Math.min(max, SCREEN_WIDTH * widthRatio)));
 
+const REFRI_TRAY_PADDING_BOTTOM = 88;
+const REFRI_FLOATING_REPLAY_SIZE = isTablet ? 64 : 52;
+
 /**
  * 학습 카드(flashcards) 세로 배치.
  *
@@ -343,11 +346,25 @@ export const LAYOUT = {
   refriCrateBoxSizeRatio: 0.2,
   refriTrayMinHeightRatio: 0.24,
   refriTrayPaddingTop: 20,
-  refriTrayPaddingBottom: 88,
+  refriTrayPaddingBottom: REFRI_TRAY_PADDING_BOTTOM,
   refriTrayPaddingH: 16,
   refriTrayGap: 12,
   refriTrayBorderRadius: 30,
-  refriFloatingReplaySize: isTablet ? 64 : 52,
+  refriFloatingReplaySize: REFRI_FLOATING_REPLAY_SIZE,
+  /**
+   * 다시 듣기의 세로 자리. **선반(`answersContainer`) 기준**이고, 선반이 아래로 비운
+   * 칸(`refriTrayPaddingBottom`) 안의 가운데다 — 그 칸은 이 버튼을 두려고 비운 자리다.
+   *
+   * `insets.bottom`을 더하지 않는다. 탭바가 이미 `64 + insets.bottom`을 먹고
+   * 절대배치가 아니라 화면 영역이 그 위에서 끝난다 (`BottomTabBar.js:248` · 세션 47·53).
+   *
+   * **화면 바닥이 아니라 선반을 기준으로 삼는 이유**: 세로 스택(게이지·냉장고·선반)에
+   * `flex: 1`이 없어 남는 높이가 선반 **아래**에 남는다. 화면 기준이면 그만큼 칸을
+   * 벗어난다 — 411×868은 +7~31이라 티가 덜 나지만 태블릿은 계산상 +212다.
+   */
+  refriFloatingReplayBottom: Math.round(
+    (REFRI_TRAY_PADDING_BOTTOM - REFRI_FLOATING_REPLAY_SIZE) / 2,
+  ),
   refriFloatingReplayElevation: 4,
   refriControlSectionPaddingH: 24,
   refriControlBtnMinWidth: 160,
