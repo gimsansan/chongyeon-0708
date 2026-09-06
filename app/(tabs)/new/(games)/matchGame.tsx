@@ -37,6 +37,12 @@ function getRandomElements<T>(arr: T[], num: number): T[] {
 
 const sounds = SOUNDS_WITH_RIVE;
 
+/**
+ * 카드를 Rive로 두는 시간. **모션이 시작한 뒤**부터 잰다 —
+ * 누른 시각부터 재면 상태머신이 늦게 붙은 만큼 모션이 잘린다.
+ */
+const MOTION_WINDOW_MS = 1500;
+
 export default function MatchGame() {
   const [playList, setPlayList] = useState<{ sound: AudioPlayer; name: string }[]>([]);
   const [isGameStarted, setIsGameStarted] = useState<boolean>(false);
@@ -263,25 +269,14 @@ export default function MatchGame() {
       setWrongAttempts(prev => [...prev, soundName]);
     }
 
-    // 2. 모션 트리거
-    // - 이 카드의 Rive는 방금 마운트를 걸었으므로 ref는 다음 틱에 잡힌다.
-    // - 로드(상태머신이 붙는 시점)는 여기서 기다리지 않는다 —
-    //   RiveAnimalGame이 트리거를 담았다가 onPlay에서 쏜다.
-    const trigger = () => {
-      if (isCorrect) {
-        riveRefs.current[soundName]?.triggerCorrect();
-      } else {
-        riveRefs.current[soundName]?.triggerError();
-        madeMistakeRef.current = true;
-        setMadeMistake(true);
-      }
-    };
-    // 마운트 한 틱만 넘긴다. 로드를 시간으로 때우지 않는다
-    const triggerTimer = setTimeout(trigger, 0);
-    timerRefs.current.push(triggerTimer);
+    // 2. 모션이 끝날 즈음 원래 이미지로 복구하고 상태 업데이트.
+    //    **언제부터 1.5초인지는 3의 트리거가 정한다** — 여기서 거는 것은
+    //    상태머신이 끝내 안 붙어 한 번도 못 쏠 때의 바닥이다 (누른 시각 기준).
+    let hasRestored = false;
+    const restore = () => {
+      if (hasRestored) return;
+      hasRestored = true;
 
-    // 3. 모션이 끝날 즈음 원래 이미지로 복구하고 상태 업데이트
-    const resetTimer = setTimeout(() => {
       // 누른 카드만 되돌린다. 그 사이 다른 카드가 애니메이션 중일 수 있다
       animatingRef.current.delete(soundName);
       setAnimatingAnimals(prev => {
@@ -329,8 +324,35 @@ export default function MatchGame() {
       } else {
         // 오답은 Alert 없이 흔들림 + 카드 색상 변화로만 피드백
       }
-    }, 1500); // 1.5초 후 초기화
-    timerRefs.current.push(resetTimer);
+    };
+
+    let restoreTimer = setTimeout(restore, MOTION_WINDOW_MS);
+    timerRefs.current.push(restoreTimer);
+
+    /** 모션이 실제로 나간 순간 부른다 — 바닥 타이머를 걷고 거기서 다시 1.5초를 잰다 */
+    const restartWindowFromMotion = () => {
+      if (hasRestored) return;
+      clearTimeout(restoreTimer);
+      restoreTimer = setTimeout(restore, MOTION_WINDOW_MS);
+      timerRefs.current.push(restoreTimer);
+    };
+
+    // 3. 모션 트리거
+    // - 이 카드의 Rive는 방금 마운트를 걸었으므로 ref는 다음 틱에 잡힌다.
+    // - 로드(상태머신이 붙는 시점)는 여기서 기다리지 않는다 —
+    //   RiveAnimalGame이 트리거를 담았다가 onPlay에서 쏘고, 그때 알려 준다.
+    const trigger = () => {
+      if (isCorrect) {
+        riveRefs.current[soundName]?.triggerCorrect(restartWindowFromMotion);
+      } else {
+        riveRefs.current[soundName]?.triggerError(restartWindowFromMotion);
+        madeMistakeRef.current = true;
+        setMadeMistake(true);
+      }
+    };
+    // 마운트 한 틱만 넘긴다. 로드를 시간으로 때우지 않는다
+    const triggerTimer = setTimeout(trigger, 0);
+    timerRefs.current.push(triggerTimer);
   };
 
   return (

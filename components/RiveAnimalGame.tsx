@@ -6,9 +6,13 @@ const STATE_MACHINE = 'AnimalStatus';
 
 type TriggerName = 'isCorrect' | 'isError';
 
+/** 담아 둔 트리거. 쏘는 시점을 부른 쪽이 알아야 해서 알림을 함께 든다 */
+type PendingTrigger = { name: TriggerName; onFired?: () => void };
+
 export interface RiveAnimalGameRef {
-  triggerCorrect: () => void;
-  triggerError: () => void;
+  /** `onFired`는 **실제로 쏜 순간** 불린다 — 담겼다 나가는 경우 `onPlay` 시점이다 */
+  triggerCorrect: (onFired?: () => void) => void;
+  triggerError: (onFired?: () => void) => void;
 }
 
 interface RiveAnimalGameProps {
@@ -24,18 +28,25 @@ const RiveAnimalGame = forwardRef<RiveAnimalGameRef, RiveAnimalGameProps>(
     // 상태머신이 붙기 전에 들어온 트리거는 여기 담았다가 onPlay에서 쏜다.
     // 담지 않으면 fireState가 조용히 사라져 모션이 통째로 빠진다.
     const isStateMachineReady = useRef(false);
-    const pendingTriggers = useRef<TriggerName[]>([]);
+    const pendingTriggers = useRef<PendingTrigger[]>([]);
 
-    const fire = useCallback((trigger: TriggerName) => {
+    const fire = useCallback((name: TriggerName, onFired?: () => void) => {
       if (!isStateMachineReady.current) {
-        pendingTriggers.current.push(trigger);
+        pendingTriggers.current.push({ name, onFired });
         return;
       }
-      riveRef.current?.fireState(STATE_MACHINE, trigger);
+      riveRef.current?.fireState(STATE_MACHINE, name);
+      onFired?.();
     }, []);
 
-    const triggerCorrect = useCallback(() => fire('isCorrect'), [fire]);
-    const triggerError = useCallback(() => fire('isError'), [fire]);
+    const triggerCorrect = useCallback(
+      (onFired?: () => void) => fire('isCorrect', onFired),
+      [fire],
+    );
+    const triggerError = useCallback(
+      (onFired?: () => void) => fire('isError', onFired),
+      [fire],
+    );
 
     useImperativeHandle(ref, () => ({
       triggerCorrect,
@@ -56,7 +67,10 @@ const RiveAnimalGame = forwardRef<RiveAnimalGameRef, RiveAnimalGameProps>(
         if (pendingTriggers.current.length > 0) {
           const queued = pendingTriggers.current;
           pendingTriggers.current = [];
-          queued.forEach((trigger) => riveRef.current?.fireState(STATE_MACHINE, trigger));
+          queued.forEach(({ name, onFired }) => {
+            riveRef.current?.fireState(STATE_MACHINE, name);
+            onFired?.();
+          });
         }
       },
       [initialAnimalIndex]
