@@ -126,6 +126,17 @@ export default function Guitar() {
     timerRefs.current.length = 0;
   };
 
+  /**
+   * `score`의 동기 사본과 **유일한 쓰기 통로.**
+   * 피아노와 같다 — 정답이 `score + 1`로 렌더 클로저를 읽으면 한 프레임에
+   * 두 프렛이 들어올 때 점수가 하나만 오른다. 오답 −1도 여기를 탄다.
+   */
+  const scoreRef = useRef(0);
+  const applyScore = useCallback((next: number) => {
+    scoreRef.current = next;
+    setScore(next);
+  }, []);
+
   /** `progress`의 현재 값. 연타에서 렌더 클로저의 옛 값으로 덮어쓰지 않으려고 함께 든다 */
   const progressRef = useRef<any>({});
 
@@ -305,7 +316,7 @@ export default function Guitar() {
     clearPendingTimers();
     isScoringLockedRef.current = false;
     setIsTraining(true);
-    setScore(0);
+    applyScore(0);
     setSessionLog([]);
     setFeedback('훈련 시작!');
     playNextQuestion();
@@ -358,8 +369,8 @@ export default function Guitar() {
       // 다음 문제가 나올 때까지 채점을 잠근다. 여기서 안 잠그면 같은 프렛 연타가 계속 정답이다
       isScoringLockedRef.current = true;
 
-      const newScore = score + 1;
-      setScore(newScore);
+      const newScore = scoreRef.current + 1;
+      applyScore(newScore);
       // 렌더 클로저의 `progress`가 아니라 ref를 읽는다 — 연속 정답에서 옛 값으로 덮어쓰지 않게
       const currentProgress = progressRef.current[difficulty] || { cumulativeSuccesses: 0, highestScore: 0 };
       const newCumulativeSuccesses = currentProgress.cumulativeSuccesses + 1;
@@ -379,6 +390,7 @@ export default function Guitar() {
       setFeedback('정답입니다! 🎸');
       timerRefs.current.push(setTimeout(playNextQuestion, 1200));
     } else {
+      applyScore(Math.max(0, scoreRef.current - 1));
       setFeedback('틀렸습니다! 다시 들어보세요.');
       questionStartTimeRef.current = Date.now();
     }
