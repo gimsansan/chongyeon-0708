@@ -337,6 +337,11 @@ export const LAYOUT = {
   /** Refri (refri-test) — 냉장고 퀴즈 */
   refriRiveWidth: isTablet ? 800 : 600,
   refriRiveHeight: isTablet ? 667 : 500,
+  /**
+   * 냉장고 칸의 **상한** (화면 높이의 40%).
+   * 짧은 폰은 게이지·선반을 뺀 남은 칸이 이보다 작으면 그만큼만 쓴다.
+   * 확인 기기(411×868)·태블릿은 남은 칸이 더 커서 이 값이 그대로 높이가 된다.
+   */
   refriSceneHeightRatio: 0.4,
   refriCratesBottomRatio: 0.15,
   refriCratesPaddingLeftRatio: 0.075,
@@ -358,9 +363,9 @@ export const LAYOUT = {
    * `insets.bottom`을 더하지 않는다. 탭바가 이미 `64 + insets.bottom`을 먹고
    * 절대배치가 아니라 화면 영역이 그 위에서 끝난다 (`BottomTabBar.js:248` · 세션 47·53).
    *
-   * **화면 바닥이 아니라 선반을 기준으로 삼는 이유**: 세로 스택(게이지·냉장고·선반)에
-   * `flex: 1`이 없어 남는 높이가 선반 **아래**에 남는다. 화면 기준이면 그만큼 칸을
-   * 벗어난다 — 411×868은 +7~31이라 티가 덜 나지만 태블릿은 계산상 +212다.
+   * **화면 바닥이 아니라 선반을 기준으로 삼는 이유**: 냉장고는 `flex: 1`이어도
+   * `maxHeight`가 화면 40%라, 그보다 큰 여유는 선반 **아래**에 남는다. 화면 기준이면
+   * 그만큼 칸을 벗어난다 — 411×868은 +7~31이라 티가 덜 나지만 태블릿은 계산상 +212다.
    */
   refriFloatingReplayBottom: Math.round(
     (REFRI_TRAY_PADDING_BOTTOM - REFRI_FLOATING_REPLAY_SIZE) / 2,

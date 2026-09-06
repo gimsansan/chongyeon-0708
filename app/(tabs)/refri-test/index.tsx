@@ -7,6 +7,7 @@ import {
   Animated,
   Image,
   Modal,
+  type LayoutChangeEvent,
 } from "react-native";
 import { LAYOUT } from "../../../constants/layout";
 import { COLORS } from "../../../constants/colors";
@@ -21,6 +22,8 @@ import { useStopAudioOnBlur } from "../../../hooks/useStopAudioOnBlur";
 import * as Haptics from "expo-haptics";
 
 const REFRI_RIVE_AVAILABLE = true;
+const REFRI_SCENE_MAX_H =
+  LAYOUT.screenHeight * LAYOUT.refriSceneHeightRatio;
 
 type QuizItem = MonoItem;
 const CARD_SLOTS = 6;
@@ -39,6 +42,14 @@ type RefriState = "closed" | "open";
 
 export default function RefriTestScreen() {
   const insets = useSafeAreaInsets();
+  /** 냉장고 칸의 실측 높이. 상한은 `REFRI_SCENE_MAX_H`. 짧은 폰만 더 작다. */
+  const [sceneSlotH, setSceneSlotH] = useState(REFRI_SCENE_MAX_H);
+  const sceneScale =
+    sceneSlotH < REFRI_SCENE_MAX_H ? sceneSlotH / REFRI_SCENE_MAX_H : 1;
+  const onSceneSlotLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    setSceneSlotH((prev) => (Math.abs(prev - h) < 0.5 ? prev : h));
+  }, []);
   const [remainingIds, setRemainingIds] = useState<string[]>(() =>
     MONO_ITEMS.map((i) => i.id),
   );
@@ -885,8 +896,20 @@ export default function RefriTestScreen() {
       </View>
 
       {/* 냉장고 + 상자 표시 영역 */}
-      <View style={styles.refriContainer} ref={fridgeRef}>
-        <View style={styles.refriWithCratesWrapper}>
+      <View
+        style={[
+          styles.refriContainer,
+          sceneScale < 1 ? styles.refriContainerClip : null,
+        ]}
+        ref={fridgeRef}
+        onLayout={onSceneSlotLayout}
+      >
+        <View
+          style={[
+            styles.refriWithCratesWrapper,
+            sceneScale < 1 ? { transform: [{ scale: sceneScale }] } : null,
+          ]}
+        >
           {/* 상자들 (먼저 렌더링 = 뒤에 표시) */}
           {renderCrates()}
 
@@ -1145,17 +1168,24 @@ const styles = StyleSheet.create({
     borderRadius: LAYOUT.refriGaugeTrackBorderRadius,
   },
 
-  // 냉장고 + 상자 영역
+  // 냉장고 + 상자 영역. 높이는 화면 40%가 상한이고, 짧은 폰은 남은 칸만 쓴다.
   refriContainer: {
-    height: LAYOUT.screenHeight * LAYOUT.refriSceneHeightRatio,
+    flex: 1,
+    maxHeight: REFRI_SCENE_MAX_H,
+    minHeight: 0,
+    width: "100%",
     justifyContent: "center",
     alignItems: "center",
     marginTop: LAYOUT.refriContainerMarginTop,
   },
+  /** 칸이 상한보다 짧을 때만. 확인 기기에서는 켜지지 않는다(지금 그림이 칸 밖으로 나옴). */
+  refriContainerClip: {
+    overflow: "hidden",
+  },
   refriWithCratesWrapper: {
     position: "relative",
     width: "100%",
-    height: LAYOUT.screenHeight * LAYOUT.refriSceneHeightRatio,
+    height: REFRI_SCENE_MAX_H,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1242,6 +1272,7 @@ const styles = StyleSheet.create({
   answersContainer: {
     // 다시 듣기가 이 상자를 기준으로 절대배치된다 (RN 기본값이지만 뜻을 적어 둔다)
     position: "relative",
+    flexShrink: 0,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
