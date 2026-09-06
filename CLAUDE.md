@@ -49,13 +49,14 @@ doc/conversation_3.md            ← 세션 3
 ### 2-2. "인계문 작성해" → **현재 인계문**에 누적
 
 사용자가 **"인계문 작성해"**라고 하면 **현재 인계문**에 적는다.
-지금은 `doc/handoff9.md`(세션 52~). 구 파일 `doc/handoff8.md`는 세션 51 아카이브,
+지금은 `doc/handoff10.md`(세션 55~). 구 파일 `doc/handoff9.md`는 세션 52~54 아카이브,
+`doc/handoff8.md`는 세션 51,
 `doc/handoff7.md`는 세션 49~50, `doc/handoff6.md`는 세션 47~48, `doc/handoff5.md`는 세션 43~46,
 `doc/handoff4.md`는 세션 38~42, `doc/handoff3.md`는 세션 34~37,
 `doc/handoff2.md`는 세션 28~33, `doc/handoff1.md`는 세션 20~27,
 `doc/handoff.md`는 세션 1~9 아카이브,
 `doc/handoff_3.md`는 `3-branch`에서 가져온 기록이며
-**열 다 여기에 이어 쓰지 않는다.**
+**열하나 다 여기에 이어 쓰지 않는다.**
 
 **누적 방식이다. 기존 내용을 지우거나 덮어쓰지 않는다.**
 진행 현황 표를 갱신하고, 작업 로그에 새 항목을 아래로 쌓는다.
@@ -66,7 +67,7 @@ doc/conversation_3.md            ← 세션 3
 새 창에서 사용자가 인계문을 언급하며 **"이어서"**라고 하면,
 **곧바로 코드를 고치지 않는다.**
 
-1. **현재 인계문**(`doc/handoff9.md`)을 읽는다. 구 `doc/handoff8.md` / `doc/handoff7.md` / `doc/handoff6.md` / `doc/handoff5.md` / `doc/handoff4.md` / `doc/handoff3.md` / `doc/handoff2.md` / `doc/handoff1.md` / `doc/handoff.md` / `doc/handoff_3.md`는 이 명령만으로 읽지 않는다.
+1. **현재 인계문**(`doc/handoff10.md`)을 읽는다. 구 `doc/handoff9.md` / `doc/handoff8.md` / `doc/handoff7.md` / `doc/handoff6.md` / `doc/handoff5.md` / `doc/handoff4.md` / `doc/handoff3.md` / `doc/handoff2.md` / `doc/handoff1.md` / `doc/handoff.md` / `doc/handoff_3.md`는 이 명령만으로 읽지 않는다.
 2. 거기 적힌 "다음 작업"과 "주의사항 / 확인된 의도 동작"을 확인한다.
 3. 관련 코드를 읽어 현재 상태가 인계문과 일치하는지 확인한다.
 4. 무엇을 할 것인지 정리해 알린 뒤 시작한다.
@@ -78,8 +79,8 @@ doc/conversation_3.md            ← 세션 3
 
 ### 2-4. "인계문 머리 읽어" → 머리만, 해당 항목만
 
-사용자가 **"인계문 머리 읽어"** 라고 하면 **현재 인계문**(`doc/handoff9.md`) **전체를 읽지 않는다.**
-구 `doc/handoff8.md` / `doc/handoff7.md` / `doc/handoff6.md` / `doc/handoff5.md` / `doc/handoff4.md` / `doc/handoff3.md` / `doc/handoff2.md` / `doc/handoff1.md` / `doc/handoff.md` / `doc/handoff_3.md`는 읽지 않는다.
+사용자가 **"인계문 머리 읽어"** 라고 하면 **현재 인계문**(`doc/handoff10.md`) **전체를 읽지 않는다.**
+구 `doc/handoff9.md` / `doc/handoff8.md` / `doc/handoff7.md` / `doc/handoff6.md` / `doc/handoff5.md` / `doc/handoff4.md` / `doc/handoff3.md` / `doc/handoff2.md` / `doc/handoff1.md` / `doc/handoff.md` / `doc/handoff_3.md`는 읽지 않는다.
 
 읽는 범위 (머리):
 - 문서 맨 위 현황 문단
