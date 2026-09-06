@@ -408,6 +408,17 @@ export const LAYOUT = {
    *  버튼이 나타났다 사라져도 아래 게임이 밀리지 않는다 */
   learnQuitButtonMinHeight: isTablet ? 52 : 44,
 
+
+  /** 게임 넷 공용 「나가기」 — `(games)/_layout.tsx`에 하나만 얹는다.
+   *  높이는 손가락이 닿는 최소치, 여백은 코너에서 띄우는 값이다 (규칙 3) */
+  gameExitButtonMinHeight: isTablet ? 52 : 44,
+  gameExitButtonRight: isTablet ? 24 : 16,
+  gameExitButtonBottom: isTablet ? 24 : 16,
+  gameExitButtonPaddingH: isTablet ? 18 : 14,
+  gameExitButtonGap: isTablet ? 8 : 6,
+  gameExitButtonIconSize: isTablet ? 22 : 18,
+  gameExitButtonFontSize: isTablet ? 16 : 14,
+
   /** OrderGame — 소리 순서 맞추기 */
   orderGameCardSize: Math.min(isTablet ? 120 : 100, Math.round(SCREEN_WIDTH * 0.22)),
   orderGameImageSize: Math.round(Math.min(isTablet ? 120 : 100, Math.round(SCREEN_WIDTH * 0.22)) * 0.8),
