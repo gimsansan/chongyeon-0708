@@ -407,6 +407,16 @@ export const LAYOUT = {
   /** 「그만하기」 — 손가락이 닿는 최소 높이. 줄 높이도 같은 값이라
    *  버튼이 나타났다 사라져도 아래 게임이 밀리지 않는다 */
   learnQuitButtonMinHeight: isTablet ? 52 : 44,
+  /** 액션줄 두 알약 사이의 최소 숨 (`space-between`이라 보통은 더 벌어진다) */
+  learnActionRowGap: isTablet ? 16 : 12,
+  /** 왼쪽 토글(시작·계속·다시 듣기) — 값은 `WordGame` 바닥에 있던 `startButton` 그대로가 상한이다 */
+  learnActionButtonPaddingH: scaleActionByWidth(18, 30, 0.075),
+  learnActionButtonGap: scaleActionByWidth(6, 10, 0.025),
+  learnActionButtonIconSize: scaleActionByWidth(18, 24, 0.06),
+  learnActionButtonFontSize: scaleActionByWidth(14, 18, 0.045),
+  /** 오른쪽 「그만하기」 — 상한은 쓰던 `spacingMD`·`buttonTextFontSize`와 같은 값이다 */
+  learnQuitButtonPaddingH: scaleActionByWidth(12, isTablet ? 20 : 16, 0.04),
+  learnQuitButtonFontSize: scaleActionByWidth(14, isTablet ? 18 : 16, 0.042),
 
 
   /** 게임 넷 공용 「나가기」 — `(games)/_layout.tsx`에 하나만 얹는다.

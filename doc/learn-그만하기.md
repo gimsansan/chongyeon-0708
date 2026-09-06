@@ -32,7 +32,8 @@
    `playing`(듣는 중)에도 버튼이 보여야 한다.
 4. `round === 1`이고 `ready`이면 **숨긴다.** 「계속하기」부터 보인다.
 5. **확인창 없음.**
-6. 결과창에 `onGoHome`은 **여전히 안 넘긴다** (세션 52). 「다시 하기」만.
+6. 결과창에 `onGoHome`은 **여전히 안 넘긴다** (세션 52). 「나가기」를 다시 그리지 않는다.
+7. learn 결과 버튼 글자는 **「확인」**이다. 드럼은 「다시 하기」 그대로.
 
 라벨: 「그만하기」 / `accessibilityRole="button"` / `accessibilityLabel="퀴즈 그만하기"`.
 
@@ -73,8 +74,8 @@
 
 | 지금 | 푼 수 |
 |---|---|
-| `ready` · `playing` (이 라운드는 아직 안 채점) | `round - 1` |
-| `answered` · `waitingForNextRound` (이 라운드는 채점됨) | `round` |
+| `ready` · `playing` · `answered` (이 라운드는 아직 안 채점) | `round - 1` |
+| `waitingForNextRound` (고르고 피드백이 떠 있다 — 채점됨) | `round` |
 
 점수는 `scoreRef.current` 그대로. 채점 안 된 라운드는 더하지 않는다.
 
@@ -85,13 +86,33 @@
 
 ---
 
+## 결과 버튼 — learn만 「확인」
+
+이름만 바꾼다. 동작은 지금과 같다.
+
+「다시 하기」를 눌러도 게임이 바로 시작하지 않는다. 모달이 닫히고 `WordGame`이 다시 마운트돼
+**「시작하기」**로 돌아간다. 안 누르면 그만이다. 선택권은 이미 있는데, 버튼 이름이 강제처럼 읽힌다.
+
+「확인」이면 뜻을 맞춘다. 결과를 봤고, 닫는다. 그다음 시작은 「시작하기」가 맡는다.
+
+드럼은 그대로 둔다. 그쪽은 연주 모드로 돌아가는 「나가기」가 있어서 「다시 하기」가 맞다.
+공용 `DrumGameOverScreen`이라 **learn만 라벨을 바꾸는 prop**이 필요하다.
+
+「나가기」를 다시 그리지는 않는다. 세션 52에 정한 대로, 접고 갈 화면이 없어서
+하는 일이 「다시 하기」와 같다.
+
+그만하기를 넣을 때도 「확인」이 더 맞다. 중간에 접어 놓고 「다시 하기」가 뜨면 말이 안 된다.
+
+---
+
 ## 하지 않는 것
 
 - 확인창
 - `onGoHome` (넘기면 「나가기」가 그려지고 하는 일은 「다시 하기」와 같다)
 - 준비 화면으로만 되돌리기
 - 같은 모드를 다시 눌러 리셋하기 — 이번 범위가 아니다. 그만하기가 그 자리를 대신한다
-- 결과 모달 UI 변경. 이미 있는 `DrumGameOverScreen` + 「다시 하기」만 쓴다
+- 드럼 결과 버튼 문구를 바꾸기. learn만 「확인」이다
+- 결과 모달 뼈대를 새로 만들기. 이미 있는 `DrumGameOverScreen`에 라벨 prop만 더한다
 
 ---
 
@@ -106,8 +127,9 @@
 
 | 파일 | 무엇을 |
 |---|---|
-| `app/(tabs)/learn/index.tsx` | 난이도 줄 아래 버튼. `round`/`gameState`를 받아 숨김 |
+| `app/(tabs)/learn/index.tsx` | 난이도 줄 아래 버튼. `round`/`gameState`를 받아 숨김. 결과에 확인 라벨 |
 | `components/game/WordGame.tsx` | 부모에 상태 알림. 그만하기 때 `stopSound` |
 | `hooks/useWordGameLogic.ts` | 조기 종료 함수. 타이머 취소 + `onGameComplete(score, 푼 수, …)` |
+| `screens/DrumGameOverScreen.tsx` | learn만 쓰는 주 버튼 라벨 prop. 기본값은 「다시 하기」(드럼) |
 
 네이티브 재빌드는 필요 없다.
