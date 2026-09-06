@@ -37,7 +37,7 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
    */
   const scoreRef = useRef(0);
 
-  /** 다음 문제로 넘기는 타이머. 끊지 않으면 게임이 끝나거나 난이도를 바꾼 뒤에도 늦게 도착한다 */
+  /** 다음 문제로 넘기는 타이머. 끊지 않으면 종료·난이도 변경·언마운트·탭 이탈 뒤에 늦게 도착한다 */
   const nextRoundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearNextRoundTimer = useCallback(() => {
@@ -144,6 +144,8 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
     setRound(1);
     setAnswerHistory([]);
     setUsedPairs(new Set());
+    setShowFeedback(false);
+    setFeedbackMessage('');
     startNewRound();
   }, [startNewRound, clearNextRoundTimer]);
 
@@ -220,6 +222,7 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
     endGameEarly,
     startPlaying,
     setAnswered,
+    clearNextRoundTimer,
   };
 }
 

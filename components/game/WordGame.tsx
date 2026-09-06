@@ -124,6 +124,7 @@ function WordGameInner(
     startPlaying,
     setAnswered,
     endGameEarly,
+    clearNextRoundTimer,
   } = gameLogic;
 
   // 컴포넌트 언마운트 시 정리
@@ -135,18 +136,23 @@ function WordGameInner(
     };
   }, []);
 
-  // 🎧 탭을 떠날 때 단어 소리를 끊는다.
+  // 🎧 탭을 떠날 때 단어 소리와 다음 문제 타이머를 끊는다.
   // 탭은 언마운트되지 않으므로 위 언마운트 클린업은 탭 전환 때 실행되지 않는다.
   // (`learn/index.tsx`가 블러에서 난이도를 'easy'로 되돌리면 아래 이펙트가 stopSound를 부르지만,
   //  이미 'easy'였으면 값이 그대로라 이펙트가 다시 돌지 않아 소리가 남았다)
   useStopAudioOnBlur(() => {
     audioPlayer.stopSound();
+    clearNextRoundTimer();
 
     // 재생을 끊으면 '재생 완료' 콜백(:138)도 오지 않아 gameState가 'playing'에 갇힌다.
     // '듣는 중...' 화면에는 버튼이 없어(:218) 스스로 빠져나올 수 없으므로 선택지 화면으로 넘겨 둔다.
     // 문제·점수·라운드는 그대로이고, 돌아와서 '다시 듣기'로 같은 문제를 다시 들을 수 있다.
     if (gameState === 'playing') {
       setAnswered();
+    } else if (gameState === 'waitingForNextRound') {
+      // 타이머만 끊고 여기 두면 채점 빗장이 잠긴 채 피드백에 굳는다.
+      // 다음 문제·결과는 나가지 않는다 — 마지막 라운드였다면 다른 탭에서 결과 창이 떴다.
+      resetGame();
     }
   });
 
