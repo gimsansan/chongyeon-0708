@@ -1,9 +1,9 @@
-import React, {  useEffect, useRef } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, ViewStyle, StyleProp } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { useWordGameLogic } from '../../hooks/useWordGameLogic';
+import { useWordGameLogic, GameState } from '../../hooks/useWordGameLogic';
 import { useWordAudioPlayer } from '../../hooks/useWordAudioPlayer';
 import { useStopAudioOnBlur } from '../../hooks/useStopAudioOnBlur';
 import { WordDifficultyType } from '../../constants/wordSounds';
@@ -62,13 +62,32 @@ function AnimatedTapButton({
   );
 }
 
+/** 「그만하기」는 부모(`learn/index.tsx`)가 그리고, 접는 일은 여기서 한다 */
+export interface WordGameRef {
+  /** 지금 점수·푼 수로 결과를 낸다. 소리와 다음 문제 타이머를 함께 끊는다 */
+  quit: () => void;
+}
+
 interface WordGameProps {
   readonly difficulty: WordDifficultyType;
   readonly onGameComplete?: (score: number, maxScore: number, percentage: number) => void;
   readonly onAnswerShown?: () => void;
+  /**
+   * 라운드·상태 알림. 부모가 「그만하기」를 **언제 그릴지** 정하는 데만 쓴다
+   * (`round === 1 && 'ready'`이면 숨긴다 — 아직 「시작하기」다).
+   *
+   * 버튼을 이 컴포넌트 안에 두지 않는 이유는 상태가 넷이라 **자리마다 복제**되기 때문이다.
+   * 설계 원문은 `doc/learn-그만하기.md`.
+   *
+   * 매 렌더 새로 만들어 넘기면 아래 이펙트가 계속 돈다 — 부모에서 `useCallback`으로 고정한다.
+   */
+  readonly onProgressChange?: (progress: { round: number; gameState: GameState }) => void;
 }
 
-export function WordGame({ difficulty = 'easy', onGameComplete, onAnswerShown }: Readonly<WordGameProps>) {
+function WordGameInner(
+  { difficulty = 'easy', onGameComplete, onAnswerShown, onProgressChange }: Readonly<WordGameProps>,
+  ref: React.Ref<WordGameRef>,
+) {
   const { width, height } = useWindowDimensions();
   const metrics = getWordGameMetrics(width, height);
   const gameLogic = useWordGameLogic({ difficulty, onGameComplete });
@@ -89,6 +108,7 @@ export function WordGame({ difficulty = 'easy', onGameComplete, onAnswerShown }:
     resetGame,
     startPlaying,
     setAnswered,
+    endGameEarly,
   } = gameLogic;
 
   // 컴포넌트 언마운트 시 정리
@@ -120,6 +140,25 @@ export function WordGame({ difficulty = 'easy', onGameComplete, onAnswerShown }:
     audioPlayer.stopSound();
     resetGame();
   }, [difficulty, resetGame]);
+
+  // 라운드·상태가 바뀔 때마다 부모에게 알린다. 부모는 이것으로 「그만하기」를 그릴지 정한다
+  useEffect(() => {
+    onProgressChange?.({ round, gameState });
+  }, [round, gameState, onProgressChange]);
+
+  /**
+   * 「그만하기」. 오디오는 이 컴포넌트가 들고 있으므로 여기서 끊고,
+   * 타이머 취소와 결과 통보는 훅(`endGameEarly`)이 한다.
+   *
+   * 결과가 뜨면 부모가 이 컴포넌트를 언마운트하므로 `gameState`를 따로 되돌리지 않는다.
+   * 의존성 배열을 두지 않아 **매 렌더 최신 클로저**로 갱신한다 — `stopSound`가 매 렌더 새 함수다.
+   */
+  useImperativeHandle(ref, () => ({
+    quit: () => {
+      audioPlayer.stopSound();
+      endGameEarly();
+    },
+  }));
 
   // 답안 표시 시 스크롤
   useEffect(() => {
@@ -424,6 +463,8 @@ const styles = StyleSheet.create({
   
   },
 });
+
+export const WordGame = forwardRef<WordGameRef, WordGameProps>(WordGameInner);
 
 export default WordGame;
 

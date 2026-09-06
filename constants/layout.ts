@@ -404,6 +404,9 @@ export const LAYOUT = {
   learnMultiStarIconHeight: scaleFromPhoneButton(44),
   learnStarsRowContainerHeight: scaleFromPhoneButton(55),
   learnDifficultyNameFontSize: scaleFromPhoneButton(18),
+  /** 「그만하기」 — 손가락이 닿는 최소 높이. 줄 높이도 같은 값이라
+   *  버튼이 나타났다 사라져도 아래 게임이 밀리지 않는다 */
+  learnQuitButtonMinHeight: isTablet ? 52 : 44,
 
   /** OrderGame — 소리 순서 맞추기 */
   orderGameCardSize: Math.min(isTablet ? 120 : 100, Math.round(SCREEN_WIDTH * 0.22)),

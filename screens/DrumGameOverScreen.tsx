@@ -10,6 +10,14 @@ interface DrumGameOverScreenProps {
   maxScore: number;
   onRestart: () => void;
   /**
+   * 주 버튼 글자. 기본값은 드럼의 「다시 하기」다.
+   *
+   * learn은 **「확인」**을 넘긴다 — 눌러도 게임이 바로 시작하지 않고 `WordGame`이 다시 마운트돼
+   * 「시작하기」로 돌아가므로, 「다시 하기」가 강제처럼 읽혔다 (`doc/learn-그만하기.md`).
+   * 하는 일은 양쪽이 같다 — **이름만 다르다.**
+   */
+  restartLabel?: string;
+  /**
    * 결과를 접고 **돌아갈 화면이 있을 때만** 넘긴다. 안 넘기면 「나가기」를 그리지 않는다.
    *
    * 드럼은 퀴즈를 접고 **연주 모드**로 돌아가므로 넘긴다.
@@ -67,11 +75,14 @@ function DrumGameOverScreen({
   score,
   maxScore,
   onRestart,
+  restartLabel = "다시 하기",
   onGoHome,
 }: DrumGameOverScreenProps) {
   // 점수에 따른 등급(메시지 + 색)
   const clampedMaxScore = Math.max(maxScore, 1);
-  const isPerfect = score === maxScore;
+  // `maxScore`가 0이면 만점이 아니다 — learn 「그만하기」는 **한 문제도 안 푼 채** 접을 수 있어
+  // `0/0`이 들어온다. 막지 않으면 콘페티가 깔리고 「완벽해요!」가 뜬다
+  const isPerfect = maxScore > 0 && score === maxScore;
   const tier =
     isPerfect
       ? RESULT_TIERS.perfect
@@ -168,19 +179,20 @@ function DrumGameOverScreen({
 
           </View>
 
-          {/* 버튼 — 주 동작(다시 하기)만 채우고, 결과를 닫는 나가기는 아웃라인으로 구분한다.
-              `onGoHome`이 없으면 「다시 하기」 하나가 칸을 채운다 (learn) */}
+          {/* 버튼 — 주 동작만 채우고, 결과를 닫는 나가기는 아웃라인으로 구분한다.
+              `onGoHome`이 없으면 주 버튼 하나가 칸을 채운다 (learn).
+              글자는 `restartLabel` — 드럼 「다시 하기」 · learn 「확인」 */}
           <View style={styles.buttonContainer}>
             <Pressable
               onPress={onRestart}
               accessibilityRole="button"
-              accessibilityLabel="다시 하기"
+              accessibilityLabel={restartLabel}
               style={({ pressed }) => [
                 styles.actionButton,
                 pressed && styles.pressedButton,
               ]}
             >
-              <Text style={styles.buttonText}>다시 하기</Text>
+              <Text style={styles.buttonText}>{restartLabel}</Text>
             </Pressable>
 
             {onGoHome && (

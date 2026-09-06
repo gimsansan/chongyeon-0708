@@ -164,6 +164,32 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
     setUsedPairs(new Set());
   }, [clearNextRoundTimer]);
 
+  /**
+   * 「그만하기」 — 조기 종료. 정상 종료(마지막 라운드 타이머)와 **같은 `onGameComplete`**로 나간다.
+   * 설계 원문은 `doc/learn-그만하기.md`.
+   *
+   * 1. 타이머를 먼저 끊는다 — `waitingForNextRound`의 600ms가 뒤에 도착하면
+   *    다음 문제나 결과가 **한 번 더** 나간다
+   * 2. `maxScore`에는 `maxRounds`(5·10)가 아니라 **푼 수**를 넣는다.
+   *    3문제에서 접으면 `3/3`이지 `3/5`가 아니다
+   *
+   * 푼 수는 **채점이 끝난 라운드**만 센다 — `waitingForNextRound`(고르고 피드백이 떠 있다)만
+   * 이번 라운드를 세고, `ready`·`playing`·`answered`는 `round - 1`이다.
+   * `answered`는 이름과 달리 **선택지가 떠 있고 아직 안 고른** 상태다 —
+   * 여기서 접으면 안 푼 문제가 분모에 들어가 `3/4`가 됐다 (세션 60에 사용자가 고른 것).
+   *
+   * 소리를 끊는 것은 부르는 쪽(`WordGame`)이 한다 — 오디오는 이 훅이 들고 있지 않다.
+   */
+  const endGameEarly = useCallback(() => {
+    clearNextRoundTimer();
+
+    const answeredCount = gameState === 'waitingForNextRound' ? round : round - 1;
+    const percentage =
+      answeredCount > 0 ? Math.round((scoreRef.current / answeredCount) * 100) : 0;
+
+    onGameComplete?.(scoreRef.current, answeredCount, percentage);
+  }, [gameState, round, onGameComplete, clearNextRoundTimer]);
+
   const startPlaying = useCallback(() => {
     setGameState('playing');
   }, []);
@@ -191,6 +217,7 @@ export function useWordGameLogic({ difficulty, onGameComplete }: UseWordGameLogi
     handleAnswer,
     resetGame,
     resetGameWithoutStarting,
+    endGameEarly,
     startPlaying,
     setAnswered,
   };

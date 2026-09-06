@@ -1,14 +1,15 @@
 import { Text, View, StyleSheet, TouchableOpacity, Image, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from 'expo-router';
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   withSpring,
   useAnimatedStyle,
 } from 'react-native-reanimated';
-import { WordGame } from '../../../components/game/WordGame';
+import { WordGame, WordGameRef } from '../../../components/game/WordGame';
+import { GameState } from '../../../hooks/useWordGameLogic';
 import DrumGameOverScreen from '../../../screens/DrumGameOverScreen';
 import { WordDifficultyType } from '../../../constants/wordSounds';
 import { LAYOUT } from '../../../constants/layout';
@@ -22,6 +23,25 @@ export default function Index() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
   const [finalMaxScore, setFinalMaxScore] = useState(0);
+
+  /**
+   * 「그만하기」를 그릴지 정하는 값. 라운드·상태는 `WordGame` 안에 있어 부모가 모른다 —
+   * 자식이 바뀔 때마다 알려 준다 (설계: `doc/learn-그만하기.md`).
+   */
+  const [gameProgress, setGameProgress] = useState<{ round: number; gameState: GameState }>({
+    round: 1,
+    gameState: 'ready',
+  });
+  const wordGameRef = useRef<WordGameRef>(null);
+
+  // 매 렌더 새 함수를 넘기면 자식의 알림 이펙트가 계속 돈다
+  const handleProgressChange = useCallback(
+    (progress: { round: number; gameState: GameState }) => setGameProgress(progress),
+    []
+  );
+
+  /** 1라운드 준비 화면에서는 숨긴다 — 아직 「시작하기」라 접을 것이 없다 */
+  const canQuit = !(gameProgress.round === 1 && gameProgress.gameState === 'ready');
 
   // 애니메이션 값들
   const easyScale = useSharedValue(1);
@@ -40,6 +60,7 @@ export default function Index() {
         setFinalScore(0);
         setFinalMaxScore(0);
         setCurrentDifficulty('easy');
+        setGameProgress({ round: 1, gameState: 'ready' });
         easyScale.value = withSpring(1);
         normalScale.value = withSpring(1);
       };
@@ -68,6 +89,17 @@ export default function Index() {
     setIsGameOver(false);
     setFinalScore(0);
     setFinalMaxScore(0);
+    // 결과를 닫으면 `WordGame`이 다시 마운트돼 1라운드 준비 화면으로 돌아간다.
+    // 자식의 알림을 기다리지 않고 여기서 함께 되돌린다 — 한 프레임 동안 「그만하기」가 남지 않게
+    setGameProgress({ round: 1, gameState: 'ready' });
+  };
+
+  /**
+   * 「그만하기」 — 확인창 없이 **지금 점수 그대로** 결과를 낸다.
+   * 소리 정지·타이머 취소·결과 통보는 자식이 한 길로 처리한다 (`WordGameRef.quit`).
+   */
+  const handleQuitGame = () => {
+    wordGameRef.current?.quit();
   };
 
   // 애니메이션 스타일
@@ -186,14 +218,32 @@ export default function Index() {
                         </TouchableOpacity>
                       </Animated.View>
                     </View>
+
+                    {/* 「그만하기」 — 난이도 버튼과 붙이면 오탭이라 **줄 아래** 오른쪽 끝에 둔다.
+                        줄 높이는 버튼이 없을 때도 잡아 둔다 — 나타났다 사라져도 게임이 밀리지 않는다.
+                        배경 사진 위라 글자를 바로 얹지 않고 제목과 같은 흰 pill로 받친다 */}
+                    <View style={styles.quitRow}>
+                      {canQuit && (
+                        <TouchableOpacity
+                          style={styles.quitButton}
+                          onPress={handleQuitGame}
+                          accessibilityRole="button"
+                          accessibilityLabel="퀴즈 그만하기"
+                        >
+                          <Text style={styles.quitButtonText}>그만하기</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 )}
 
                 <View style={styles.gameContentInner}>
                   {!isGameOver && (
                     <WordGame
+                      ref={wordGameRef}
                       difficulty={currentDifficulty}
                       onGameComplete={handleGameComplete}
+                      onProgressChange={handleProgressChange}
                     />
                   )}
                 </View>
@@ -225,6 +275,7 @@ export default function Index() {
                 score={finalScore}
                 maxScore={finalMaxScore}
                 onRestart={handleRestartGame}
+                restartLabel="확인"
               />
             </View>
           </Modal>
@@ -354,6 +405,32 @@ const styles = StyleSheet.create({
   /** 선택 표시를 글자에도 준다. 흰 배경 위 초록 글자는 successOnWhite다 (브랜드 초록은 2.2:1) */
   difficultyNameActive: {
     color: COLORS.successOnWhite,
+  },
+  /**
+   * 「그만하기」 줄. 난이도 버튼과 간격을 두고, 버튼이 없을 때도 높이를 잡는다 (규칙 3).
+   * 작은 폰에서도 난이도 터치 영역과 겹치지 않게 `marginTop`을 준다.
+   */
+  quitRow: {
+    marginTop: LAYOUT.spacingMD,
+    minHeight: LAYOUT.learnQuitButtonMinHeight,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  quitButton: {
+    minHeight: LAYOUT.learnQuitButtonMinHeight,
+    paddingHorizontal: LAYOUT.spacingMD,
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: COLORS.surfaceOnImage,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    // 그림자는 elevation으로만 낸다 (규칙 4 — 안드로이드 전용 앱)
+    elevation: 2,
+  },
+  quitButtonText: {
+    fontSize: LAYOUT.buttonTextFontSize,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
   },
   gameContentInner: {
     flex: 1,
